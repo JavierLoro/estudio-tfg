@@ -17,7 +17,7 @@ import { HttpError } from './errors.ts';
 import type { EventBus } from './events.ts';
 import { atomicWrite } from './fsutil.ts';
 import { isInside } from './paths.ts';
-import { createMemoriaFromTemplate, isEmptyDir } from '../../scripts/memoria-template.mjs';
+import { DEFAULT_PERFIL, createMemoriaFromTemplate, isEmptyDir, listPerfiles } from '../../scripts/memoria-template.mjs';
 
 export type Source = 'settings' | 'env' | 'default';
 
@@ -297,15 +297,19 @@ export class Settings {
     });
   }
 
-  /** Create a memoria from templates/esi-tfg in `dir` (missing or empty) and select it. */
+  /** Create a memoria from templates/base + templates/perfiles/<perfil> in `dir` (missing or empty) and select it. */
   initMemoria(body: unknown): Promise<SettingsView> {
     return this.serial(async () => {
-      const raw = (body as { dir?: unknown } | null)?.dir;
+      const { dir: raw, perfil: rawPerfil } = (body as { dir?: unknown; perfil?: unknown } | null) ?? {};
+      const perfil = rawPerfil === undefined || rawPerfil === null || rawPerfil === '' ? DEFAULT_PERFIL : rawPerfil;
+      if (typeof perfil !== 'string' || !listPerfiles().some((p) => p.id === perfil)) {
+        throw fieldError('perfil', `Perfil de plantilla desconocido: ${String(perfil)}`);
+      }
       const dir = normalizeDir(this.cfg, 'dir', raw, false);
       if (fss.existsSync(dir) && !isDirSync(dir)) throw fieldError('dir', `No es una carpeta: ${dir}`);
       if (!isEmptyDir(dir)) throw new HttpError(409, `La carpeta no está vacía: ${dir}`, { field: 'dir' });
       try {
-        createMemoriaFromTemplate(dir);
+        createMemoriaFromTemplate(dir, { perfil });
       } catch (e: any) {
         if (e?.code === 'ENOTEMPTY') throw new HttpError(409, `La carpeta no está vacía: ${dir}`, { field: 'dir' });
         throw new HttpError(500, `No se pudo crear la memoria: ${e?.message ?? e}`);

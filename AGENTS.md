@@ -16,7 +16,7 @@ Estudio TFG: entorno self-hosted para escribir la memoria del TFG en LaTeX con e
 | `server/` | API: Node ≥ 24, TypeScript ejecutado con `tsx` (sin compilar), Fastify 5, chokidar. Tests en `server/test/` con vitest. |
 | `web/` | Interfaz: React 19, Vite, Tailwind 4, Dockview, CodeMirror 6, zustand. Estado en `src/state/`, paneles en `src/panels/`, cliente tipado en `src/api.ts`. |
 | `worker/` | Compilación LaTeX en Docker (`texlive/texlive:latest-full`, latexmk, `-no-shell-escape`). JS sin dependencias npm; tests con `node --test`. |
-| `templates/esi-tfg/` | Plantilla base de la memoria (clase derivada de ARCO, GPL-2.0+). |
+| `templates/` | Plantilla de la memoria: `base/` (común; clase `estilo/memoria.cls` derivada de ARCO, GPL-2.0+) y `perfiles/<id>/` (datos de la institución, logo y capítulos; se copia encima de `base/`). |
 | `scripts/` | `npm run init` y creación de la memoria desde la plantilla. |
 | `test/fixtures/` | Datos de prueba ficticios. |
 | `data/` | Compilaciones, historial y ajustes locales. Ignorado por git. |
@@ -40,7 +40,7 @@ Antes de dar un cambio por terminado: tests del servidor en verde, `tsc` del ser
 ### Contenido personal: nunca al repo
 - La memoria (`MEMORIA_DIR`), las notas (`NOTES_DIR`), `data/` y `.env` no se versionan. Dentro del repo solo se permite `workspace/` (ignorada).
 - No añadas al repo contenido del TFG del usuario, notas, rutas con datos reales ni builds. Los fixtures deben ser ficticios.
-- Las mejoras de la plantilla van en `templates/esi-tfg/`; no se propagan a una memoria ya creada.
+- Las mejoras de la plantilla van en `templates/base/` o en `templates/perfiles/<id>/`; no se propagan a una memoria ya creada. La plantilla compila con **0 avisos** (LaTeX y biber) en todos los perfiles: compruébalo con el worker tras cualquier cambio.
 
 ### No perder datos
 - Los archivos en disco son la fuente de verdad: no hay base de datos.
@@ -67,4 +67,4 @@ Antes de dar un cambio por terminado: tests del servidor en verde, `tsc` del ser
 - Mensajes de commit en español, una línea descriptiva (p. ej. «Inicio como vista propia (no pestaña) y ancho del panel lateral ajustable»).
 - Autoría con el noreply de GitHub, como está configurado; no uses otros correos.
 - Haz commit o push solo cuando lo pida el usuario.
-- Licencia AGPL-3.0. La plantilla deriva de ARCO (GPL-2.0+): conserva su aviso de copyright en `templates/esi-tfg/estilo/esi-tfg.cls`. No copies código de repositorios sin licencia; solo las ideas.
+- Licencia AGPL-3.0. La plantilla deriva de ARCO (GPL-2.0+): conserva su aviso de copyright en `templates/base/estilo/memoria.cls`. No copies código de repositorios sin licencia; solo las ideas.

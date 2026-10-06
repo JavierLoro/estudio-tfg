@@ -9,7 +9,7 @@ describe('config: contenido personal fuera del repo', () => {
     expect(() => loadConfig({}, REPO_ROOT)).not.toThrow();
   });
   it('rechaza carpetas versionadas del repo', () => {
-    expect(() => loadConfig({ MEMORIA_DIR: './templates/esi-tfg' }, REPO_ROOT)).toThrow(/dentro del repositorio/);
+    expect(() => loadConfig({ MEMORIA_DIR: './templates/base' }, REPO_ROOT)).toThrow(/dentro del repositorio/);
     expect(() => loadConfig({ NOTES_DIR: './docs' }, REPO_ROOT)).toThrow(/dentro del repositorio/);
     expect(() => loadConfig({ NOTES_DIR: '.' }, REPO_ROOT)).toThrow(/dentro del repositorio/);
     expect(() => loadConfig({ NOTES_DIR: './workspace-x' }, REPO_ROOT)).toThrow(/dentro del repositorio/);

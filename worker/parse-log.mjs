@@ -189,19 +189,35 @@ export function parseLog(text, opts = {}) {
 export function parseBlg(text, opts = {}) {
   const { rootDir, mainFile = 'main.tex' } = opts;
   const diags = [];
+  let bibSource = null; // último .bib que Biber dice estar leyendo
   for (const raw of String(text).replace(/\r\n?/g, '\n').split('\n')) {
     const line = raw.trimEnd();
     let m;
+    // Biber: "[53] bibtex.pm:1519> INFO - Found BibTeX data source 'bibliografia.bib'"
+    if ((m = /^(?:\[\d+\] [^>]*> )?INFO - (?:Found BibTeX data source|Looking for bibtex file) '([^']+)'/.exec(line))) {
+      bibSource = m[1];
+      continue;
+    }
     // Biber: "[123] Utils.pm:409> WARN - mensaje" / "ERROR - mensaje"
     if ((m = /^(?:\[\d+\] [^>]*> )?(WARN|ERROR) - (.*)$/.exec(line))) {
       const sev = m[1] === 'ERROR' ? 'error' : 'warning';
-      const fm = /file '([^']+\.bib)'.*line (\d+)/.exec(m[2]);
-      diags.push({
-        severity: sev,
-        file: normalizeFile(fm ? fm[1] : mainFile, rootDir),
-        line: fm ? Number(fm[2]) : null,
-        message: 'Biber: ' + m[2],
-      });
+      let msg = m[2];
+      // Las citas no encontradas ya salen como "Citation ... undefined" en el .log
+      if (/^I didn't find a database entry/.test(msg)) continue;
+      let file = bibSource ?? mainFile;
+      let ln = null;
+      let fm;
+      if ((fm = /file '([^']+\.bib)'.*line (\d+)/.exec(msg))) {
+        file = fm[1];
+        ln = Number(fm[2]);
+      } else if ((fm = /^BibTeX subsystem: (.+?), line (\d+), (.*)$/.exec(msg))) {
+        // Biber analiza una copia temporal (/tmp/biber_tmp_…/….utf8) con las
+        // mismas líneas que el .bib que estaba leyendo.
+        if (/\.bib$/i.test(fm[1])) file = fm[1];
+        ln = Number(fm[2]);
+        msg = fm[3];
+      }
+      diags.push({ severity: sev, file: normalizeFile(file, rootDir), line: ln, message: 'Biber: ' + msg });
       continue;
     }
     // BibTeX: "I was expecting a `,' or a `}'---line 5 of file main.bib"

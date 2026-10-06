@@ -5,9 +5,9 @@ import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app.ts';
 import { REPO_ROOT, loadConfig, type Config } from '../src/config.ts';
 import type { Ctx } from '../src/context.ts';
+import { copyTemplate } from '../../scripts/memoria-template.mjs';
 
 export const FIXTURES = path.join(REPO_ROOT, 'test', 'fixtures');
-export const TEMPLATE = path.join(REPO_ROOT, 'templates', 'esi-tfg');
 
 export interface TestEnv {
   dir: string;
@@ -17,11 +17,12 @@ export interface TestEnv {
   close: () => Promise<void>;
 }
 
-/** Copy test/fixtures (notes) and templates/esi-tfg (memoria) into a fresh temp dir and build an app pointing there. Never touches the real vault. */
+/** Copy test/fixtures (notes) and the template (templates/base + perfil esi-uclm, as memoria) into a fresh temp dir and build an app pointing there. Never touches the real vault. */
 export async function setup(env: Record<string, string> = {}, opts: { watch?: boolean; before?: (dir: string) => Promise<void> } = {}): Promise<TestEnv> {
   const dir = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'estudio-tfg-test-')));
   await fs.cp(FIXTURES, path.join(dir, 'fixtures'), { recursive: true });
-  await fs.cp(TEMPLATE, path.join(dir, 'fixtures', 'memoria'), { recursive: true });
+  await fs.mkdir(path.join(dir, 'fixtures', 'memoria'), { recursive: true });
+  copyTemplate(path.join(dir, 'fixtures', 'memoria'));
   const cfg = loadConfig(
     {
       NOTES_DIR: './fixtures/notes',

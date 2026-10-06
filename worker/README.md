@@ -18,8 +18,10 @@ Contrato: `docs/CONTRACT.md` → «Worker».
 # desde la raíz del repo (el worker no monta la memoria: recibe un tar)
 docker compose up -d --build worker      # o: npm run worker
 curl -s localhost:8090/health
-(cd templates/esi-tfg && COPYFILE_DISABLE=1 tar -cf - *) \
-  | curl -s -XPOST localhost:8090/compile -H 'content-type: application/x-tar' -H 'x-main: main.tex' --data-binary @-
+# plantilla (templates/base + un perfil) montada en una carpeta temporal
+node -e "import('./scripts/memoria-template.mjs').then((m) => m.copyTemplate('/tmp/memoria', { perfil: 'esi-uclm' }))"
+(cd /tmp/memoria && COPYFILE_DISABLE=1 tar -cf - *) \
+  | curl -s -XPOST localhost:8090/compile -H 'content-type: application/x-tar' -H 'x-main: tfg.tex' --data-binary @-
 docker compose logs -f worker
 
 # tests (no necesitan Docker)
@@ -58,11 +60,12 @@ Petición: `Content-Type: application/x-tar` (si no, **415**), cabecera `X-Main:
 
 - **Errores**: `./archivo.tex:12: mensaje` (file-line-error), `! Mensaje` + `l.N` (archivo por la pila de paréntesis del log), `*** (job aborted, no legal \end found)`, errores del `.blg` (`---line N of file x.bib`, Biber `ERROR -`). Si latexmk falla/agota tiempo sin error reconocible, se añade uno genérico.
 - **Avisos**: `LaTeX Warning`, `Package X Warning` (con líneas de continuación `(X)`), `Class X Warning`, `pdfTeX warning`, `Warning--` de BibTeX, `WARN -` de Biber. `… on input line N` → `line`.
+- **Biber** (plantilla v0.5, biblatex): los errores de sintaxis llegan como `BibTeX subsystem: /tmp/biber_tmp_…/….utf8, line N, …` (una copia temporal con las mismas líneas); se atribuyen al último `.bib` que Biber dice leer (`Found BibTeX data source '…'`) con su línea. `I didn't find a database entry` se omite (ya sale como cita indefinida en el `.log`).
 - **Se ignoran**: `Overfull/Underfull/Loose/Tight \hbox|\vbox` (y su contenido), `LaTeX Font Warning`, `Warning--I didn't find a database entry` (ya sale como `Citation … undefined`).
 - **Ruido de compilación abortada**: latexmk se detiene en el primer `pdflatex` con error y, como se compila desde cero, todas las citas/referencias salen indefinidas. Si hay errores, se ocultan `Citation/Reference … undefined`, `There were undefined references`, `Label(s) may have changed`, `rerunfilecheck`, `Acronym X is not defined`. En compilaciones sin errores sí se muestran.
 - El parser también tolera logs cortados a 79 columnas (por bytes), por si se usa fuera del worker.
 
-## Fase 0: plantilla esi-tfg (`templates/esi-tfg`)
+## Fase 0: plantilla esi-tfg original de ARCO (histórico)
 
 Medido el 2026-10-06 en el Mac (Docker Desktop 29.8.1), imagen `texlive/texlive:latest-full` = **TeX Live 2026**, pdfTeX 1.40.29, latexmk 4.88. Imagen del worker: 9.2 GB.
 

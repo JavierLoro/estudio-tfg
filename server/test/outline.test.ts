@@ -16,7 +16,7 @@ import { sectionHooks } from '../src/sections.ts';
 
 const w = (n: number, word = 'palabra') => Array.from({ length: n }, () => word).join(' ');
 
-const MAIN = `\\documentclass{estilo/esi-tfg}
+const MAIN = `\\documentclass{estilo/memoria}
 \\input{datos}
 \\begin{document}
 \\frontmatter

@@ -5,6 +5,7 @@ import type { Ctx } from '../context.ts';
 import { HttpError, notFound } from '../errors.ts';
 import { isInside } from '../paths.ts';
 import { expandUserPath, fieldError, isDirSync, isFileSync, requireAdmin } from '../settings.ts';
+import { listPerfiles } from '../../../scripts/memoria-template.mjs';
 
 export interface DirEntry {
   name: string;
@@ -34,6 +35,7 @@ export default async function settingsRoutes(app: FastifyInstance, { ctx }: { ct
   app.put('/api/settings', { preHandler: admin }, async (req) => settings.update(req.body));
   app.post('/api/settings/reset', { preHandler: admin }, async (req) => settings.reset(req.body));
   app.post('/api/settings/init-memoria', { preHandler: admin }, async (req) => settings.initMemoria(req.body));
+  app.get('/api/templates/perfiles', async () => ({ perfiles: listPerfiles() }));
 
   app.get('/api/fs/dirs', { preHandler: admin }, async (req) => {
     const q = req.query as Record<string, string | undefined>;

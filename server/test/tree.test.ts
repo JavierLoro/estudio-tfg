@@ -60,7 +60,8 @@ describe('GET /api/tree', () => {
     const all = flatPaths(res.json().entries);
     expect(all).toContain('tfg.tex');
     expect(all).toContain('bibliografia.bib');
-    expect(all).toContain('estilo/esi-tfg.cls');
+    expect(all).toContain('estilo/memoria.cls');
+    expect(all).toContain('estilo/institucion.tex');
     for (const bad of ['main.aux', 'main.log', 'main.toc', 'main.synctex.gz', 'main.fdb_latexmk', 'main.bbl', 'main.out', 'build', 'node_modules', '.gitignore', 'chapter.tex.lock']) {
       expect(all).not.toContain(bad);
     }

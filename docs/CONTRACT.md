@@ -10,7 +10,7 @@ Todo el contenido vive en archivos; no hay base de datos en el piloto.
 | `server/` | API + estáticos de `web/dist` | Node 24, TypeScript (tsx), Fastify 5, chokidar |
 | `web/` | Interfaz | React 19, Vite, TypeScript, Tailwind 4, Dockview, CodeMirror 6, lucide-react |
 | `worker/` | Compilación LaTeX | Imagen `texlive/texlive:latest-full` + Node (HTTP mínimo, sin dependencias) |
-| `templates/esi-tfg/` | Plantilla base de la memoria (UCLM-ESI) | Se copia a `MEMORIA_DIR` con `npm run init` |
+| `templates/` | Plantilla de la memoria: `base/` + `perfiles/<id>/` (v0.5) | Se copia a `MEMORIA_DIR` con `npm run init` |
 | `test/fixtures/` | Notas de prueba | Nunca usar el vault real en pruebas |
 | `workspace/` | Contenido local por defecto | Ignorado por git |
 
@@ -146,7 +146,7 @@ Si `AUTH_TOKEN` está definido: cabecera `Authorization: Bearer <token>` o cooki
 - `PUT /api/settings` body parcial `{ notesDir?, resourcesSubdir?, memoriaDir?, memoriaMain? }` (admite `~`). Valida: absoluta tras expandir, existe y es carpeta, dentro de `ALLOWED_ROOTS`, fuera del repo salvo `workspace/`; `resourcesSubdir` relativa sin `..` (se crea si no existe). Errores → 400 `{ error, field }`. Si es válido: guarda, **aplica en caliente** (reconfigura rutas, reinicia el watcher, invalida caches) y emite SSE `event: settings` con los nuevos valores. → mismo formato que GET.
 - `POST /api/settings/reset` body `{ keys: string[] }` → elimina esas claves de `settings.json` (vuelven a `.env`/defecto), aplica en caliente.
 - `GET /api/fs/dirs?path=<abs>` → `{ path, parent: string|null, dirs: { name, path, isObsidianVault, hasMainTex, isGitRepo }[] }`. Sin `path` → lista `allowedRoots`. Oculta dotfiles. `parent` null al llegar a una raíz permitida.
-- `POST /api/settings/init-memoria` body `{ dir }` → si `dir` no existe o está vacía: la crea, copia `templates/esi-tfg/`, `git init` + commit inicial; aplica `memoriaDir=dir`. Si no está vacía → 409. Misma lógica que `scripts/init.mjs` (compartir el código).
+- `POST /api/settings/init-memoria` body `{ dir }` → si `dir` no existe o está vacía: la crea, copia la plantilla (`templates/esi-tfg/`; desde v0.5, `templates/base/` + perfil), `git init` + commit inicial; aplica `memoriaDir=dir`. Si no está vacía → 409. Misma lógica que `scripts/init.mjs` (compartir el código).
 - `GET /api/status` añade `configured: boolean` (false si `notesDir` o `memoriaDir` no existen) y `instanceId` = hash corto de `notesDir|memoriaDir` (para claves de borradores en la web).
 
 ### Compilación sin montaje
@@ -166,7 +166,7 @@ Si `AUTH_TOKEN` está definido: cabecera `Authorization: Bearer <token>` o cooki
 
 ## Plantilla combinada y vista Documento (v0.3)
 
-### Plantilla `templates/esi-tfg/` (sustituye a la de ARCO)
+### Plantilla `templates/esi-tfg/` (sustituye a la de ARCO; desde v0.5, `templates/base/` + `templates/perfiles/esi-uclm/`)
 - **Origen y licencia:** derivada de la clase GPL de ARCO (`esi-tfg.cls`, UCLM-ESI), saneada. De la plantilla de J. Salido solo se toman ideas (opciones de idioma/formato, guía por capítulo): **no se copia código ni texto** (su repositorio no declara licencia). Mantener la cabecera GPL y la atribución en `estilo/esi-tfg.cls` y en `LEEME.md`.
 - **Estructura** (orden de carpetas = orden del PDF, todo en español):
   ```
@@ -240,6 +240,8 @@ templates/
     estilo/institucion.tex   datos de la institución (formato abajo)
     estilo/logo.pdf          (opcional)
     1-capitulos/…            capítulos de partida con sus guías
+    (cualquier otro archivo) sustituye al de base/; p. ej. esi-uclm trae su tfg.tex
+                             (otros nombres de capítulo) y su datos.tex (ejemplos de la ESI)
 ```
 
 Perfiles de serie: `esi-uclm` (por defecto; equivale a la plantilla v0.3) y `generico` (sin logo; capítulos Introducción, Objetivos, Estado de la cuestión, Desarrollo, Resultados, Conclusiones). `templates/esi-tfg/` desaparece.

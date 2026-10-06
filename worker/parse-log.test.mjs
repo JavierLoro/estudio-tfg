@@ -167,7 +167,7 @@ You've used 3 entries,
 [3] Utils.pm:409> ERROR - BibTeX subsystem: refs.bib, line 20, syntax error`;
   assert.deepEqual(parseBlg(blg, { rootDir: '/tmp/b' }), [
     { severity: 'error', file: 'main.bib', line: 9, message: "BibTeX: I was expecting a `,' or a `}'" },
-    { severity: 'error', file: 'main.tex', line: null, message: 'Biber: BibTeX subsystem: refs.bib, line 20, syntax error' },
+    { severity: 'error', file: 'refs.bib', line: 20, message: 'Biber: syntax error' },
     { severity: 'warning', file: 'main.tex', line: null, message: 'BibTeX: empty year in design_patterns' },
     { severity: 'warning', file: 'refs.bib', line: 7, message: "Biber: Duplicate entry 'x' in file 'refs.bib' at line 7" },
   ]);
@@ -209,6 +209,30 @@ test('real: error de sintaxis en main.bib (log + blg)', () => {
   const ds = [...parseLog(readLog('template-bib-error.log')), ...parseBlg(readLog('template-bib-error.blg'))];
   assert.deepEqual(errors(ds), [
     { severity: 'error', file: 'main.bib', line: 9, message: "BibTeX: I was expecting a `,' or a `}'" },
+  ]);
+});
+
+test('real: Biber, error de sintaxis en bibliografia.bib (copia temporal → .bib leído)', () => {
+  const ds = parseBlg(readLog('biber-syntax-error.blg'), { mainFile: 'tfg.tex' });
+  assert.deepEqual(ds, [
+    {
+      severity: 'error',
+      file: 'bibliografia.bib',
+      line: 15,
+      message: 'Biber: syntax error: found "pages", expected end of entry ("}" or ")") (skipping to next "@")',
+    },
+  ]);
+});
+
+test('real: Biber, avisos (sin duplicar las citas no encontradas)', () => {
+  const ds = parseBlg(readLog('biber-warnings.blg'), { mainFile: 'tfg.tex' });
+  assert.deepEqual(ds, [
+    {
+      severity: 'warning',
+      file: 'bibliografia.bib',
+      line: null,
+      message: "Biber: legacy month field 'junio' in entry 'sommerville2016' is not an integer - this will probably not sort properly.",
+    },
   ]);
 });
 

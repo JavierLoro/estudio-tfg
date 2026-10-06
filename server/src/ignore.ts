@@ -1,8 +1,8 @@
 import type { RootName } from './paths.ts';
 
 const LATEX_AUX = [
-  '.aux', '.log', '.out', '.toc', '.lof', '.lot', '.lol', '.bbl', '.blg', '.fls',
-  '.fdb_latexmk', '.synctex.gz', '.acn', '.acr', '.alg',
+  '.aux', '.log', '.out', '.toc', '.lof', '.lot', '.lol', '.bbl', '.blg', '.bcf', '.run.xml', '.fls',
+  '.fdb_latexmk', '.synctex.gz', '.synctex(busy)', '.acn', '.acr', '.alg',
 ];
 
 export function isSyncConflict(name: string): boolean {

@@ -7,9 +7,12 @@
 *.lol
 *.bbl
 *.blg
+*.bcf
+*.run.xml
 *.fls
 *.fdb_latexmk
 *.synctex.gz
+*.synctex(busy)
 *.acn
 *.acr
 *.alg

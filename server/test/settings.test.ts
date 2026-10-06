@@ -152,7 +152,7 @@ describe('PUT /api/settings', () => {
 
   it('repo guard: versioned repo folders are rejected (workspace/ allowed)', async () => {
     t = await setup({ ALLOWED_ROOTS: `${'/'}` });
-    for (const v of [REPO_ROOT, path.join(REPO_ROOT, 'docs'), path.join(REPO_ROOT, 'templates', 'esi-tfg')]) {
+    for (const v of [REPO_ROOT, path.join(REPO_ROOT, 'docs'), path.join(REPO_ROOT, 'templates', 'base')]) {
       const r = await put(t, { memoriaDir: v });
       expect(r.statusCode).toBe(400);
       expect(r.json()).toEqual({ error: expect.stringMatching(/dentro del repositorio/), field: 'memoriaDir' });
@@ -321,6 +321,58 @@ describe('POST /api/settings/init-memoria', () => {
     const bad = await t.app.inject({ method: 'POST', url: '/api/settings/init-memoria', payload: { dir: 'relativa' } });
     expect(bad.statusCode).toBe(400);
     expect(bad.json().field).toBe('dir');
+  });
+
+  it('perfil: esi-uclm by default, generico on request (base + perfil, without perfil.json)', async () => {
+    t = await setup();
+    const esi = path.join(t.dir, 'esi');
+    expect((await t.app.inject({ method: 'POST', url: '/api/settings/init-memoria', payload: { dir: esi } })).statusCode).toBe(200);
+    expect(await fs.readFile(path.join(esi, 'estilo', 'institucion.tex'), 'utf8')).toMatch(/\\universidad\{Universidad de Castilla-La Mancha\}/);
+    expect((await fs.stat(path.join(esi, 'estilo', 'esi_logo.pdf'))).isFile()).toBe(true);
+    expect((await fs.stat(path.join(esi, '1-capitulos', '04-metodologia.tex'))).isFile()).toBe(true);
+    expect(await fs.readFile(path.join(esi, 'tfg.tex'), 'utf8')).toMatch(/\\documentclass\{estilo\/memoria\}/);
+
+    const gen = path.join(t.dir, 'gen');
+    const r = await t.app.inject({ method: 'POST', url: '/api/settings/init-memoria', payload: { dir: gen, perfil: 'generico' } });
+    expect(r.statusCode).toBe(200);
+    expect(r.json().values.memoriaDir).toBe(gen);
+    const files = execFileSync('git', ['ls-files'], { cwd: gen, encoding: 'utf8' }).trim().split('\n');
+    expect(files).toEqual(expect.arrayContaining([
+      'tfg.tex', 'datos.tex', 'bibliografia.bib', '.gitignore', 'estilo/memoria.cls', 'estilo/institucion.tex',
+      '1-capitulos/03-estado.tex', '1-capitulos/04-desarrollo.tex',
+    ]));
+    expect(files).not.toContain('perfil.json');
+    expect(files).not.toContain('estilo/esi_logo.pdf');
+    expect(files).not.toContain('1-capitulos/04-metodologia.tex');
+    expect(await fs.readFile(path.join(gen, 'tfg.tex'), 'utf8')).toMatch(/04-desarrollo/);
+    expect(await fs.readFile(path.join(gen, 'estilo', 'institucion.tex'), 'utf8')).toMatch(/\\logo\{\}/);
+  });
+
+  it('unknown perfil → 400 {field: perfil} and nothing is created', async () => {
+    t = await setup();
+    const before = t.cfg.memoriaDir;
+    for (const perfil of ['no-existe', '../base', 42, 'perfiles']) {
+      const dir = path.join(t.dir, 'nueva');
+      const r = await t.app.inject({ method: 'POST', url: '/api/settings/init-memoria', payload: { dir, perfil } });
+      expect(r.statusCode, String(perfil)).toBe(400);
+      expect(r.json()).toEqual({ error: expect.stringMatching(/Perfil de plantilla desconocido/), field: 'perfil' });
+      await expect(fs.stat(dir)).rejects.toThrow();
+    }
+    expect(t.cfg.memoriaDir).toBe(before);
+  });
+});
+
+describe('GET /api/templates/perfiles', () => {
+  it('lists the profiles from templates/perfiles, default first', async () => {
+    t = await setup();
+    const r = await t.app.inject({ url: '/api/templates/perfiles', ...REMOTE });
+    expect(r.statusCode).toBe(200);
+    const { perfiles } = r.json();
+    expect(perfiles.map((p: any) => p.id)).toEqual(['esi-uclm', 'generico']);
+    for (const p of perfiles) {
+      expect(p).toEqual({ id: expect.any(String), nombre: expect.any(String), descripcion: expect.any(String) });
+      expect(p.nombre.length).toBeGreaterThan(0);
+    }
   });
 });
 
