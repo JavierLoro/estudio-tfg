@@ -164,6 +164,22 @@ export interface CompileResult {
   sourceRev: string;
 }
 
+/** v0.4: zona del PDF (puntos, origen arriba a la izquierda de la página). */
+export interface SynctexForward {
+  build: string;
+  page: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface SynctexInverse {
+  build: string;
+  file: string;
+  line: number;
+}
+
 export interface ChangeEvent {
   root: Root;
   path: string;
@@ -377,6 +393,13 @@ export const api = {
   },
 
   logUrl: (buildId: string) => `/api/compile/log/${encodeURIComponent(buildId)}`,
+
+  // ---- SyncTeX (v0.4) ----
+
+  synctexForward: (file: string, line: number, build?: string) =>
+    json<SynctexForward>(`/api/synctex/forward?${qs({ file, line: String(line), build })}`),
+  synctexInverse: (page: number, x: number, y: number, build?: string) =>
+    json<SynctexInverse>(`/api/synctex/inverse?${qs({ page: String(page), x: x.toFixed(2), y: y.toFixed(2), build })}`),
 
   // ---- Ajustes (v0.2) ----
 

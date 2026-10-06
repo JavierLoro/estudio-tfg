@@ -32,7 +32,7 @@ Este repositorio es **solo la herramienta**: código, la plantilla base (`templa
 
 ## Atajos
 
-⌘K abrir/buscar · ⌘⇧C capturar · ⌘S guardar · ⌘↵ guardar y compilar · ⌥clic abrir al lado
+⌘K abrir/buscar · ⌘⇧C capturar · ⌘S guardar · ⌘↵ guardar y compilar · ⌘⇧J ver en el PDF · ⌘clic en el PDF ir al código · ⌥clic abrir al lado
 
 ## Licencia
 

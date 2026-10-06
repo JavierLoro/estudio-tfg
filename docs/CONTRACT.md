@@ -196,3 +196,27 @@ Si `AUTH_TOKEN` está definido: cabecera `Authorization: Bearer <token>` o cooki
 - Búsqueda: `GET /api/search?root=memoria` añade a cada resultado `outline: { id, number, title }` (apartado más interno que contiene la línea). La web agrupa por apartado en orden del documento.
 - **Interfaz:** en la sección Memoria, pestañas **Documento | Archivos** (Documento por defecto). Árbol con número, título, palabras y avisos; apartados desactivados en gris; clic abre en la línea, ⌥clic al lado; filtro rápido arriba; total de palabras; botones «+ Capítulo», «+ Sección» (en el menú del capítulo) y «+ Anexo» con diálogo de título.
 - Fase 2 (no ahora): activar/desactivar, reordenar arrastrando, «Ver en PDF» con SyncTeX.
+
+## SyncTeX (v0.4)
+
+El worker deja `main.synctex.gz` junto al PDF con las rutas `Input:` relativas a la raíz de la memoria (los archivos de TeX Live quedan absolutos). El server lo analiza bajo demanda y guarda en memoria las 3 últimas compilaciones consultadas.
+
+Coordenadas siempre en **puntos PDF (bp)**, origen en la **esquina superior izquierda** de la página; `page` empieza en 1. `build` es opcional: por defecto, la compilación del último PDF bueno (la de `pdfUrl`). Mismo `AUTH_TOKEN` que el resto de `/api`.
+
+- `GET /api/synctex/forward?file=<ruta>&line=<n>[&build=<buildId>]` → `{ build, page, x, y, w, h }`
+  - `file`: relativa a la memoria (`./` y `.tex` opcionales). `{x, y, w, h}` = rectángulo de las líneas del PDF donde está esa línea del código (unión de sus cajas de línea contiguas, en la primera página donde aparece; `y` = borde superior).
+  - Línea sin contenido propio (en blanco, comentario, `\end{…}`…) → la siguiente línea del archivo que lo tenga; si no hay, la anterior.
+- `GET /api/synctex/inverse?page=<n>&x=<pt>&y=<pt>[&build=<buildId>]` → `{ build, file, line }`
+  - `file` siempre relativa a la memoria y editable: nunca un archivo de TeX Live ni un auxiliar generado (`.aux`, `.toc`, `.bbl`…). Clic entre líneas → la línea siguiente si el hueco es claro (entre párrafos, bajo un título); si no, la más cercana.
+- `GET /api/synctex/file/<buildId>` → el `synctex.gz` tal cual (`application/gzip`, caché `immutable` como el PDF).
+- Errores: **400** si `file` no es relativa o contiene `..`, `line`/`page` no son enteros ≥ 1, `x`/`y` no son números o `build` no es un buildId válido. **404** `Aún no hay ningún PDF compilado` (sin `build` y sin PDF bueno), `No hay datos de SyncTeX para esta compilación`, `No se encontró <file>:<line> en el PDF` o `No se encontró código de la memoria en esa posición del PDF`.
+- Contrastado con el CLI `synctex view/edit` del worker: misma página en todas las líneas comparables; mismo borde superior (±4 pt) en las líneas de texto. Diferencias deliberadas: no se salta a páginas en blanco (un `\chapter` en `\cleardoublepage` va al título, no a la página vacía previa) y en tablas se devuelve la fila de esa línea.
+
+### Visor PDF (interfaz)
+
+- El panel PDF usa PDF.js (`pdfjs-dist`), cargado en diferido al abrir el panel y con su worker aparte; no aumenta el bundle inicial.
+- Páginas virtualizadas, zoom (ajustar al ancho, página completa, %; ⌘± y ⌘/Ctrl + rueda), búsqueda de texto (⌘F) y páginas oscuras opcionales (colores invertidos). El zoom y el modo oscuro se recuerdan (`et:pdf-scale`, `et:pdf-dark`).
+- Al recompilar se conservan la página, el desplazamiento y el zoom.
+- **PDF → código**: ⌘/Ctrl+clic en el PDF abre el `.tex` en esa línea (⌥ para abrirlo al lado).
+- **Código → PDF**: «Ver en PDF» (⌘⇧J o botón en el editor de un `.tex` de la memoria; menú de cada apartado en la vista Documento) salta a la página y resalta la zona unos segundos.
+- Siempre se consulta el SyncTeX del build que se está mostrando (`build` = el de `pdfUrl`).

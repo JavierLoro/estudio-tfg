@@ -23,6 +23,7 @@ import resourcesRoutes from './routes/resources.ts';
 import searchRoutes from './routes/search.ts';
 import settingsRoutes from './routes/settings.ts';
 import statusRoutes from './routes/status.ts';
+import synctexRoutes from './routes/synctex.ts';
 
 export interface BuildOptions {
   logger?: boolean;
@@ -105,7 +106,7 @@ export async function buildApp(cfg: Config, opts: BuildOptions = {}): Promise<{ 
     reply.code(status).send({ error: message });
   });
 
-  for (const plugin of [statusRoutes, filesRoutes, notesRoutes, resourcesRoutes, searchRoutes, compileRoutes, memoriaRoutes, eventsRoutes, settingsRoutes]) {
+  for (const plugin of [statusRoutes, filesRoutes, notesRoutes, resourcesRoutes, searchRoutes, compileRoutes, synctexRoutes, memoriaRoutes, eventsRoutes, settingsRoutes]) {
     await app.register(plugin, { ctx });
   }
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { IDockviewPanelProps } from 'dockview-react';
-import { AlertCircle, AlertTriangle, ChevronDown, ChevronRight, Play, Save } from 'lucide-react';
+import { AlertCircle, AlertTriangle, ChevronDown, ChevronRight, FileSearch, Play, Save } from 'lucide-react';
 import { CodeEditor, type LineDiagnostic } from '../components/CodeEditor';
 import { DocBanners, SaveIndicator } from '../components/DocBanners';
 import { Button, IconButton, MOD, Spinner, cx } from '../components/ui';
@@ -10,6 +10,8 @@ import { countDiags, diagPath, useCompile } from '../state/compile';
 import { ensureDoc, requestReveal, saveDoc, saveAll, useDocs } from '../state/docs';
 import { flattenTree, useUI } from '../state/ui';
 import { openFile, openPdf, type FileParams } from '../state/workspace';
+import { showInPdf } from '../state/synctex';
+import { useCursor } from '../state/cursor';
 import type { Diagnostic } from '../api';
 
 export async function saveAndCompile(key?: string) {
@@ -52,6 +54,9 @@ export function LatexPanel({ params, api }: IDockviewPanelProps<FileParams>) {
   const mine = useMemo<LineDiagnostic[]>(() => all.filter((d) => d.path === path && d.line != null), [all, path]);
   const [showList, setShowList] = useState(true);
   const { errors, warnings } = countDiags(all);
+  const hasPdf = useCompile((s) => Boolean(s.last?.pdfUrl));
+  const canSync = root === 'memoria' && /\.tex$/i.test(path);
+  const showHere = (line?: number) => void showInPdf(path, line ?? useCursor.getState().lines[key] ?? 1);
 
   // Título de la pestaña con el estado.
   useEffect(() => {
@@ -78,6 +83,11 @@ export function LatexPanel({ params, api }: IDockviewPanelProps<FileParams>) {
           {path}
         </span>
         <SaveIndicator docKey={key} />
+        {canSync && (
+          <IconButton label={`Ver en PDF (${MOD}⇧J)`} onClick={() => showHere()} disabled={!hasPdf}>
+            <FileSearch size={14} />
+          </IconButton>
+        )}
         <IconButton label={`Guardar (${MOD}S)`} onClick={() => saveDoc(key)} disabled={status !== 'ready'}>
           <Save size={14} />
         </IconButton>
@@ -104,6 +114,7 @@ export function LatexPanel({ params, api }: IDockviewPanelProps<FileParams>) {
           lang={langFor(path)}
           onSave={() => saveDoc(key)}
           onSaveCompile={() => saveAndCompile(key)}
+          onShowInPdf={canSync ? showHere : undefined}
           diagnostics={mine}
         />
       </div>

@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { AlertCircle, AlertTriangle, CheckCircle2, ExternalLink, FileText, Play, XCircle } from 'lucide-react';
 import { api } from '../api';
 import { Banner, Button, MOD, Spinner } from '../components/ui';
 import { countDiags, isPdfOutdated, useCompile } from '../state/compile';
 import { formatDate } from '../lib/paths';
 import { DiagnosticList, saveAndCompile, usePlacedDiagnostics } from './LatexPanel';
+
+// PDF.js solo se descarga al abrir el panel.
+const PdfViewer = lazy(() => import('../components/PdfViewer'));
 
 export function formatDuration(ms: number | undefined) {
   if (ms == null) return '';
@@ -88,7 +91,15 @@ export function PdfPanel() {
       )}
       <div className="relative min-h-0 flex-1">
         {last?.pdfUrl ? (
-          <iframe key={last.pdfUrl} title="PDF de la memoria" src={last.pdfUrl} className="h-full w-full border-0 bg-sunken" />
+          <Suspense
+            fallback={
+              <div className="flex h-full items-center justify-center text-muted">
+                <Spinner size={18} />
+              </div>
+            }
+          >
+            <PdfViewer url={last.pdfUrl} />
+          </Suspense>
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-[12px] text-muted">
             {compiling ? (
@@ -107,7 +118,7 @@ export function PdfPanel() {
           </div>
         )}
         {compiling && last?.pdfUrl && (
-          <div className="pointer-events-none absolute right-3 top-3 flex items-center gap-2 rounded-md border border-line bg-bg px-2 py-1 text-[11.5px] text-muted shadow-pop">
+          <div className="pointer-events-none absolute right-3 top-10 z-20 flex items-center gap-2 rounded-md border border-line bg-bg px-2 py-1 text-[11.5px] text-muted shadow-pop">
             <Spinner size={11} /> Compilando…
           </div>
         )}

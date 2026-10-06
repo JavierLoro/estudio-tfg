@@ -20,6 +20,8 @@ interface Props {
   className?: string;
   onSave?: () => void;
   onSaveCompile?: () => void;
+  /** «Ver en PDF» (⌘⇧J) con la línea del cursor. */
+  onShowInPdf?: (line: number) => void;
   diagnostics?: LineDiagnostic[];
 }
 
@@ -56,11 +58,11 @@ function toCmDiagnostics(state: EditorState, diags: LineDiagnostic[] | undefined
   return out;
 }
 
-export function CodeEditor({ docKey, lang, lineNumbers = true, className, onSave, onSaveCompile, diagnostics }: Props) {
+export function CodeEditor({ docKey, lang, lineNumbers = true, className, onSave, onSaveCompile, onShowInPdf, diagnostics }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
-  const cb = useRef({ onSave, onSaveCompile });
-  cb.current = { onSave, onSaveCompile };
+  const cb = useRef({ onSave, onSaveCompile, onShowInPdf });
+  cb.current = { onSave, onSaveCompile, onShowInPdf };
   const diagRef = useRef(diagnostics);
   diagRef.current = diagnostics;
 
@@ -82,6 +84,15 @@ export function CodeEditor({ docKey, lang, lineNumbers = true, className, onSave
             keymap.of([
               { key: 'Mod-s', preventDefault: true, run: () => (cb.current.onSave?.(), true) },
               { key: 'Mod-Enter', preventDefault: true, run: () => ((cb.current.onSaveCompile ?? cb.current.onSave)?.(), true) },
+              {
+                key: 'Mod-Shift-j',
+                preventDefault: true,
+                run: (v) => {
+                  if (!cb.current.onShowInPdf) return false;
+                  cb.current.onShowInPdf(v.state.doc.lineAt(v.state.selection.main.head).number);
+                  return true;
+                },
+              },
             ]),
           ),
           baseExtensions({ lineNumbers }),

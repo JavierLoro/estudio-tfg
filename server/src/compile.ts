@@ -2,10 +2,13 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Readable } from 'node:stream';
+import { promisify } from 'node:util';
+import zlib from 'node:zlib';
 import * as tar from 'tar';
 import type { Config } from './config.ts';
 import { atomicWrite, walkFiles } from './fsutil.ts';
 import { isInside } from './paths.ts';
+import { parseSynctex, type SynctexData } from './synctex.ts';
 
 export interface Diagnostic {
   severity: 'error' | 'warning';
@@ -34,6 +37,11 @@ const WORKER_TIMEOUT_MS = 180_000;
 /** Same limit the worker enforces on the tar body. */
 export const MAX_TAR_BYTES = 200 * 1024 * 1024;
 const BUILD_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+/** Compilaciones con el synctex ya analizado en memoria. */
+const SYNCTEX_CACHE = 3;
+/** Límite del synctex descomprimido (una memoria normal ocupa pocos MB). */
+const MAX_SYNCTEX_BYTES = 256 * 1024 * 1024;
+const gunzip = promisify(zlib.gunzip);
 
 export function isValidBuildId(id: string): boolean {
   return BUILD_ID_RE.test(id) && !id.includes('..');
@@ -97,6 +105,8 @@ export class Compiler {
   private queued: Promise<CompileResult> | null = null;
   private state: Persisted = { last: null, lastGoodPdfUrl: null };
   private loaded = false;
+  /** LRU (por orden de inserción) de synctex analizados: clave = ruta + mtime + tamaño. */
+  private synctexCache = new Map<string, Promise<SynctexData | null>>();
 
   constructor(
     private cfg: Config,
@@ -116,6 +126,13 @@ export class Compiler {
     } catch {
       /* none yet */
     }
+  }
+
+  /** buildId del último PDF bueno (el que muestra la interfaz por defecto). */
+  get lastGoodBuildId(): string | null {
+    const url = this.state.lastGoodPdfUrl;
+    const m = url ? /^\/api\/pdf\/(.+)\.pdf$/.exec(url) : null;
+    return m && isValidBuildId(m[1]) ? m[1] : null;
   }
 
   async last(): Promise<CompileResult | null> {
@@ -223,10 +240,9 @@ export class Compiler {
 
   /** Last good PDF URL, or null if the worker has pruned that build. */
   private async lastGood(): Promise<string | null> {
-    const url = this.state.lastGoodPdfUrl;
-    const m = url ? /^\/api\/pdf\/(.+)\.pdf$/.exec(url) : null;
-    if (!m || !(await this.buildFile(m[1], '.pdf'))) return null;
-    return url;
+    const id = this.lastGoodBuildId;
+    if (!id || !(await this.buildFile(id, '.pdf'))) return null;
+    return this.state.lastGoodPdfUrl;
   }
 
   private async failure(buildId: string, started: Date, t0: number, sourceRev: string, message: string, snap: Config): Promise<CompileResult> {
@@ -252,8 +268,8 @@ export class Compiler {
     await atomicWrite(this.lastFile, JSON.stringify(this.state, null, 2));
   }
 
-  /** Locate an artifact (pdf/log) of a build. */
-  async buildFile(buildId: string, ext: '.pdf' | '.log'): Promise<string | null> {
+  /** Locate an artifact (pdf/log/synctex) of a build. */
+  async buildFile(buildId: string, ext: '.pdf' | '.log' | '.synctex.gz'): Promise<string | null> {
     if (!isValidBuildId(buildId)) return null;
     const dir = path.join(this.cfg.buildDir, buildId);
     if (!isInside(this.cfg.buildDir, dir)) return null;
@@ -265,6 +281,30 @@ export class Compiler {
     const ents = await fs.readdir(dir).catch(() => [] as string[]);
     const hit = ents.find((e) => e.toLowerCase().endsWith(ext));
     return hit ? path.join(dir, hit) : null;
+  }
+
+  /** SyncTeX analizado de una compilación (null si no existe o no se puede leer). */
+  async synctex(buildId: string): Promise<SynctexData | null> {
+    const abs = await this.buildFile(buildId, '.synctex.gz');
+    const st = abs ? await fs.stat(abs).catch(() => null) : null;
+    if (!abs || !st) return null;
+    const key = `${abs}\0${st.mtimeMs}\0${st.size}`;
+    let p = this.synctexCache.get(key);
+    if (p) {
+      this.synctexCache.delete(key);
+    } else {
+      p = fs
+        .readFile(abs)
+        .then((buf) => gunzip(buf, { maxOutputLength: MAX_SYNCTEX_BYTES }))
+        .then((raw) => parseSynctex(raw.toString('utf8')))
+        .catch(() => {
+          this.synctexCache.delete(key);
+          return null;
+        });
+    }
+    this.synctexCache.set(key, p);
+    while (this.synctexCache.size > SYNCTEX_CACHE) this.synctexCache.delete(this.synctexCache.keys().next().value!);
+    return p;
   }
 }
 

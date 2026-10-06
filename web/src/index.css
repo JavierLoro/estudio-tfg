@@ -296,3 +296,35 @@ body.et-resizing, body.et-resizing * {
   cursor: col-resize !important;
   user-select: none !important;
 }
+
+/* ---------- Visor PDF (PDF.js) ---------- */
+.et-pdf {
+  background: var(--et-bg-sunken);
+}
+.et-pdf .pdfViewer .page {
+  margin: 10px auto;
+}
+.et-pdf-dark .pdfViewer .page {
+  background: #111;
+}
+.et-pdf-dark .pdfViewer .page canvas {
+  filter: invert(0.9) hue-rotate(180deg);
+}
+.et-synctex-hl {
+  position: absolute;
+  z-index: 10;
+  pointer-events: none;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--et-accent) 22%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--et-accent) 70%, transparent);
+  animation: et-synctex-fade 2.6s ease-out forwards;
+}
+@keyframes et-synctex-fade {
+  0%,
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
