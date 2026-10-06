@@ -162,7 +162,7 @@ export function restoreLayout(api: DockviewApi): boolean {
 export function defaultLayout(memoriaMain: string) {
   if (!dock) return;
   dock.clear();
-  const main = memoriaMain || 'main.tex';
+  const main = memoriaMain || 'tfg.tex';
   dock.addPanel({ id: panelIdFor('latex', main), component: 'latex', title: basename(main), params: { root: 'memoria', path: main } });
   dock.addPanel({
     id: 'pdf',
@@ -177,7 +177,7 @@ export function defaultLayout(memoriaMain: string) {
 
 export function resetLayout() {
   remove(layoutKey());
-  defaultLayout(useUI.getState().status?.memoriaMain ?? 'main.tex');
+  defaultLayout(useUI.getState().status?.memoriaMain ?? 'tfg.tex');
 }
 
 /** Al cerrar una pestaña de archivo se libera su documento. */

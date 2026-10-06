@@ -369,7 +369,7 @@ export function SettingsPanel() {
                             onChange={(e) => setField(k, e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && void save()}
                             spellCheck={false}
-                            placeholder={k === 'memoriaMain' ? 'main.tex' : k === 'resourcesSubdir' ? 'Recursos' : '/ruta/absoluta o ~/…'}
+                            placeholder={k === 'memoriaMain' ? 'tfg.tex' : k === 'resourcesSubdir' ? 'Recursos' : '/ruta/absoluta o ~/…'}
                             className={cx(inputCls, err ? 'border-danger' : 'border-line-strong')}
                             aria-invalid={!!err}
                           />

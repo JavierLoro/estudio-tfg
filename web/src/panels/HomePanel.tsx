@@ -78,7 +78,7 @@ export function HomePanel() {
               </>
             )}
             <div className="flex flex-wrap gap-1.5 pt-1">
-              <Button onClick={() => openFile('memoria', status?.memoriaMain ?? 'main.tex')}>Abrir {status?.memoriaMain ?? 'main.tex'}</Button>
+              <Button onClick={() => openFile('memoria', status?.memoriaMain ?? 'tfg.tex')}>Abrir {status?.memoriaMain ?? 'tfg.tex'}</Button>
               <Button onClick={() => openPdf()}>Ver PDF</Button>
             </div>
             {status?.worker === 'down' && (

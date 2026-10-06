@@ -117,7 +117,7 @@ describe('compile', () => {
     expect(pdf.headers['content-type']).toBe('application/pdf');
     expect(pdf.body).toBe('%PDF-1.5 build 1');
     const log = await t.app.inject({ url: `/api/compile/log/${r.buildId}` });
-    expect(log.body).toBe('log de main.tex #1');
+    expect(log.body).toBe('log de tfg.tex #1');
     expect(log.headers['content-type']).toMatch(/^text\/plain/);
 
     expect((await t.app.inject({ url: '/api/compile/last' })).json()).toEqual(r);
@@ -167,7 +167,7 @@ describe('compile', () => {
     const r1 = (await t.app.inject({ method: 'POST', url: '/api/compile' })).json();
     await fs.writeFile(path.join(t.cfg.memoriaDir, 'main.aux'), 'aux');
     expect(await computeSourceRev(t.cfg)).toBe(r1.sourceRev);
-    await fs.appendFile(path.join(t.cfg.memoriaDir, 'intro.tex'), '\n% cambio\n');
+    await fs.appendFile(path.join(t.cfg.memoriaDir, '1-capitulos', '01-introduccion.tex'), '\n% cambio\n');
     const r2 = (await t.app.inject({ method: 'POST', url: '/api/compile' })).json();
     expect(r2.sourceRev).not.toBe(r1.sourceRev);
   });
@@ -186,20 +186,20 @@ describe('compile', () => {
     await fs.writeFile(path.join(t.cfg.memoriaDir, 'build', 'x.tex'), 'x');
     await fs.writeFile(path.join(t.dir, 'secreto.tex'), 'secreto');
     await fs.symlink(path.join(t.dir, 'secreto.tex'), path.join(t.cfg.memoriaDir, 'fuera.tex'));
-    await fs.symlink(path.join(t.cfg.memoriaDir, 'intro.tex'), path.join(t.cfg.memoriaDir, 'enlace.tex'));
+    await fs.symlink(path.join(t.cfg.memoriaDir, 'datos.tex'), path.join(t.cfg.memoriaDir, 'enlace.tex'));
     const r = (await t.app.inject({ method: 'POST', url: '/api/compile' })).json();
     expect(r.ok).toBe(true);
     expect(w.lastHeaders['content-type']).toBe('application/x-tar');
-    expect(w.lastHeaders['x-main']).toBe('main.tex');
+    expect(w.lastHeaders['x-main']).toBe('tfg.tex');
     const names = [...w.lastTar.keys()].sort();
-    expect(names).toContain('main.tex');
-    expect(names).toContain('intro.tex');
-    expect(names.some((n) => n.startsWith('figures/'))).toBe(true);
+    expect(names).toContain('tfg.tex');
+    expect(names).toContain('1-capitulos/01-introduccion.tex');
+    expect(names.some((n) => n.startsWith('figuras/'))).toBe(true);
     for (const bad of ['main.aux', '.oculto.tex', 'build/x.tex', 'fuera.tex', '.gitignore']) expect(names).not.toContain(bad);
     // in-root symlink is sent as a regular file; no links at all in the tar
-    expect(w.lastTar.get('enlace.tex')).toEqual({ type: 'File', content: await fs.readFile(path.join(t.cfg.memoriaDir, 'intro.tex'), 'utf8') });
+    expect(w.lastTar.get('enlace.tex')).toEqual({ type: 'File', content: await fs.readFile(path.join(t.cfg.memoriaDir, 'datos.tex'), 'utf8') });
     expect([...w.lastTar.values()].every((e) => e.type === 'File')).toBe(true);
-    expect(w.lastTar.get('main.tex')!.content).toBe(await fs.readFile(path.join(t.cfg.memoriaDir, 'main.tex'), 'utf8'));
+    expect(w.lastTar.get('tfg.tex')!.content).toBe(await fs.readFile(path.join(t.cfg.memoriaDir, 'tfg.tex'), 'utf8'));
   });
 
   it('uses the current memoriaDir after a settings change (hot-apply)', async () => {
@@ -228,7 +228,7 @@ describe('compile with worker down', () => {
       const r = (await down.app.inject({ method: 'POST', url: '/api/compile' })).json();
       expect(r.ok).toBe(false);
       expect(r.pdfUrl).toBeNull();
-      expect(r.diagnostics).toEqual([{ severity: 'error', file: 'main.tex', line: null, message: 'Worker de compilación no disponible' }]);
+      expect(r.diagnostics).toEqual([{ severity: 'error', file: 'tfg.tex', line: null, message: 'Worker de compilación no disponible' }]);
       expect(r.sourceRev).toMatch(/^[0-9a-f]{16}$/);
       expect((await down.app.inject({ url: '/api/compile/last' })).json()).toEqual(r);
     } finally {

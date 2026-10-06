@@ -111,7 +111,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, repoRoot = REPO
     notesDir,
     resourcesSubdir,
     memoriaDir,
-    memoriaMain: str(env.MEMORIA_MAIN, 'main.tex'),
+    memoriaMain: str(env.MEMORIA_MAIN, 'tfg.tex'),
     buildDir,
     historyDir: path.join(path.dirname(buildDir), 'history'),
     workerUrl: str(env.WORKER_URL, 'http://localhost:8090').replace(/\/+$/, ''),

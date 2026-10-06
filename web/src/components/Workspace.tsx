@@ -141,18 +141,18 @@ export function Workspace() {
     setDock(api);
     const unconfigured = useUI.getState().status?.configured === false;
     if (unconfigured) {
-      // Sin carpetas válidas: no tiene sentido abrir main.tex; se abren los ajustes.
+      // Sin carpetas válidas: no tiene sentido abrir tfg.tex; se abren los ajustes.
       if (!restoreLayout(api)) api.clear();
       openSettings();
     } else if (!restoreLayout(api)) {
       const status = useUI.getState().status;
-      defaultLayout(status?.memoriaMain ?? 'main.tex');
+      defaultLayout(status?.memoriaMain ?? 'tfg.tex');
       if (!status) {
-        // Si el server aún no respondió, corregir main.tex cuando llegue el estado.
+        // Si el server aún no respondió, corregir tfg.tex cuando llegue el estado.
         const unsub = useUI.subscribe((s) => {
           if (!s.status) return;
           unsub();
-          if (s.status.memoriaMain !== 'main.tex' && api.panels.length === 2 && api.getPanel('latex:main.tex')) {
+          if (s.status.memoriaMain !== 'tfg.tex' && api.panels.length === 2 && api.getPanel('latex:tfg.tex')) {
             defaultLayout(s.status.memoriaMain);
           }
         });

@@ -200,8 +200,8 @@ export function DirPicker({
                     </Badge>
                   )}
                   {d.hasMainTex && (
-                    <Badge title="Contiene main.tex" icon={<FileCode2 size={10} />}>
-                      main.tex
+                    <Badge title="Contiene un documento LaTeX principal (tfg.tex o main.tex)" icon={<FileCode2 size={10} />}>
+                      LaTeX
                     </Badge>
                   )}
                   {d.isGitRepo && (

@@ -29,7 +29,7 @@ describe('GET /api/file', () => {
   });
 
   it('memoria .tex works; non-text is 415; missing is 404', async () => {
-    expect((await get('memoria', 'main.tex')).statusCode).toBe(200);
+    expect((await get('memoria', 'tfg.tex')).statusCode).toBe(200);
     await fs.writeFile(path.join(t.cfg.notesDir, 'img.png'), Buffer.from([0x89, 0x50]));
     const r415 = await get('notes', 'img.png');
     expect(r415.statusCode).toBe(415);

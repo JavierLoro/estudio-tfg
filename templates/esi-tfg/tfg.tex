@@ -1,0 +1,37 @@
+%% tfg.tex — Documento principal. Aquí solo se decide QUÉ entra y en QUÉ orden.
+%% Para quitar un apartado, pon % al principio de su línea.
+\documentclass{estilo/esi-tfg}           % formato oficial de la ESI (no tocar)
+\input{datos}                            % tus datos: título, autor, tutor, idioma…
+
+\begin{document}
+
+%% ---- Parte inicial (páginas en números romanos) ----
+\frontmatter                             % empieza la parte inicial
+\portada                                 % portada exterior
+\portadainterior                         % portada interior con tutores
+\paginaderechos                          % créditos: autor, ciudad y copyright
+\tribunal                                % hoja para el tribunal
+\input{0-inicio/resumen}                 % resumen en español
+\input{0-inicio/abstract}                % resumen en inglés
+\input{0-inicio/agradecimientos}         % agradecimientos (opcional)
+\tableofcontents                         % índice general
+\listoffigures                           % índice de figuras
+\listoftables                            % índice de tablas
+\lstlistoflistings                       % índice de listados de código
+\input{0-inicio/acronimos}               % lista de acrónimos
+
+%% ---- Capítulos (números arábigos) ----
+\mainmatter                              % empieza el cuerpo del trabajo
+\include{1-capitulos/01-introduccion}    % capítulo 1: introducción
+\include{1-capitulos/02-objetivos}       % capítulo 2: objetivos
+\include{1-capitulos/03-antecedentes}    % capítulo 3: antecedentes / estado del arte
+\include{1-capitulos/04-metodologia}     % capítulo 4: metodología
+\include{1-capitulos/05-resultados}      % capítulo 5: resultados
+\include{1-capitulos/06-conclusiones}    % capítulo 6: conclusiones
+
+%% ---- Parte final ----
+\bibliography{bibliografia}              % referencias (de bibliografia.bib)
+\appendix                                % a partir de aquí, anexos (A, B…)
+\include{2-anexos/a-anexo}               % anexo A
+
+\end{document}

@@ -27,7 +27,7 @@ export async function setup(env: Record<string, string> = {}, opts: { watch?: bo
       NOTES_DIR: './fixtures/notes',
       MEMORIA_DIR: './fixtures/memoria',
       RESOURCES_SUBDIR: 'Recursos',
-      MEMORIA_MAIN: 'main.tex',
+      MEMORIA_MAIN: 'tfg.tex',
       BUILD_DIR: './data/builds',
       WORKER_URL: 'http://127.0.0.1:1',
       AUTH_TOKEN: '',

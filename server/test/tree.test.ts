@@ -58,9 +58,9 @@ describe('GET /api/tree', () => {
     await fs.writeFile(path.join(m, 'chapter.tex.lock'), '');
     const res = await t.app.inject({ url: '/api/tree?root=memoria' });
     const all = flatPaths(res.json().entries);
-    expect(all).toContain('main.tex');
-    expect(all).toContain('main.bib');
-    expect(all).toContain('esi-tfg.cls');
+    expect(all).toContain('tfg.tex');
+    expect(all).toContain('bibliografia.bib');
+    expect(all).toContain('estilo/esi-tfg.cls');
     for (const bad of ['main.aux', 'main.log', 'main.toc', 'main.synctex.gz', 'main.fdb_latexmk', 'main.bbl', 'main.out', 'build', 'node_modules', '.gitignore', 'chapter.tex.lock']) {
       expect(all).not.toContain(bad);
     }
@@ -93,7 +93,7 @@ describe('GET /api/status', () => {
     const s = res.json();
     expect(s.notesDir).toBe(t.cfg.notesDir);
     expect(s.memoriaDir).toBe(t.cfg.memoriaDir);
-    expect(s.memoriaMain).toBe('main.tex');
+    expect(s.memoriaMain).toBe('tfg.tex');
     expect(s.resourcesSubdir).toBe('Recursos');
     expect(s.syncConflicts).toEqual(['notes/Sistema/x.sync-conflict-20260930-134509-2SOC3CR.md']);
     expect(s.worker).toBe('down');

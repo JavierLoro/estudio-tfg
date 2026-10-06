@@ -1,0 +1,62 @@
+\chapter{Metodología}\label{cap:metodologia}
+% GUÍA — Qué va en este capítulo:
+%  - La metodología de trabajo seguida (p. ej. un proceso iterativo o ágil)
+%    y cómo se ha aplicado en la práctica: iteraciones, planificación, roles.
+%  - Las herramientas, lenguajes y recursos hardware/software utilizados.
+%  - Si procede, el diseño de la solución (arquitectura, modelos, diagramas).
+%  - Este capítulo incluye ejemplos de figura, tabla, cita, listado y acrónimo
+%    para que copies su estructura; bórralos cuando ya no los necesites.
+
+Sustituye este párrafo por la descripción de cómo has llevado a cabo el
+trabajo.
+
+\section{Ejemplos para copiar}
+
+% --- CITA: \cite{clave}, donde «clave» es la primera palabra de la entrada
+%     en bibliografia.bib. El ~ evita que la cita quede sola en otra línea.
+El ciclo de trabajo se inspira en los métodos iterativos descritos por
+Sommerville~\cite{sommerville2016}.
+
+% --- ACRÓNIMO: \ac{SIGLA}; la sigla debe estar definida en 0-inicio/acronimos.tex.
+Los modelos del diseño se expresan en \ac{UML}.
+
+% --- REFERENCIAS CRUZADAS: \ref{etiqueta} da el número de una figura, tabla,
+%     listado o capítulo que tenga \label{etiqueta}.
+La figura~\ref{fig:ciclo} resume el proceso, la tabla~\ref{tab:herramientas}
+recoge las herramientas empleadas y el listado~\ref{lst:hola} muestra un
+fragmento de código.
+
+% --- FIGURA: el archivo va en la carpeta figuras/ (PDF, PNG o JPG) y se
+%     escribe sin la carpeta. width=… fija el ancho (aquí, 80 % del texto).
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.8\textwidth]{ejemplo}
+  \caption{Ciclo de trabajo iterativo seguido en el proyecto.}
+  \label{fig:ciclo}
+\end{figure}
+
+% --- TABLA: columnas l (izquierda), c (centro), r (derecha); & separa
+%     celdas y \\ termina la fila. \toprule, \midrule y \bottomrule son las
+%     líneas horizontales.
+\begin{table}[htbp]
+  \centering
+  \caption{Herramientas utilizadas.}
+  \label{tab:herramientas}
+  \begin{tabular}{lll}
+    \toprule
+    \textbf{Herramienta} & \textbf{Uso}           & \textbf{Versión} \\
+    \midrule
+    Python               & Desarrollo             & 3.12 \\
+    Git                  & Control de versiones   & 2.45 \\
+    \LaTeX{}             & Redacción de la memoria & TeX Live 2026 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+% --- LISTADO DE CÓDIGO: language=… activa el resaltado (Python, Java, C, C++,
+%     SQL, HTML…). El código se copia tal cual entre begin y end.
+\begin{lstlisting}[language=Python, caption={Ejemplo de función en Python.}, label={lst:hola}]
+def saludar(nombre):
+    """Devuelve un saludo para la persona indicada."""
+    return f"Hola, {nombre}"
+\end{lstlisting}

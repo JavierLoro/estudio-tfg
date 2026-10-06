@@ -39,11 +39,11 @@ describe('GET /api/settings', () => {
       notesDir: t.cfg.notesDir,
       resourcesSubdir: 'Recursos',
       memoriaDir: t.cfg.memoriaDir,
-      memoriaMain: 'main.tex',
+      memoriaMain: 'tfg.tex',
     });
     expect(s.sources).toEqual({ notesDir: 'env', resourcesSubdir: 'env', memoriaDir: 'env', memoriaMain: 'default' });
     expect(s.allowedRoots).toEqual([t.dir]);
-    expect(s.checks).toContainEqual({ key: 'memoriaMain', level: 'ok', message: 'Archivo principal: main.tex' });
+    expect(s.checks).toContainEqual({ key: 'memoriaMain', level: 'ok', message: 'Archivo principal: tfg.tex' });
     expect(s.checks.find((c: any) => c.key === 'notesDir' && c.level === 'warning').message).toMatch(/Obsidian/);
     expect(s.checks.every((c: any) => c.level !== 'error')).toBe(true);
   });
@@ -294,13 +294,13 @@ describe('POST /api/settings/init-memoria', () => {
     expect(r.statusCode).toBe(200);
     expect(r.json().values.memoriaDir).toBe(dir);
     expect(r.json().sources.memoriaDir).toBe('settings');
-    expect((await fs.stat(path.join(dir, 'main.tex'))).isFile()).toBe(true);
+    expect((await fs.stat(path.join(dir, 'tfg.tex'))).isFile()).toBe(true);
     expect((await fs.stat(path.join(dir, '.git'))).isDirectory()).toBe(true);
     const log = execFileSync('git', ['log', '--oneline'], { cwd: dir, encoding: 'utf8' });
     expect(log).toMatch(/plantilla/);
     expect(execFileSync('git', ['status', '--porcelain'], { cwd: dir, encoding: 'utf8' })).toBe('');
     const tree = (await t.app.inject({ url: '/api/tree?root=memoria' })).json();
-    expect(flatPaths(tree.entries)).toContain('main.tex');
+    expect(flatPaths(tree.entries)).toContain('tfg.tex');
     expect(JSON.parse(await fs.readFile(t.cfg.settingsFile, 'utf8')).memoriaDir).toBe(dir);
   });
 

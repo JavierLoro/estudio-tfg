@@ -19,7 +19,7 @@ function describe(abs: string, name = path.basename(abs) || abs): DirEntry {
     name,
     path: abs,
     isObsidianVault: isDirSync(path.join(abs, '.obsidian')),
-    hasMainTex: isFileSync(path.join(abs, 'main.tex')),
+    hasMainTex: ['tfg.tex', 'main.tex'].some((f) => isFileSync(path.join(abs, f))),
     isGitRepo: isDirSync(path.join(abs, '.git')) || isFileSync(path.join(abs, '.git')),
   };
 }
