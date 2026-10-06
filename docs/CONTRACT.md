@@ -304,3 +304,41 @@ Los dos archivos son de la raíz `memoria`. Cada campo se lee de la **primera l�
 - Guardado al salir de cada campo (o ⌘S), con indicador «Guardado» como los editores; un 409 muestra los valores nuevos y avisa. Tras guardar, si el PDF queda desactualizado se ofrece «Compilar».
 - Si la memoria no tiene `institucion.tex` (anterior a v0.5), la sección Institución muestra «Esta memoria usa la plantilla anterior; podrás actualizarla más adelante» y no se puede editar.
 - Ajustes → «Crear memoria desde plantilla» deja elegir el perfil.
+
+## Actualizar plantilla (v0.6)
+
+Lleva una memoria existente a la plantilla actual **sin tocar lo que ha escrito el usuario**. Sirve para memorias v0.3 (`estilo/esi-tfg.cls`) y para futuras versiones de `estilo/memoria.cls`.
+
+### Versiones y manifiestos
+
+- `templates/manifiestos/<version>.json` = `{ version, clase, archivos: { "<ruta>": "<sha256>" } }`: el hash de cada archivo **tal como lo creó la plantilla** en esa versión (por perfil cuando difieran: clave `"<perfil>:<ruta>"`). Hay uno para `v0.3` (generado desde el commit 2529624, `templates/esi-tfg/`) y otro para la versión actual. `npm run template:manifest` regenera el actual; un test falla si está desactualizado.
+- La versión de la clase de una memoria se lee de su `\ProvidesClass` (`estilo/memoria.cls` o `estilo/esi-tfg.cls`).
+- Un archivo de la memoria está **sin tocar** si su hash coincide con el de su manifiesto; solo esos se pueden sustituir sin preguntar.
+
+### Qué hace (por tipo de archivo)
+
+| Archivo | Acción |
+|---|---|
+| `estilo/` (clase, logo) | Zona «no tocar»: se sustituye la clase; `estilo/esi-tfg.cls` se retira; se añade `estilo/institucion.tex` del perfil elegido (y su logo) si no existe. Nunca se pisa un `institucion.tex` existente |
+| `tfg.tex` | Edición puntual en el sitio: `\documentclass{estilo/esi-tfg}` → `{estilo/memoria}`; el bloque `\tableofcontents` … `\lstlistoflistings` → `\indices` solo si esas líneas siguen como en la plantilla. Nada más |
+| `datos.tex` | Se conservan todos los valores; se añaden los comandos que falten (`\keywords`, `\modo`, `\licencia`, `\atribucion`…) bajo `%% Añadido por Estudio TFG`. Si el perfil es `esi-uclm` y falta `\ciudad`, se añade `\ciudad{Ciudad Real}` (antes era el valor por defecto de la clase) |
+| Contenido (`0-inicio/`, `1-capitulos/`, `2-anexos/`, `bibliografia.bib`, `LEEME.md`) | Se sustituye **solo si está sin tocar**; si el usuario lo cambió, se deja y se lista como «revisar a mano» con el motivo (p. ej. «abstract.tex escribe las keywords a mano: usa \mostrarPalabrasClave») |
+| `.gitignore` | Se añaden las líneas que falten |
+| Cualquier otro archivo | No se toca |
+
+### API
+
+- `GET /api/memoria/plantilla?perfil=<id>` → `{ estado, versionMemoria, versionPlantilla, perfil, cambios: [{ archivo, accion, motivo }], revisar: [{ archivo, motivo }] }`
+  - `estado`: `actual` | `desactualizada` | `desconocida` (no se reconoce la clase: no se ofrece actualizar).
+  - `accion`: `crear` | `sustituir` | `editar` | `retirar`. `perfil`: el pedido, o el deducido (`esi-uclm` si usa el logo de la ESI; si no, `generico`).
+  - Es una vista previa: no escribe nada.
+- `POST /api/memoria/plantilla/actualizar` `{ perfil }` → `{ aplicados: [...cambios], revisar, commit: string|null, deshacer: string }`
+  - **409** si algún archivo afectado tiene cambios sin guardar (el cliente guarda todo antes) o cambió desde la vista previa (se recalcula en el momento y se compara con la que se envía: `{ perfil, cambios }`).
+  - Cada archivo afectado se copia antes al historial; la operación guarda un registro `deshacer` (id).
+  - Si la memoria es un repositorio git: commit **solo de los archivos afectados** con el mensaje «Actualizar plantilla a <versión>»; los demás cambios del usuario no se incluyen. Sin git, `commit` = null.
+- `POST /api/memoria/plantilla/deshacer` `{ id }` → restaura los archivos desde el historial (y, si hubo commit y sigue siendo el último, lo revierte con un commit nuevo). Solo la última actualización.
+
+### Interfaz
+
+- El panel **Datos del trabajo** muestra, si `estado = desactualizada`, un aviso «Hay una versión nueva de la plantilla» con «Actualizar…»; en la sección Institución sustituye al aviso de «plantilla anterior».
+- «Actualizar…» abre un diálogo: selector de perfil (solo si no hay `institucion.tex`), lista de cambios agrupada (crear / sustituir / editar / retirar) y «Revisar a mano», y los botones Cancelar / Actualizar. Al terminar: guarda todo antes, aplica, recompila y muestra el resultado con «Deshacer».
