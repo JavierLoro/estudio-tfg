@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { registerTokenPrompt } from './api';
+import { registerTokenPrompt, type Status } from './api';
 import { CaptureModal } from './components/CaptureModal';
 import { ContextMenuHost } from './components/ContextMenu';
 import { Header } from './components/Header';
@@ -9,11 +9,13 @@ import { Rail } from './components/Rail';
 import { Sidebar } from './components/Sidebar';
 import { Toasts } from './components/Toasts';
 import { Workspace } from './components/Workspace';
+import { Button, Spinner } from './components/ui';
 import { docKey } from './lib/paths';
 import { initCaptureQueue } from './state/captureQueue';
 import { useCompile } from './state/compile';
 import { anyDirty, flushDrafts, saveDoc } from './state/docs';
 import { connectEvents } from './state/events';
+import { initInstance, useSettings, watchSettingsTransitions } from './state/settings';
 import { useUI } from './state/ui';
 import { activeFile } from './state/workspace';
 
@@ -28,7 +30,14 @@ function useBoot() {
       }),
     );
     const ui = useUI.getState();
-    void ui.refreshStatus().then(() => {
+    // Arranque en cuanto llegue el primer estado (puede tardar si el server está caído).
+    let started = false;
+    const start = (status: Status) => {
+      if (started) return;
+      started = true;
+      // La instancia (claves de borradores y layout) debe fijarse antes de montar el área de trabajo.
+      initInstance(status);
+      watchSettingsTransitions();
       // Tras autenticarse (si hacía falta) el resto de peticiones ya llevan el token.
       connectEvents();
       void ui.refreshTree('memoria');
@@ -36,9 +45,17 @@ function useBoot() {
       void ui.refreshResources();
       void useCompile.getState().fetchLast();
       initCaptureQueue();
+    };
+    const unsub = useUI.subscribe((s) => s.status && start(s.status));
+    void ui.refreshStatus().then(() => {
+      const s = useUI.getState().status;
+      if (s) start(s);
     });
     const t = setInterval(() => void useUI.getState().refreshStatus(), 60_000);
-    return () => clearInterval(t);
+    return () => {
+      clearInterval(t);
+      unsub();
+    };
   }, []);
 }
 
@@ -123,6 +140,8 @@ export function App() {
   useUnloadGuard();
   useDragGuard();
   const sidebarOpen = useUI((s) => s.sidebarOpen);
+  const ready = useSettings((s) => s.ready);
+  const statusError = useUI((s) => s.statusError);
   return (
     <div className="flex h-full flex-col">
       <Header />
@@ -130,7 +149,22 @@ export function App() {
         <Rail />
         {sidebarOpen && <Sidebar />}
         <main className="flex min-w-0 flex-1" aria-label="Área de trabajo">
-          <Workspace />
+          {ready ? (
+            <Workspace />
+          ) : (
+            <div className="flex flex-1 flex-col items-center justify-center gap-2 text-[12.5px] text-muted">
+              {statusError ? (
+                <>
+                  <p className="text-danger">No se pudo contactar con el servidor: {statusError}</p>
+                  <Button onClick={() => void useUI.getState().refreshStatus()}>Reintentar</Button>
+                </>
+              ) : (
+                <p className="flex items-center gap-2">
+                  <Spinner size={12} /> Conectando con el servidor…
+                </p>
+              )}
+            </div>
+          )}
         </main>
       </div>
       <CaptureModal />

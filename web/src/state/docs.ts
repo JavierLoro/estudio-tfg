@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { api, ApiError, ConflictError, errorMessage, type ChangeEvent, type Root } from '../api';
 import { docKey } from '../lib/paths';
+import { draftStorageKey } from '../lib/instance';
 import { load, remove, save } from '../lib/storage';
 import { toast } from './ui';
 import { useCompile } from './compile';
@@ -72,8 +73,8 @@ function patch(key: string, p: Partial<Doc>) {
 
 // ---- Borradores en localStorage ----
 
-const DRAFT_PREFIX = 'et:draft:';
-const draftKey = (key: string) => DRAFT_PREFIX + key;
+// Clave por instancia (ver lib/instance.ts): `et:draft:<instanceId>:<root>:<path>`.
+const draftKey = (key: string) => draftStorageKey(key);
 const draftTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 function writeDraftNow(key: string) {

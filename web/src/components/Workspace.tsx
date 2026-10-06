@@ -8,13 +8,14 @@ import {
   type IWatermarkPanelProps,
   type DockviewTheme,
 } from 'dockview-react';
-import { FileCode2, FileText, Home, Inbox, Search, X, FileType2 } from 'lucide-react';
+import { FileCode2, FileText, Home, Inbox, Search, Settings, X, FileType2 } from 'lucide-react';
 import { docKey } from '../lib/paths';
 import { indicatorOf, useDocs } from '../state/docs';
 import { useUI } from '../state/ui';
 import {
   defaultLayout,
   onPanelRemoved,
+  openSettings,
   restoreLayout,
   scheduleLayoutSave,
   setDock,
@@ -27,6 +28,7 @@ import { PdfPanel } from '../panels/PdfPanel';
 import { ResourcePanel } from '../panels/ResourcePanel';
 import { SearchPanel } from '../panels/SearchPanel';
 import { HomePanel } from '../panels/HomePanel';
+import { SettingsPanel } from '../panels/SettingsPanel';
 import { indicatorColor } from './DocBanners';
 import { MOD, cx } from './ui';
 
@@ -37,6 +39,7 @@ const components = {
   resource: ResourcePanel,
   search: SearchPanel,
   home: HomePanel,
+  settings: SettingsPanel,
 };
 
 const ICONS: Record<string, React.ReactNode> = {
@@ -46,6 +49,7 @@ const ICONS: Record<string, React.ReactNode> = {
   resource: <Inbox size={13} />,
   search: <Search size={13} />,
   home: <Home size={13} />,
+  settings: <Settings size={13} />,
 };
 
 function useTitle(api: IDockviewPanelHeaderProps['api']) {
@@ -135,7 +139,12 @@ export function Workspace() {
   const onReady = (e: DockviewReadyEvent) => {
     const api = e.api;
     setDock(api);
-    if (!restoreLayout(api)) {
+    const unconfigured = useUI.getState().status?.configured === false;
+    if (unconfigured) {
+      // Sin carpetas válidas: no tiene sentido abrir main.tex; se abren los ajustes.
+      if (!restoreLayout(api)) api.clear();
+      openSettings();
+    } else if (!restoreLayout(api)) {
       const status = useUI.getState().status;
       defaultLayout(status?.memoriaMain ?? 'main.tex');
       if (!status) {

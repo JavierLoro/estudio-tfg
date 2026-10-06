@@ -63,6 +63,10 @@ interface UIState {
   resourcesError: string | null;
   refreshResources: () => Promise<void>;
 
+  /** Se incrementa cada vez que se aplican ajustes nuevos (recargar búsquedas, listas…). */
+  settingsVersion: number;
+  bumpSettingsVersion: () => void;
+
   recents: RecentItem[];
   pushRecent: (root: Root, path: string) => void;
   dropRecent: (root: Root, path: string) => void;
@@ -153,6 +157,9 @@ export const useUI = create<UIState>((set, get) => ({
       set({ resourcesError: errorMessage(e) });
     }
   },
+
+  settingsVersion: 0,
+  bumpSettingsVersion: () => set({ settingsVersion: get().settingsVersion + 1 }),
 
   recents: load<RecentItem[]>(RECENTS_KEY, []),
   pushRecent: (root, path) => {

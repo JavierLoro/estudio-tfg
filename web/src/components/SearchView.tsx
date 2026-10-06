@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { FileText, FileCode2 } from 'lucide-react';
 import { api, errorMessage, type Root, type SearchItem } from '../api';
 import { basename } from '../lib/paths';
+import { useUI } from '../state/ui';
 import { openFile } from '../state/workspace';
 import { Empty, Spinner, cx } from './ui';
 
@@ -45,6 +46,8 @@ export function useSearch(q: string, scope: Root | 'all') {
   const [items, setItems] = useState<SearchItem[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Al aplicar ajustes nuevos (otras carpetas) se repite la búsqueda.
+  const version = useUI((s) => s.settingsVersion);
   useEffect(() => {
     const query = q.trim();
     if (query.length < 2) {
@@ -73,7 +76,7 @@ export function useSearch(q: string, scope: Root | 'all') {
       clearTimeout(t);
       ctrl.abort();
     };
-  }, [q, scope]);
+  }, [q, scope, version]);
   return { items, loading, error };
 }
 

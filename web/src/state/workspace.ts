@@ -2,13 +2,14 @@ import type { DockviewApi, IDockviewPanel } from 'dockview-react';
 import { create } from 'zustand';
 import type { Root } from '../api';
 import { basename, docKey, panelKindFor } from '../lib/paths';
+import { layoutStorageKey } from '../lib/instance';
 import { load, remove, save } from '../lib/storage';
 import { releaseDoc, requestReveal } from './docs';
 import { useUI } from './ui';
 import { api as http } from '../api';
 
 // Tipos de panel y sus parámetros.
-export type PanelComponent = 'latex' | 'note' | 'pdf' | 'resource' | 'search' | 'home';
+export type PanelComponent = 'latex' | 'note' | 'pdf' | 'resource' | 'search' | 'home' | 'settings';
 
 export interface FileParams {
   root: Root;
@@ -27,7 +28,8 @@ export interface OpenOptions {
   inactive?: boolean;
 }
 
-const LAYOUT_KEY = 'et:layout:v1';
+// Layout por instancia (ver lib/instance.ts).
+const layoutKey = () => layoutStorageKey();
 
 let dock: DockviewApi | null = null;
 export const getDock = () => dock;
@@ -99,6 +101,20 @@ export function openHome(opts: OpenOptions = {}) {
   addOrFocus('home', 'home', 'Inicio', {}, opts);
 }
 
+export function openSettings(opts: OpenOptions = {}) {
+  addOrFocus('settings', 'settings', 'Ajustes', {}, opts);
+}
+
+/** Cierra las pestañas de archivos de las raíces indicadas (los borradores se conservan). */
+export function closeFilePanels(roots: Root[]) {
+  if (!dock || !roots.length) return;
+  for (const p of [...dock.panels]) {
+    const params = p.params as Partial<FileParams> | undefined;
+    const c = p.api.component;
+    if ((c === 'latex' || c === 'note' || c === 'resource') && params?.root && roots.includes(params.root)) p.api.close();
+  }
+}
+
 export function openSearch(q: string, scope: Root | 'all' = 'all', opts: OpenOptions = {}) {
   const p = addOrFocus('search', 'search', 'Búsqueda', { q, scope } satisfies SearchParams, opts);
   p?.api.updateParameters({ q, scope });
@@ -121,19 +137,19 @@ export function scheduleLayoutSave() {
   if (!dock) return;
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    if (dock) save(LAYOUT_KEY, dock.toJSON());
+    if (dock) save(layoutKey(), dock.toJSON());
   }, 300);
 }
 
 export function restoreLayout(api: DockviewApi): boolean {
-  const data = load<unknown>(LAYOUT_KEY, null);
+  const data = load<unknown>(layoutKey(), null);
   if (!data) return false;
   try {
     api.fromJSON(data as Parameters<DockviewApi['fromJSON']>[0]);
     return api.panels.length > 0;
   } catch (e) {
     console.warn('Layout guardado no válido, se descarta', e);
-    remove(LAYOUT_KEY);
+    remove(layoutKey());
     try {
       api.clear();
     } catch {
@@ -160,7 +176,7 @@ export function defaultLayout(memoriaMain: string) {
 }
 
 export function resetLayout() {
-  remove(LAYOUT_KEY);
+  remove(layoutKey());
   defaultLayout(useUI.getState().status?.memoriaMain ?? 'main.tex');
 }
 

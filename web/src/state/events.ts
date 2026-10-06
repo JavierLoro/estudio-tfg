@@ -1,4 +1,5 @@
-import type { ChangeEvent, CompileResult, Root } from '../api';
+import type { ChangeEvent, CompileResult, Root, SettingsResponse } from '../api';
+import { notifySettingsChanged } from './settings';
 import { handleExternalChange } from './docs';
 import { useCompile } from './compile';
 import { useUI } from './ui';
@@ -64,6 +65,16 @@ export function connectEvents() {
     if (ev.path.includes('.sync-conflict-')) refreshStatusSoon();
     void handleExternalChange(ev);
     for (const l of listeners) l(ev);
+  });
+  es.addEventListener('settings', (msg) => {
+    // Datos: los valores nuevos (o el formato completo de GET /api/settings).
+    let data: Partial<SettingsResponse> | null = null;
+    try {
+      data = JSON.parse((msg as MessageEvent).data);
+    } catch {
+      /* da igual: se relee el estado */
+    }
+    void notifySettingsChanged(data && 'values' in data && 'sources' in data ? (data as SettingsResponse) : undefined);
   });
   es.addEventListener('compile', (msg) => {
     try {

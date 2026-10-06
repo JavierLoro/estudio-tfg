@@ -9,6 +9,44 @@ export interface Status {
   resourcesSubdir: string;
   syncConflicts: string[];
   worker: 'up' | 'down';
+  /** v0.2: false si `notesDir` o `memoriaDir` no existen. */
+  configured?: boolean;
+  /** v0.2: hash corto de `notesDir|memoriaDir` (prefijo de borradores y layout). */
+  instanceId?: string;
+}
+
+// ---- Ajustes (v0.2) ----
+
+export const SETTINGS_KEYS = ['notesDir', 'resourcesSubdir', 'memoriaDir', 'memoriaMain'] as const;
+export type SettingsKey = (typeof SETTINGS_KEYS)[number];
+export type SettingsValues = Record<SettingsKey, string>;
+export type SettingsSource = 'settings' | 'env' | 'default';
+
+export interface SettingsCheck {
+  key: string;
+  level: 'ok' | 'warning' | 'error';
+  message: string;
+}
+
+export interface SettingsResponse {
+  values: SettingsValues;
+  sources: Record<SettingsKey, SettingsSource>;
+  allowedRoots: string[];
+  checks: SettingsCheck[];
+}
+
+export interface FsDir {
+  name: string;
+  path: string;
+  isObsidianVault: boolean;
+  hasMainTex: boolean;
+  isGitRepo: boolean;
+}
+
+export interface FsDirsResponse {
+  path: string | null;
+  parent: string | null;
+  dirs: FsDir[];
 }
 
 export interface Entry {
@@ -98,6 +136,17 @@ export class ApiError extends Error {
 /** Error de red (sin respuesta del servidor). */
 export class NetworkError extends Error {}
 
+/** 400 `{ error, field }`: error de validación asociado a un campo. */
+export class FieldError extends ApiError {
+  field: string;
+  constructor(message: string, field: string, body: unknown) {
+    super(400, message, body);
+    this.field = field;
+  }
+}
+
+export const FORBIDDEN_SETTINGS_MSG = 'Solo se puede cambiar la configuración desde este equipo o con token';
+
 export class ConflictError extends ApiError {
   content: string;
   rev: string;
@@ -183,6 +232,9 @@ async function request(path: string, init: RequestInit = {}, retried = false): P
       const b = body as { content: string; rev: string };
       throw new ConflictError(b.content, b.rev, body);
     }
+    if (res.status === 400 && body && typeof body === 'object' && typeof (body as { field?: unknown }).field === 'string') {
+      throw new FieldError(msg, (body as { field: string }).field, body);
+    }
     throw new ApiError(res.status, msg, body);
   }
   return res;
@@ -204,6 +256,16 @@ const jsonBody = (method: string, body: unknown): RequestInit => ({
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify(body),
 });
+
+/** Endpoints protegidos de ajustes: 403 → mensaje claro. */
+async function guarded<T>(p: Promise<T>): Promise<T> {
+  try {
+    return await p;
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 403) throw new ApiError(403, FORBIDDEN_SETTINGS_MSG, e.body);
+    throw e;
+  }
+}
 
 // ---- Endpoints ----
 
@@ -250,6 +312,31 @@ export const api = {
   },
 
   logUrl: (buildId: string) => `/api/compile/log/${encodeURIComponent(buildId)}`,
+
+  // ---- Ajustes (v0.2) ----
+
+  settings: () => json<SettingsResponse>('/api/settings'),
+
+  /** Lanza FieldError (400 con `field`) o ApiError 403 con mensaje claro. */
+  saveSettings: (values: Partial<SettingsValues>) => guarded(json<SettingsResponse>('/api/settings', jsonBody('PUT', values))),
+
+  resetSettings: (keys: SettingsKey[]) =>
+    guarded(json<Partial<SettingsResponse>>('/api/settings/reset', jsonBody('POST', { keys }))),
+
+  /** Sin `path` lista las raíces permitidas. */
+  fsDirs: (path?: string) => guarded(json<FsDirsResponse>(`/api/fs/dirs?${qs({ path: path || undefined })}`)),
+
+  /** 409 si la carpeta existe y no está vacía. */
+  initMemoria: async (dir: string) => {
+    try {
+      return await guarded(json<Partial<SettingsResponse>>('/api/settings/init-memoria', jsonBody('POST', { dir })));
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 409 && !(e instanceof ConflictError)) {
+        throw new ApiError(409, e.message && e.message !== 'HTTP 409' ? e.message : 'La carpeta no está vacía', e.body);
+      }
+      throw e;
+    }
+  },
 };
 
 export function errorMessage(e: unknown): string {

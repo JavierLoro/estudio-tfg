@@ -1,6 +1,6 @@
-import { BookMarked, FileCode2, Home, Inbox, Plus, Search } from 'lucide-react';
+import { BookMarked, FileCode2, Home, Inbox, Plus, Search, Settings } from 'lucide-react';
 import { useUI, type Section } from '../state/ui';
-import { openHome } from '../state/workspace';
+import { openHome, openSettings, useActivePanel } from '../state/workspace';
 import { MOD, cx } from './ui';
 
 const ITEMS: { id: Section; label: string; icon: React.ReactNode }[] = [
@@ -40,6 +40,8 @@ export function Rail() {
   const open = useUI((s) => s.sidebarOpen);
   const setSection = useUI((s) => s.setSection);
   const inbox = useUI((s) => s.resources?.filter((r) => r.status === 'inbox').length ?? 0);
+  const settingsActive = useActivePanel((s) => s.id === 'settings');
+  const unconfigured = useUI((s) => s.status?.configured === false);
   return (
     <nav className="flex w-[52px] shrink-0 flex-col items-center gap-1 border-r border-line bg-rail py-2" aria-label="Secciones">
       {ITEMS.map((it) => (
@@ -63,6 +65,10 @@ export function Rail() {
       <div className="flex-1" />
       <RailButton label={`Capturar (${MOD}⇧C)`} onClick={() => useUI.getState().setCaptureOpen(true)}>
         <Plus size={19} />
+      </RailButton>
+      <RailButton label="Ajustes" active={settingsActive} onClick={() => openSettings()}>
+        <Settings size={19} />
+        {unconfigured && <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-danger" aria-label="Falta configurar" />}
       </RailButton>
     </nav>
   );
