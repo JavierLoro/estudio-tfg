@@ -163,3 +163,36 @@ Si `AUTH_TOKEN` está definido: cabecera `Authorization: Bearer <token>` o cooki
 - Al cambiar ajustes (respuesta o SSE `settings`): recargar árboles, recursos, búsqueda y última compilación; cerrar pestañas de archivos de raíces cambiadas (los borradores se conservan).
 - Borradores y layout: clave con `instanceId` (`draft:<instanceId>:<root>:<path>`), migrando los existentes sin prefijo a la instancia actual una vez.
 - Si `configured` es false al arrancar: abrir Ajustes automáticamente con un aviso.
+
+## Plantilla combinada y vista Documento (v0.3)
+
+### Plantilla `templates/esi-tfg/` (sustituye a la de ARCO)
+- **Origen y licencia:** derivada de la clase GPL de ARCO (`esi-tfg.cls`, UCLM-ESI), saneada. De la plantilla de J. Salido solo se toman ideas (opciones de idioma/formato, guía por capítulo): **no se copia código ni texto** (su repositorio no declara licencia). Mantener la cabecera GPL y la atribución en `estilo/esi-tfg.cls` y en `LEEME.md`.
+- **Estructura** (orden de carpetas = orden del PDF, todo en español):
+  ```
+  LEEME.md · datos.tex · tfg.tex · bibliografia.bib · figuras/
+  0-inicio/{resumen,abstract,agradecimientos,acronimos}.tex
+  1-capitulos/{01-introduccion,02-objetivos,03-antecedentes,04-metodologia,05-resultados,06-conclusiones}.tex
+  2-anexos/a-anexo.tex
+  estilo/esi-tfg.cls (+ logos)  ← no tocar
+  ```
+- `datos.tex`: solo comandos limpios (`\titulo`, `\autor`, `\email`, `\tutor`, `\cotutor`, `\departamento`, `\intensificacion`, `\fecha{mes}{año}`, `\ciudad`, `\palabrasClave`, `\idioma{espanol|ingles}`, `\formato{impresion|pantalla}`, `\estiloBibliografia{ieeetr}`). Campos opcionales vacíos u omitidos no rompen nada.
+- `tfg.tex`: `\documentclass{estilo/esi-tfg}`, `\input{datos}` y la lista ordenada de `\input`/`\include`. Un apartado desactivado = línea comentada.
+- Cada capítulo empieza con un comentario guía breve (redacción propia) sobre qué debe contener según la normativa de la ESI.
+- Objetivo: **0 avisos** al compilar sin tocar; sin paquetes obsoletos (`epsfig`, `atbeginend`, `lettrine`, `tipa`, `blindtext`); pdflatex + bibtex; PDF ligero.
+- `scripts/init.mjs` / `init-memoria` usan esta plantilla. La memoria actual del usuario (aún texto de plantilla) se regenera con ella tras confirmar que no tiene cambios propios.
+
+### Vista Documento
+- `GET /api/memoria/outline` → `{ main, items: OutlineItem[], words: number, generatedAt }`
+  `OutlineItem = { id, kind: "datos"|"frontmatter"|"chapter"|"section"|"subsection"|"bibliography"|"appendix", title, number: string|null, file, line, enabled, words, warnings: string[], children: OutlineItem[] }`
+  - Se construye siguiendo `MEMORIA_MAIN` recursivamente por `\input`/`\include` (sin comentarios, rutas relativas a la raíz, con o sin `.tex`, ciclos protegidos). Las líneas comentadas `% \include{…}` producen `enabled:false`.
+  - Numeración como en el PDF: capítulos 1, 2…; secciones 1.1…; tras `\appendix`, A, B…; `\chapter*`/frontmatter sin número.
+  - `words`: palabras de texto (sin comandos ni comentarios), aproximado. `warnings`: «vacío» (< 30 palabras), «TODO» si hay `TODO`/`\todo`, «errores» si la última compilación tiene diagnósticos en ese archivo/rango.
+  - Se invalida con el watcher; SSE `event: outline` cuando cambia.
+- `POST /api/memoria/sections` body `{ kind: "chapter"|"section"|"appendix", title, after?: id, parent?: id }`:
+  - `chapter`/`appendix`: crea `1-capitulos/NN-<slug>.tex` (o `2-anexos/<letra>-<slug>.tex`) con `\chapter{title}\label{cap:<slug>}` + comentario guía, e inserta su `\include` en `tfg.tex` tras `after` (o al final del bloque). Numeración de archivos: siguiente número libre (no se renombran los existentes).
+  - `section`: inserta `\section{title}` al final del capítulo `parent` (o tras `after`) en su archivo.
+  - Usa las mismas garantías que `PUT /api/file` (revisión, backup, atómico); 409 si `tfg.tex` cambió entre lectura y escritura. → `{ item, file, line }`.
+- Búsqueda: `GET /api/search?root=memoria` añade a cada resultado `outline: { id, number, title }` (apartado más interno que contiene la línea). La web agrupa por apartado en orden del documento.
+- **Interfaz:** en la sección Memoria, pestañas **Documento | Archivos** (Documento por defecto). Árbol con número, título, palabras y avisos; apartados desactivados en gris; clic abre en la línea, ⌥clic al lado; filtro rápido arriba; total de palabras; botones «+ Capítulo», «+ Sección» (en el menú del capítulo) y «+ Anexo» con diálogo de título.
+- Fase 2 (no ahora): activar/desactivar, reordenar arrastrando, «Ver en PDF» con SyncTeX.
