@@ -13,6 +13,7 @@ import { Button, Spinner } from './components/ui';
 import { docKey } from './lib/paths';
 import { initCaptureQueue } from './state/captureQueue';
 import { useCompile } from './state/compile';
+import { useOutline } from './state/outline';
 import { anyDirty, flushDrafts, saveDoc } from './state/docs';
 import { connectEvents } from './state/events';
 import { initInstance, useSettings, watchSettingsTransitions } from './state/settings';
@@ -44,6 +45,7 @@ function useBoot() {
       void ui.refreshTree('notes');
       void ui.refreshResources();
       void useCompile.getState().fetchLast();
+      void useOutline.getState().refresh();
       initCaptureQueue();
     };
     const unsub = useUI.subscribe((s) => s.status && start(s.status));

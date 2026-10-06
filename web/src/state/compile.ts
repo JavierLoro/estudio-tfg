@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { api, errorMessage, type CompileResult, type Diagnostic } from '../api';
 import { load, save } from '../lib/storage';
 import { normalize } from '../lib/paths';
+import { refreshOutlineSoon } from './outline';
 
 interface CompileState {
   last: CompileResult | null;
@@ -43,6 +44,8 @@ export const useCompile = create<CompileState>((set, get) => ({
     const req = requestedAt ?? (inflightStart || Date.parse(r.startedAt) || Date.now());
     set({ last: r, error: null, lastCompileRequestedAt: Math.max(req, get().lastCompileRequestedAt) });
     persist(get());
+    // Los avisos «errores» del índice dependen de la última compilación.
+    refreshOutlineSoon(800);
   },
 
   fetchLast: async () => {

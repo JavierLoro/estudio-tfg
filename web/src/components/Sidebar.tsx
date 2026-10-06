@@ -8,6 +8,9 @@ import { useUI, type Section } from '../state/ui';
 import { openFile, openHome, openResource, openSearch, resetLayout } from '../state/workspace';
 import { saveAndCompile } from '../panels/LatexPanel';
 import { FileTree, createFileIn } from './FileTree';
+import { OutlineView } from './OutlineTree';
+import { useOutline } from '../state/outline';
+import { load, save } from '../lib/storage';
 import { ScopeSelect, SearchResults } from './SearchView';
 import { ALT, Empty, IconButton, Spinner, cx } from './ui';
 
@@ -45,7 +48,7 @@ export function Sidebar() {
   return (
     <aside className="flex h-full w-[260px] shrink-0 flex-col border-r border-line bg-soft" aria-label={`Panel lateral: ${TITLES[section]}`}>
       {section === 'home' && <HomeSection />}
-      {section === 'memoria' && <TreeSection root="memoria" />}
+      {section === 'memoria' && <MemoriaSection />}
       {section === 'notes' && <TreeSection root="notes" />}
       {section === 'resources' && <ResourcesSection />}
       {section === 'search' && <SearchSection />}
@@ -59,6 +62,74 @@ function SectionHeader({ title, children }: { title: string; children?: React.Re
       <h2 className="flex-1 text-[11px] font-semibold tracking-wider text-muted uppercase">{title}</h2>
       {children}
     </div>
+  );
+}
+
+type MemoriaTab = 'documento' | 'archivos';
+const MEMORIA_TAB_KEY = 'et:memoria-tab';
+
+function MemoriaSection() {
+  const [tab, setTabState] = useState<MemoriaTab>(() => (load<string>(MEMORIA_TAB_KEY, 'documento') === 'archivos' ? 'archivos' : 'documento'));
+  const setTab = (t: MemoriaTab) => {
+    setTabState(t);
+    save(MEMORIA_TAB_KEY, t);
+  };
+  const compiling = useCompile((s) => s.compiling);
+  useEffect(() => {
+    void useUI.getState().refreshTree('memoria');
+  }, []);
+  return (
+    <>
+      <SectionHeader title="Memoria">
+        {tab === 'archivos' && (
+          <IconButton label="Nuevo archivo" onClick={() => createFileIn('memoria', '')}>
+            <FilePlus2 size={14} />
+          </IconButton>
+        )}
+        <IconButton
+          label="Recargar"
+          onClick={() => {
+            void useUI.getState().refreshTree('memoria');
+            void useOutline.getState().refresh();
+          }}
+        >
+          <RefreshCw size={13} />
+        </IconButton>
+        <IconButton label="Compilar" onClick={() => saveAndCompile()} disabled={compiling}>
+          {compiling ? <Spinner size={11} /> : <Play size={13} />}
+        </IconButton>
+      </SectionHeader>
+      <div className="flex gap-0.5 px-2 pb-1.5" role="tablist" aria-label="Vista de la memoria">
+        {(['documento', 'archivos'] as MemoriaTab[]).map((t) => (
+          <button
+            key={t}
+            type="button"
+            role="tab"
+            aria-selected={tab === t}
+            onClick={() => setTab(t)}
+            className={cx(
+              'h-6 flex-1 rounded-md px-1 text-[11.5px]',
+              tab === t ? 'bg-active font-semibold text-accent' : 'text-muted hover:bg-hover',
+            )}
+          >
+            {t === 'documento' ? 'Documento' : 'Archivos'}
+          </button>
+        ))}
+      </div>
+      {tab === 'documento' ? <OutlineView onShowFiles={() => setTab('archivos')} /> : <MemoriaFiles />}
+    </>
+  );
+}
+
+function MemoriaFiles() {
+  const [filter, setFilter] = useState('');
+  return (
+    <>
+      <FilterInput value={filter} onChange={setFilter} placeholder="Filtrar archivos…" />
+      <div className="min-h-0 flex-1 overflow-auto pb-2">
+        <FileTree root="memoria" filter={filter} />
+      </div>
+    </>
   );
 }
 

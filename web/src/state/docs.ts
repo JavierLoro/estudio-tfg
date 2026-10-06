@@ -5,6 +5,7 @@ import { draftStorageKey } from '../lib/instance';
 import { load, remove, save } from '../lib/storage';
 import { toast } from './ui';
 import { useCompile } from './compile';
+import { refreshOutlineSoon } from './outline';
 
 export interface Conflict {
   content: string;
@@ -229,7 +230,10 @@ export async function saveDoc(key: string, opts: { quiet?: boolean } = {}): Prom
       patch(key, { saving: false, rev, mtime, savedContent: sent, conflict: null, deleted: false, lastSavedAt: Date.now() });
       writeDraftNow(key);
     }
-    if (d.root === 'memoria') useCompile.getState().markMemoriaChanged();
+    if (d.root === 'memoria') {
+      useCompile.getState().markMemoriaChanged();
+      refreshOutlineSoon(1500);
+    }
     return true;
   } catch (e) {
     if (e instanceof ConflictError) {

@@ -412,7 +412,7 @@ export function SettingsPanel() {
                 <span className="flex-1">Memoria nueva</span>
               </header>
               <div className="flex flex-wrap items-center gap-3 px-3 py-2.5 text-[12px] text-muted">
-                <p className="min-w-0 flex-1">
+                <p className="min-w-0 flex-[1_1_16rem]">
                   Crea una carpeta con la plantilla de la memoria (UCLM-ESI), inicia un repositorio git y la usa como carpeta de la memoria.
                 </p>
                 <Button onClick={() => setPicker({ kind: 'create' })} disabled={creating}>

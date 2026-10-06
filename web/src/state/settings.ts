@@ -5,6 +5,7 @@ import { create } from 'zustand';
 import { api, errorMessage, type Root, type SettingsResponse, type Status } from '../api';
 import { getInstance, migrateLegacyKeys, moveDraft, setInstance } from '../lib/instance';
 import { useCompile } from './compile';
+import { useOutline } from './outline';
 import { flushDrafts, useDocs } from './docs';
 import { toast, useUI } from './ui';
 import { closeFilePanels, scheduleLayoutSave } from './workspace';
@@ -79,6 +80,7 @@ function applyTransition(prev: Status, next: Status) {
   void ui.refreshResources();
   if (changed.includes('memoria') || prev.memoriaMain !== next.memoriaMain) useCompile.setState({ last: null });
   void useCompile.getState().fetchLast();
+  void useOutline.getState().refresh();
   ui.bumpSettingsVersion();
   void useSettings.getState().load();
   toast({ kind: 'ok', text: 'Configuración aplicada' });

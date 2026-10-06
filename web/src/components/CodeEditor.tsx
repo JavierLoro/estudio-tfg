@@ -5,6 +5,7 @@ import { setDiagnostics, type Diagnostic as CmDiagnostic } from '@codemirror/lin
 import { StateEffect, StateField } from '@codemirror/state';
 import { baseExtensions, languageExtension, type EditorLang } from '../lib/editor';
 import { setContent, useDocs } from '../state/docs';
+import { setCursorLine } from '../state/cursor';
 
 export interface LineDiagnostic {
   line: number | null;
@@ -87,6 +88,7 @@ export function CodeEditor({ docKey, lang, lineNumbers = true, className, onSave
           languageExtension(lang),
           flashField,
           EditorView.updateListener.of((u) => {
+            if (u.selectionSet || u.docChanged) setCursorLine(docKey, u.state.doc.lineAt(u.state.selection.main.head).number);
             if (!u.docChanged) return;
             if (u.transactions.some((tr) => tr.annotation(External))) return;
             setContent(docKey, u.state.doc.toString());

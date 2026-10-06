@@ -98,7 +98,54 @@ export interface SearchItem {
   path: string;
   line: number;
   snippet: string;
+  /** v0.3 (solo `memoria`): apartado más interno que contiene la línea. */
+  outline?: { id: string; number: string | null; title: string } | null;
 }
+
+// ---- Vista Documento (v0.3) ----
+
+export type OutlineKind = 'datos' | 'frontmatter' | 'chapter' | 'section' | 'subsection' | 'bibliography' | 'appendix';
+
+export interface OutlineItem {
+  id: string;
+  kind: OutlineKind;
+  title: string;
+  number: string | null;
+  file: string;
+  line: number;
+  enabled: boolean;
+  words: number;
+  warnings: string[];
+  children: OutlineItem[];
+  /** Solo `bibliography`: número de entradas de los .bib (si el servidor lo da). */
+  entries?: number;
+}
+
+export interface OutlineResponse {
+  main: string;
+  items: OutlineItem[];
+  words: number;
+  generatedAt: string;
+  /** Problemas de estructura (archivos que faltan, ciclos…), si el servidor los da. */
+  warnings?: string[];
+}
+
+export type NewSectionKind = 'chapter' | 'section' | 'appendix';
+
+export interface NewSectionRequest {
+  kind: NewSectionKind;
+  title: string;
+  after?: string;
+  parent?: string;
+}
+
+export interface NewSectionResponse {
+  item: OutlineItem;
+  file: string;
+  line: number;
+}
+
+export const OUTLINE_CONFLICT_MSG = 'tfg.tex cambió; vuelve a intentarlo';
 
 export interface Diagnostic {
   severity: 'error' | 'warning';
@@ -307,6 +354,24 @@ export const api = {
       return await json<CompileResult>('/api/compile/last');
     } catch (e) {
       if (e instanceof ApiError && e.status === 404) return null;
+      throw e;
+    }
+  },
+
+  // ---- Vista Documento (v0.3) ----
+
+  outline: () => json<OutlineResponse>('/api/memoria/outline'),
+
+  /**
+   * Crea un capítulo, sección o anexo. Lanza FieldError (400 con `field`) o
+   * ApiError 409 con OUTLINE_CONFLICT_MSG si `tfg.tex` cambió entre lectura y escritura
+   * (quien llama debe volver a leer el índice).
+   */
+  createSection: async (body: NewSectionRequest) => {
+    try {
+      return await json<NewSectionResponse>('/api/memoria/sections', jsonBody('POST', body));
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 409) throw new ApiError(409, OUTLINE_CONFLICT_MSG, e.body);
       throw e;
     }
   },

@@ -3,6 +3,7 @@ import { notifySettingsChanged } from './settings';
 import { handleExternalChange } from './docs';
 import { useCompile } from './compile';
 import { useUI } from './ui';
+import { handleOutlineEvent, refreshOutlineSoon, useOutline } from './outline';
 import { create } from 'zustand';
 
 type Listener = (ev: ChangeEvent) => void;
@@ -48,6 +49,7 @@ export function connectEvents() {
       // Tras una reconexión, ponerse al día.
       useUI.getState().refreshStatus();
       useCompile.getState().fetchLast();
+      void useOutline.getState().refresh();
     }
   };
   es.onerror = () => useConnection.setState({ connected: false });
@@ -59,7 +61,11 @@ export function connectEvents() {
       return;
     }
     if (ev.kind !== 'change') refreshTreeSoon(ev.root);
-    if (ev.root === 'memoria') useCompile.getState().markMemoriaChanged();
+    if (ev.root === 'memoria') {
+      useCompile.getState().markMemoriaChanged();
+      // Respaldo: el server emite `outline` al cambiar; si no llega, se relee igualmente.
+      if (/\.(tex|bib)$/i.test(ev.path)) refreshOutlineSoon(2000);
+    }
     const sub = useUI.getState().status?.resourcesSubdir ?? 'Recursos';
     if (ev.root === 'notes' && (ev.path === sub || ev.path.startsWith(sub + '/'))) refreshResourcesSoon();
     if (ev.path.includes('.sync-conflict-')) refreshStatusSoon();
@@ -76,6 +82,7 @@ export function connectEvents() {
     }
     void notifySettingsChanged(data && 'values' in data && 'sources' in data ? (data as SettingsResponse) : undefined);
   });
+  es.addEventListener('outline', (msg) => handleOutlineEvent((msg as MessageEvent).data));
   es.addEventListener('compile', (msg) => {
     try {
       const r = JSON.parse((msg as MessageEvent).data) as CompileResult;
