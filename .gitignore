@@ -1,0 +1,8 @@
+node_modules/
+dist/
+data/
+.env
+*.log
+.DS_Store
+test/fixtures/notes/Recursos/*
+!test/fixtures/notes/Recursos/.gitkeep

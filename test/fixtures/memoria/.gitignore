@@ -1,0 +1,16 @@
+*.aux
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.lol
+*.bbl
+*.blg
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.acn
+*.acr
+*.alg
+/build/

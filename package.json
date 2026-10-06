@@ -1,0 +1,13 @@
+{
+  "name": "estudio-tfg",
+  "private": true,
+  "type": "module",
+  "workspaces": ["server", "web"],
+  "scripts": {
+    "dev": "npm run dev -w server & npm run dev -w web",
+    "build": "npm run build -w web && npm run build -w server",
+    "start": "npm run start -w server",
+    "worker": "docker compose up -d worker",
+    "test": "npm test -w server"
+  }
+}
