@@ -1,0 +1,260 @@
+// Cliente tipado de la API (ver docs/CONTRACT.md).
+
+export type Root = 'notes' | 'memoria';
+
+export interface Status {
+  notesDir: string;
+  memoriaDir: string;
+  memoriaMain: string;
+  resourcesSubdir: string;
+  syncConflicts: string[];
+  worker: 'up' | 'down';
+}
+
+export interface Entry {
+  path: string;
+  name: string;
+  type: 'file' | 'dir';
+  children?: Entry[];
+}
+
+export interface TreeResponse {
+  root: Root;
+  entries: Entry[];
+}
+
+export interface FileResponse {
+  root: Root;
+  path: string;
+  content: string;
+  rev: string;
+  mtime: number;
+}
+
+export interface SaveResponse {
+  rev: string;
+  mtime: number;
+}
+
+export interface Backlink {
+  path: string;
+  title: string;
+  snippet: string;
+}
+
+export type ResourceStatus = 'inbox' | 'revisado' | 'descartado';
+
+export interface Resource {
+  path: string;
+  title: string;
+  url?: string;
+  captured: string;
+  status: ResourceStatus | string;
+  tags: string[];
+  attachment?: string;
+  rev?: string;
+}
+
+export interface SearchItem {
+  root: Root;
+  path: string;
+  line: number;
+  snippet: string;
+}
+
+export interface Diagnostic {
+  severity: 'error' | 'warning';
+  file: string;
+  line: number | null;
+  message: string;
+}
+
+export interface CompileResult {
+  ok: boolean;
+  buildId: string;
+  startedAt: string;
+  durationMs: number;
+  diagnostics: Diagnostic[];
+  pdfUrl: string | null;
+  sourceRev: string;
+}
+
+export interface ChangeEvent {
+  root: Root;
+  path: string;
+  kind: 'add' | 'change' | 'unlink';
+}
+
+export class ApiError extends Error {
+  status: number;
+  body: unknown;
+  constructor(status: number, message: string, body: unknown) {
+    super(message);
+    this.status = status;
+    this.body = body;
+  }
+}
+
+/** Error de red (sin respuesta del servidor). */
+export class NetworkError extends Error {}
+
+export class ConflictError extends ApiError {
+  content: string;
+  rev: string;
+  constructor(content: string, rev: string, body: unknown) {
+    super(409, 'conflict', body);
+    this.content = content;
+    this.rev = rev;
+  }
+}
+
+// ---- Auth (opcional: AUTH_TOKEN en el server) ----
+
+const TOKEN_KEY = 'et:token';
+
+function readToken(): string | null {
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setToken(token: string) {
+  try {
+    localStorage.setItem(TOKEN_KEY, token);
+  } catch {
+    /* ignore */
+  }
+  // La cookie permite que <iframe>, <img> y EventSource se autentiquen.
+  document.cookie = `et_token=${encodeURIComponent(token)}; path=/; max-age=31536000; SameSite=Strict`;
+}
+
+type TokenPrompt = () => Promise<string | null>;
+let tokenPrompt: TokenPrompt | null = null;
+let pendingPrompt: Promise<string | null> | null = null;
+
+/** La UI registra aquí la función que pide el token al usuario. */
+export function registerTokenPrompt(fn: TokenPrompt) {
+  tokenPrompt = fn;
+}
+
+async function askToken(): Promise<string | null> {
+  if (!tokenPrompt) return null;
+  if (!pendingPrompt) {
+    pendingPrompt = tokenPrompt().finally(() => {
+      pendingPrompt = null;
+    });
+  }
+  return pendingPrompt;
+}
+
+// ---- fetch base ----
+
+async function request(path: string, init: RequestInit = {}, retried = false): Promise<Response> {
+  const headers = new Headers(init.headers);
+  const token = readToken();
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  let res: Response;
+  try {
+    res = await fetch(path, { ...init, headers, credentials: 'same-origin' });
+  } catch (e) {
+    throw new NetworkError(e instanceof Error ? e.message : 'Error de red');
+  }
+  if (res.status === 401 && !retried) {
+    const t = await askToken();
+    if (t) {
+      setToken(t);
+      return request(path, init, true);
+    }
+  }
+  if (!res.ok) {
+    let body: unknown = null;
+    try {
+      body = await res.json();
+    } catch {
+      /* ignore */
+    }
+    const msg =
+      body && typeof body === 'object' && 'error' in body
+        ? String((body as { error: unknown }).error)
+        : `HTTP ${res.status}`;
+    if (res.status === 409 && body && typeof body === 'object' && 'content' in body && 'rev' in body) {
+      const b = body as { content: string; rev: string };
+      throw new ConflictError(b.content, b.rev, body);
+    }
+    throw new ApiError(res.status, msg, body);
+  }
+  return res;
+}
+
+async function json<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await request(path, init);
+  return (await res.json()) as T;
+}
+
+function qs(params: Record<string, string | undefined>): string {
+  const u = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) if (v !== undefined) u.set(k, v);
+  return u.toString();
+}
+
+const jsonBody = (method: string, body: unknown): RequestInit => ({
+  method,
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(body),
+});
+
+// ---- Endpoints ----
+
+export const api = {
+  status: () => json<Status>('/api/status'),
+
+  tree: (root: Root) => json<TreeResponse>(`/api/tree?${qs({ root })}`),
+
+  readFile: (root: Root, path: string) => json<FileResponse>(`/api/file?${qs({ root, path })}`),
+
+  /** Lanza ConflictError en 409. */
+  saveFile: (root: Root, path: string, content: string, baseRev: string) =>
+    json<SaveResponse>('/api/file', jsonBody('PUT', { root, path, content, baseRev })),
+
+  createFile: (root: Root, path: string, content: string) =>
+    json<SaveResponse>('/api/file', jsonBody('POST', { root, path, content })),
+
+  rawUrl: (root: Root, path: string) => `/api/raw?${qs({ root, path })}`,
+
+  /** `from` = ruta de la nota que contiene el enlace (resuelve enlaces relativos). */
+  resolveNote: (target: string, from?: string) => json<{ path: string }>(`/api/notes/resolve?${qs({ target, from })}`),
+
+  backlinks: (path: string) => json<{ items: Backlink[] }>(`/api/notes/backlinks?${qs({ path })}`),
+
+  capture: (form: FormData) => json<{ path: string; title: string }>('/api/capture', { method: 'POST', body: form }),
+
+  resources: () => json<{ items: Resource[] }>('/api/resources'),
+
+  patchResource: (body: { path: string; status?: string; tags?: string[]; baseRev?: string }) =>
+    json<Resource & { rev: string; mtime: number }>('/api/resources', jsonBody('PATCH', body)),
+
+  search: (q: string, root: Root | 'all' = 'all', signal?: AbortSignal) =>
+    json<{ items: SearchItem[] }>(`/api/search?${qs({ q, root })}`, { signal }),
+
+  compile: () => json<CompileResult>('/api/compile', { method: 'POST' }),
+
+  lastCompile: async (): Promise<CompileResult | null> => {
+    try {
+      return await json<CompileResult>('/api/compile/last');
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) return null;
+      throw e;
+    }
+  },
+
+  logUrl: (buildId: string) => `/api/compile/log/${encodeURIComponent(buildId)}`,
+};
+
+export function errorMessage(e: unknown): string {
+  if (e instanceof NetworkError) return 'Sin conexión con el servidor';
+  if (e instanceof ApiError) return e.message;
+  if (e instanceof Error) return e.message;
+  return String(e);
+}

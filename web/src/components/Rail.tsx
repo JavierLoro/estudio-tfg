@@ -1,0 +1,69 @@
+import { BookMarked, FileCode2, Home, Inbox, Plus, Search } from 'lucide-react';
+import { useUI, type Section } from '../state/ui';
+import { openHome } from '../state/workspace';
+import { MOD, cx } from './ui';
+
+const ITEMS: { id: Section; label: string; icon: React.ReactNode }[] = [
+  { id: 'home', label: 'Inicio', icon: <Home size={19} /> },
+  { id: 'memoria', label: 'Memoria', icon: <FileCode2 size={19} /> },
+  { id: 'notes', label: 'Notas', icon: <BookMarked size={19} /> },
+  { id: 'resources', label: 'Recursos', icon: <Inbox size={19} /> },
+  { id: 'search', label: 'Buscar', icon: <Search size={19} /> },
+];
+
+function RailButton({ label, active, onClick, children }: { label: string; active?: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      aria-pressed={active}
+      onClick={onClick}
+      className={cx(
+        'group relative flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
+        active ? 'bg-active text-accent' : 'text-muted hover:bg-hover hover:text-fg',
+      )}
+    >
+      {active && <span className="absolute top-2 bottom-2 -left-1.5 w-[3px] rounded-r bg-accent" />}
+      {children}
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute left-[46px] z-[950] hidden rounded-md bg-fg px-2 py-1 text-[11.5px] font-medium whitespace-nowrap text-bg shadow-pop group-hover:block group-focus-visible:block"
+      >
+        {label}
+      </span>
+    </button>
+  );
+}
+
+export function Rail() {
+  const section = useUI((s) => s.section);
+  const open = useUI((s) => s.sidebarOpen);
+  const setSection = useUI((s) => s.setSection);
+  const inbox = useUI((s) => s.resources?.filter((r) => r.status === 'inbox').length ?? 0);
+  return (
+    <nav className="flex w-[52px] shrink-0 flex-col items-center gap-1 border-r border-line bg-rail py-2" aria-label="Secciones">
+      {ITEMS.map((it) => (
+        <RailButton
+          key={it.id}
+          label={it.label}
+          active={open && section === it.id}
+          onClick={() => {
+            setSection(it.id);
+            if (it.id === 'home') openHome();
+          }}
+        >
+          {it.icon}
+          {it.id === 'resources' && inbox > 0 && (
+            <span className="absolute top-1 right-0.5 min-w-[15px] rounded-full bg-accent px-1 text-center text-[9.5px] leading-[15px] font-bold text-accent-fg" aria-label={`${inbox} en bandeja`}>
+              {inbox > 99 ? '99+' : inbox}
+            </span>
+          )}
+        </RailButton>
+      ))}
+      <div className="flex-1" />
+      <RailButton label={`Capturar (${MOD}⇧C)`} onClick={() => useUI.getState().setCaptureOpen(true)}>
+        <Plus size={19} />
+      </RailButton>
+    </nav>
+  );
+}
