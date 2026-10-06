@@ -8,47 +8,71 @@ export function cleanTarget(target: string): string {
   t = t.replace(/^\[\[|\]\]$/g, '');
   const pipe = t.indexOf('|');
   if (pipe >= 0) t = t.slice(0, pipe);
-  const hash = t.indexOf('#');
+  const hash = t.search(/[#^]/);
   if (hash >= 0) t = t.slice(0, hash);
   t = t.trim().replace(/\\/g, '/').replace(/^\.?\/+/, '');
   return t;
 }
 
+export type Resolver = (rawTarget: string, fromPath?: string) => string | null;
+
 /**
- * Resolve a wikilink Obsidian-style against a list of root-relative file paths.
- * Exact path first (with or without `.md`), then by filename (case-insensitive),
+ * Resolver Obsidian-style over a fixed list of root-relative file paths (indexed,
+ * for resolving many links). Exact path first (with or without `.md`), then
+ * relative to the linking note's folder, then by filename (case-insensitive),
  * also allowing partial folder suffix matches. Shortest path wins on ties.
  */
-export function resolveWikilink(rawTarget: string, files: string[], fromPath?: string): string | null {
-  const t = cleanTarget(rawTarget);
-  if (!t) return null;
+export function makeResolver(files: string[]): Resolver {
   const set = new Set(files);
-  const hasMd = t.toLowerCase().endsWith('.md');
-  const candidates = hasMd || path.posix.extname(t) ? [t, `${t}.md`] : [`${t}.md`, t];
+  const byLower = new Map<string, string[]>();
+  const byBase = new Map<string, string[]>();
+  const push = (m: Map<string, string[]>, k: string, f: string) => {
+    const l = m.get(k);
+    if (l) l.push(f);
+    else m.set(k, [f]);
+  };
+  for (const f of files) {
+    const lf = f.toLowerCase();
+    push(byLower, lf, f);
+    push(byBase, lf.slice(lf.lastIndexOf('/') + 1), f);
+  }
+  return (rawTarget, fromPath) => {
+    const t = cleanTarget(rawTarget);
+    if (!t) return null;
+    const hasMd = t.toLowerCase().endsWith('.md');
+    const candidates = hasMd || path.posix.extname(t) ? [t, `${t}.md`] : [`${t}.md`, t];
 
-  // 1. Exact path from root.
-  for (const c of candidates) if (set.has(c)) return c;
-  // 1b. Relative to the linking note's folder.
-  if (fromPath) {
-    const dir = path.posix.dirname(fromPath);
-    if (dir && dir !== '.') {
-      for (const c of candidates) {
-        const p = path.posix.normalize(`${dir}/${c}`);
-        if (set.has(p)) return p;
+    // 1. Exact path from root.
+    for (const c of candidates) if (set.has(c)) return c;
+    // 1b. Relative to the linking note's folder.
+    if (fromPath) {
+      const dir = path.posix.dirname(fromPath);
+      if (dir && dir !== '.') {
+        for (const c of candidates) {
+          const p = path.posix.normalize(`${dir}/${c}`);
+          if (set.has(p)) return p;
+        }
       }
     }
-  }
-  // 2. Case-insensitive exact path.
-  const lowerCands = candidates.map((c) => c.toLowerCase());
-  const byLower = files.filter((f) => lowerCands.includes(f.toLowerCase()));
-  if (byLower.length) return shortest(byLower);
-  // 3. Suffix match (by filename, or folder/filename), case-insensitive.
-  const suffix = files.filter((f) => {
-    const lf = f.toLowerCase();
-    return lowerCands.some((c) => lf.endsWith('/' + c));
-  });
-  if (suffix.length) return shortest(suffix);
-  return null;
+    // 2. Case-insensitive exact path.
+    const lowerCands = candidates.map((c) => c.toLowerCase());
+    const exact = lowerCands.flatMap((c) => byLower.get(c) ?? []);
+    if (exact.length) return shortest(exact);
+    // 3. Suffix match (by filename, or folder/filename), case-insensitive.
+    const suffix = new Set<string>();
+    for (const c of lowerCands) {
+      for (const f of byBase.get(c.slice(c.lastIndexOf('/') + 1)) ?? []) {
+        if (f.toLowerCase().endsWith('/' + c)) suffix.add(f);
+      }
+    }
+    if (suffix.size) return shortest([...suffix]);
+    return null;
+  };
+}
+
+/** Resolve a wikilink against a list of root-relative file paths (see makeResolver). */
+export function resolveWikilink(rawTarget: string, files: string[], fromPath?: string): string | null {
+  return makeResolver(files)(rawTarget, fromPath);
 }
 
 function shortest(list: string[]): string {

@@ -18,6 +18,7 @@ import datosRoutes from './routes/datos.ts';
 import compileRoutes from './routes/compile.ts';
 import eventsRoutes from './routes/events.ts';
 import filesRoutes from './routes/files.ts';
+import fileopsRoutes from './routes/fileops.ts';
 import memoriaRoutes from './routes/memoria.ts';
 import notesRoutes from './routes/notes.ts';
 import plantillaRoutes from './routes/plantilla.ts';
@@ -43,6 +44,7 @@ function rootsFor(method: string, url: string, query: any, body: any): RootName[
   const p = url.split('?')[0];
   if (p === '/api/tree' || p === '/api/file' || p === '/api/raw') return pickRoot(query?.root ?? body?.root) ?? [];
   if (p.startsWith('/api/notes/') || p === '/api/resources' || p === '/api/capture') return ['notes'];
+  if (p === '/api/dir' || p === '/api/move' || p === '/api/trash/restore') return pickRoot(body?.root) ?? [];
   if (p === '/api/search') return pickRoot(query?.root) ?? ROOTS;
   if (p === '/api/compile' && method === 'POST') return ['memoria'];
   if (p.startsWith('/api/memoria/')) return ['memoria'];
@@ -108,7 +110,7 @@ export async function buildApp(cfg: Config, opts: BuildOptions = {}): Promise<{ 
     reply.code(status).send({ error: message });
   });
 
-  for (const plugin of [statusRoutes, filesRoutes, notesRoutes, resourcesRoutes, searchRoutes, compileRoutes, synctexRoutes, memoriaRoutes, datosRoutes, plantillaRoutes, eventsRoutes, settingsRoutes]) {
+  for (const plugin of [statusRoutes, filesRoutes, fileopsRoutes, notesRoutes, resourcesRoutes, searchRoutes, compileRoutes, synctexRoutes, memoriaRoutes, datosRoutes, plantillaRoutes, eventsRoutes, settingsRoutes]) {
     await app.register(plugin, { ctx });
   }
 

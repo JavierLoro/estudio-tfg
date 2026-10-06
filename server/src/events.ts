@@ -9,7 +9,9 @@ import { ROOTS, rootDir, toPosix, type RootName } from './paths.ts';
 export interface ChangeEvent {
   root: RootName;
   path: string;
-  kind: 'add' | 'change' | 'unlink';
+  kind: 'add' | 'change' | 'unlink' | 'move';
+  /** Solo en `move`: ruta anterior. */
+  from?: string;
 }
 
 export class EventBus extends EventEmitter {
@@ -63,7 +65,7 @@ export function startWatcher(cfg: Config, bus: EventBus): FSWatcher {
     },
     awaitWriteFinish: { stabilityThreshold: 150, pollInterval: 50 },
   });
-  const emit = (kind: ChangeEvent['kind']) => (p: string) => {
+  const emit = (kind: 'add' | 'change' | 'unlink') => (p: string) => {
     const loc = locate(cfg, p);
     if (!loc || !loc.rel) return;
     bus.change({ root: loc.root, path: loc.rel, kind });
