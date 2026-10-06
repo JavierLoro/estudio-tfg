@@ -12,10 +12,12 @@ import { EventBus, WatchManager } from './events.ts';
 import { KeyedLock } from './fsutil.ts';
 import { MAX_UPLOAD } from './capture.ts';
 import { ROOTS, rootDir, type RootName } from './paths.ts';
+import { OutlineService } from './outline.ts';
 import { NOT_CONFIGURED, Settings, isDirSync } from './settings.ts';
 import compileRoutes from './routes/compile.ts';
 import eventsRoutes from './routes/events.ts';
 import filesRoutes from './routes/files.ts';
+import memoriaRoutes from './routes/memoria.ts';
 import notesRoutes from './routes/notes.ts';
 import resourcesRoutes from './routes/resources.ts';
 import searchRoutes from './routes/search.ts';
@@ -40,6 +42,7 @@ function rootsFor(method: string, url: string, query: any, body: any): RootName[
   if (p.startsWith('/api/notes/') || p === '/api/resources' || p === '/api/capture') return ['notes'];
   if (p === '/api/search') return pickRoot(query?.root) ?? ROOTS;
   if (p === '/api/compile' && method === 'POST') return ['memoria'];
+  if (p.startsWith('/api/memoria/')) return ['memoria'];
   return null;
 }
 
@@ -55,7 +58,9 @@ export async function buildApp(cfg: Config, opts: BuildOptions = {}): Promise<{ 
   const settings = new Settings(cfg, bus, { onApply: () => watcher?.restart() });
   // settings.json > .env > defaults (invalid stored values fall back and are reported as checks).
   settings.load();
-  const ctx: Ctx = { cfg, bus, compiler, locks: new KeyedLock(), settings, watcher };
+  const outline = new OutlineService(cfg, compiler, bus);
+  app.addHook('onClose', async () => outline.close());
+  const ctx: Ctx = { cfg, bus, compiler, locks: new KeyedLock(), settings, watcher, outline };
   await compiler.load();
   if (watcher) {
     await watcher.start();
@@ -100,7 +105,7 @@ export async function buildApp(cfg: Config, opts: BuildOptions = {}): Promise<{ 
     reply.code(status).send({ error: message });
   });
 
-  for (const plugin of [statusRoutes, filesRoutes, notesRoutes, resourcesRoutes, searchRoutes, compileRoutes, eventsRoutes, settingsRoutes]) {
+  for (const plugin of [statusRoutes, filesRoutes, notesRoutes, resourcesRoutes, searchRoutes, compileRoutes, memoriaRoutes, eventsRoutes, settingsRoutes]) {
     await app.register(plugin, { ctx });
   }
 

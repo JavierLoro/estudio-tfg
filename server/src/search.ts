@@ -1,6 +1,7 @@
 import type { Config } from './config.ts';
 import { isTextPath, walkFiles } from './fsutil.ts';
 import { readText } from './notes.ts';
+import type { OutlineRef } from './outline.ts';
 import type { RootName } from './paths.ts';
 
 /** Lowercase + strip diacritics, keeping a map from normalised index to original index. */
@@ -27,7 +28,11 @@ export interface SearchItem {
   path: string;
   line: number;
   snippet: string;
+  /** memoria only: innermost outline item containing the line (null if none). */
+  outline?: OutlineRef | null;
 }
+
+export type OutlineLookup = (path: string, line: number) => OutlineRef | null;
 
 export const SEARCH_MAX = 200;
 
@@ -39,10 +44,14 @@ function snippetAround(line: string, origIdx: number, max = 200): string {
   return (start > 0 ? '…' : '') + s + (start + max < trimmed.length ? '…' : '');
 }
 
-export async function search(cfg: Config, q: string, roots: RootName[]): Promise<SearchItem[]> {
+export async function search(cfg: Config, q: string, roots: RootName[], lookup?: OutlineLookup): Promise<SearchItem[]> {
   const needle = foldSimple(q.trim());
   if (!needle) return [];
   const items: SearchItem[] = [];
+  const add = (it: SearchItem) => {
+    if (it.root === 'memoria' && lookup) it.outline = lookup(it.path, it.line);
+    items.push(it);
+  };
   for (const root of roots) {
     const files = await walkFiles(cfg, root);
     files.sort((a, b) => a.rel.localeCompare(b.rel, 'es'));
@@ -50,7 +59,7 @@ export async function search(cfg: Config, q: string, roots: RootName[]): Promise
     for (const f of files) {
       if (items.length >= SEARCH_MAX) return items;
       const name = f.rel.split('/').pop()!;
-      if (foldSimple(name).includes(needle)) items.push({ root, path: f.rel, line: 1, snippet: name });
+      if (foldSimple(name).includes(needle)) add({ root, path: f.rel, line: 1, snippet: name });
     }
     for (const f of files) {
       if (!isTextPath(f.rel)) continue;
@@ -61,7 +70,7 @@ export async function search(cfg: Config, q: string, roots: RootName[]): Promise
         if (items.length >= SEARCH_MAX) return items;
         const { text, map } = fold(lines[i]);
         const idx = text.indexOf(needle);
-        if (idx >= 0) items.push({ root, path: f.rel, line: i + 1, snippet: snippetAround(lines[i], map[idx]) });
+        if (idx >= 0) add({ root, path: f.rel, line: i + 1, snippet: snippetAround(lines[i], map[idx]) });
       }
     }
   }
