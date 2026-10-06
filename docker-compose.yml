@@ -1,0 +1,71 @@
+# Estudio TFG
+#
+# Flujo de desarrollo (por defecto): solo el worker en Docker; server + web nativos.
+#   docker compose up -d --build worker        (o: npm run worker)
+#
+# Despliegue completo (app + worker):
+#   docker compose --profile app up -d --build
+#
+# Las rutas de .env (NOTES_DIR, MEMORIA_DIR…) son relativas a la raíz del repo;
+# Compose las lee de .env para montar los volúmenes y dentro de los contenedores
+# se usan rutas fijas (/src, /out, /data/...).
+
+name: estudio-tfg
+
+services:
+  worker:
+    build: ./worker
+    image: estudio-tfg-worker
+    init: true                      # recoge procesos huérfanos de TeX
+    ports:
+      - "127.0.0.1:8090:8090"       # para el server nativo en el Mac
+    volumes:
+      - ${MEMORIA_DIR:?Define MEMORIA_DIR en .env}:/src:ro
+      - ./data/builds:/out
+    environment:
+      COMPILE_TIMEOUT_MS: "120000"
+      KEEP_BUILDS: "10"
+    mem_limit: 2g
+    pids_limit: 256
+    read_only: true
+    tmpfs:
+      - /tmp:rw,exec,nosuid,size=1g,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    networks: [latex]
+    restart: unless-stopped
+
+  app:
+    profiles: [app]
+    build: .
+    image: estudio-tfg-app
+    init: true
+    depends_on: [worker]
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: "8787"
+      NOTES_DIR: /data/notes
+      MEMORIA_DIR: /data/memoria
+      BUILD_DIR: /data/builds         # history → /data/history (BUILD_DIR/../history)
+      WORKER_URL: http://worker:8090
+    ports:
+      - "127.0.0.1:8787:8787"
+    volumes:
+      - ${NOTES_DIR:?Define NOTES_DIR en .env}:/data/notes
+      - ${MEMORIA_DIR:?Define MEMORIA_DIR en .env}:/data/memoria
+      - ./data/builds:/data/builds
+      - ./data/history:/data/history
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    networks: [latex, default]
+    restart: unless-stopped
+
+networks:
+  # Red solo para app ↔ worker. No es `internal: true` porque Docker no publica
+  # puertos de contenedores que solo están en redes internas, y en desarrollo el
+  # server nativo necesita 127.0.0.1:8090. El worker no hace peticiones salientes
+  # (latexmk corre con -no-shell-escape).
+  latex: {}
