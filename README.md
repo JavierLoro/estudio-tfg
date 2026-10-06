@@ -33,3 +33,9 @@ Este repositorio es **solo la herramienta**: código, la plantilla base (`templa
 ## Atajos
 
 ⌘K abrir/buscar · ⌘⇧C capturar · ⌘S guardar · ⌘↵ guardar y compilar · ⌥clic abrir al lado
+
+## Licencia
+
+Estudio TFG se distribuye bajo la [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0). Puedes usarlo, estudiarlo y modificarlo; si distribuyes una versión modificada o la ofreces como servicio en red, debes publicar su código bajo la misma licencia.
+
+La plantilla de `templates/esi-tfg/` deriva de la clase [esi-tfg](https://github.com/UCLM-ESI/esi-tfg) del grupo ARCO (UCLM-ESI), distribuida bajo GPL-2.0 o posterior; se mantiene su aviso de copyright y licencia en la clase. El logotipo de la ESI pertenece a la Universidad de Castilla-La Mancha.
