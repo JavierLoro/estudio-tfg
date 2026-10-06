@@ -128,3 +128,38 @@ Si `AUTH_TOKEN` está definido: cabecera `Authorization: Bearer <token>` o cooki
 - **Sin pérdida:** borrador de cada editor en `localStorage` mientras no esté guardado; al abrir, si existe borrador distinto, ofrecerlo. En 409, diálogo con «quedarme con lo mío / cargar lo del disco / ver ambos». Indicador por pestaña: guardado · sin guardar · conflicto.
 - Tema claro/oscuro según sistema. Español en toda la UI.
 - Dev: Vite en 5173 con proxy `/api` → 8787. Prod: el server sirve `web/dist`.
+
+## Configuración desde la interfaz (v0.2)
+
+### Precedencia y almacenamiento
+- Ajustes editables: `notesDir`, `resourcesSubdir`, `memoriaDir`, `memoriaMain`.
+- Se guardan en `data/settings.json` (ignorado por git). Precedencia: `settings.json` > `.env` > valores por defecto. `.env` queda como valores iniciales.
+- Nueva variable `ALLOWED_ROOTS` (lista separada por `:`; por defecto el home del usuario; en Docker `/data`). Ninguna carpeta configurable ni navegable puede salir de ellas (comprobado con realpath).
+- Se mantiene el bloqueo: `notesDir`/`memoriaDir` no pueden estar en carpetas versionadas del repo (solo `workspace/`).
+
+### Seguridad
+- `PUT /api/settings`, `POST /api/settings/init-memoria` y `GET /api/fs/dirs` exigen: `AUTH_TOKEN` configurado y válido, **o** petición desde loopback (127.0.0.1/::1) sin `AUTH_TOKEN` configurado. Si no, 403.
+
+### API
+- `GET /api/settings` → `{ values: {notesDir, resourcesSubdir, memoriaDir, memoriaMain}, sources: {<clave>: "settings"|"env"|"default"}, allowedRoots: string[], checks: Check[] }`
+  `Check = { key, level: "ok"|"warning"|"error", message }` — p. ej. carpeta inexistente, `memoriaMain` no encontrado, vault sin `.obsidian` en la carpeta o sus padres (aviso), memoria dentro de notas o al revés (aviso).
+- `PUT /api/settings` body parcial `{ notesDir?, resourcesSubdir?, memoriaDir?, memoriaMain? }` (admite `~`). Valida: absoluta tras expandir, existe y es carpeta, dentro de `ALLOWED_ROOTS`, fuera del repo salvo `workspace/`; `resourcesSubdir` relativa sin `..` (se crea si no existe). Errores → 400 `{ error, field }`. Si es válido: guarda, **aplica en caliente** (reconfigura rutas, reinicia el watcher, invalida caches) y emite SSE `event: settings` con los nuevos valores. → mismo formato que GET.
+- `POST /api/settings/reset` body `{ keys: string[] }` → elimina esas claves de `settings.json` (vuelven a `.env`/defecto), aplica en caliente.
+- `GET /api/fs/dirs?path=<abs>` → `{ path, parent: string|null, dirs: { name, path, isObsidianVault, hasMainTex, isGitRepo }[] }`. Sin `path` → lista `allowedRoots`. Oculta dotfiles. `parent` null al llegar a una raíz permitida.
+- `POST /api/settings/init-memoria` body `{ dir }` → si `dir` no existe o está vacía: la crea, copia `templates/esi-tfg/`, `git init` + commit inicial; aplica `memoriaDir=dir`. Si no está vacía → 409. Misma lógica que `scripts/init.mjs` (compartir el código).
+- `GET /api/status` añade `configured: boolean` (false si `notesDir` o `memoriaDir` no existen) y `instanceId` = hash corto de `notesDir|memoriaDir` (para claves de borradores en la web).
+
+### Compilación sin montaje
+- El worker **ya no monta `MEMORIA_DIR`**. `POST /compile` en el worker recibe `Content-Type: application/x-tar`, cabecera `X-Main: main.tex`, cuerpo = tar de las fuentes (sin ignorados ni auxiliares; máx 200 MB). El worker lo extrae en un temporal (rechaza entradas absolutas, `..`, symlinks y hardlinks) y compila igual que antes. La salida sigue yendo a `/out` (= `BUILD_DIR`).
+- El server crea el tar desde el `memoriaDir` actual (paquete npm `tar`), con el mismo filtro que `sourceRev`.
+- `docker-compose.yml`: quitar el volumen `/src` del worker (y su requisito de `MEMORIA_DIR`).
+
+### Interfaz
+- Icono **Ajustes** (engranaje) al pie de la barra de iconos → panel `settings` en Dockview.
+- Por cada ajuste: valor actual, origen (`.env` / ajustes / defecto), botón **Elegir…** que abre un selector de carpetas navegable (`/api/fs/dirs`) con marcas «vault de Obsidian», «contiene main.tex», «repo git», migas de pan; campo de texto editable; «Restablecer» si viene de ajustes.
+- `memoriaMain`: desplegable con los `.tex` de la raíz de la memoria.
+- Botón **Crear memoria desde la plantilla** (elige carpeta vacía o nueva → `init-memoria`).
+- Lista de `checks` con su nivel. Guardar aplica sin reiniciar; errores mostrados junto al campo.
+- Al cambiar ajustes (respuesta o SSE `settings`): recargar árboles, recursos, búsqueda y última compilación; cerrar pestañas de archivos de raíces cambiadas (los borradores se conservan).
+- Borradores y layout: clave con `instanceId` (`draft:<instanceId>:<root>:<path>`), migrando los existentes sin prefijo a la instancia actual una vez.
+- Si `configured` es false al arrancar: abrir Ajustes automáticamente con un aviso.
