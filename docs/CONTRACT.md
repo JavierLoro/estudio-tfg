@@ -12,7 +12,7 @@ Todo el contenido vive en archivos; no hay base de datos en el piloto.
 | `worker/` | Compilación LaTeX | Imagen `texlive/texlive:latest-full` + Node (HTTP mínimo, sin dependencias) |
 | `test/fixtures/` | Notas y memoria de prueba | Nunca usar el vault real en pruebas |
 
-Workspace npm en la raíz (`server`, `web`). `worker` es independiente (sin dependencias npm).
+`server` y `web` son paquetes npm independientes (cada uno con su `package-lock.json`). `worker` no tiene dependencias npm.
 
 ## Configuración (`.env`, leída por el server)
 

@@ -2,12 +2,12 @@
   "name": "estudio-tfg",
   "private": true,
   "type": "module",
-  "workspaces": ["server", "web"],
   "scripts": {
-    "dev": "npm run dev -w server & npm run dev -w web",
-    "build": "npm run build -w web && npm run build -w server",
-    "start": "npm run start -w server",
-    "worker": "docker compose up -d worker",
-    "test": "npm test -w server"
+    "install:all": "npm install --prefix server && npm install --prefix web",
+    "dev": "npm run dev --prefix server & npm run dev --prefix web",
+    "build": "npm run build --prefix web && npm run build --prefix server",
+    "start": "npm start --prefix server",
+    "worker": "docker compose up -d --build worker",
+    "test": "npm test --prefix server"
   }
 }
