@@ -15,6 +15,7 @@ import { ROOTS, rootDir, type RootName } from './paths.ts';
 import { OutlineService } from './outline.ts';
 import { NOT_CONFIGURED, Settings, isDirSync } from './settings.ts';
 import datosRoutes from './routes/datos.ts';
+import diagramasRoutes from './routes/diagramas.ts';
 import compileRoutes from './routes/compile.ts';
 import eventsRoutes from './routes/events.ts';
 import filesRoutes from './routes/files.ts';
@@ -22,6 +23,7 @@ import fileopsRoutes from './routes/fileops.ts';
 import memoriaRoutes from './routes/memoria.ts';
 import notesRoutes from './routes/notes.ts';
 import plantillaRoutes from './routes/plantilla.ts';
+import refsRoutes from './routes/refs.ts';
 import resourcesRoutes from './routes/resources.ts';
 import searchRoutes from './routes/search.ts';
 import settingsRoutes from './routes/settings.ts';
@@ -110,7 +112,7 @@ export async function buildApp(cfg: Config, opts: BuildOptions = {}): Promise<{ 
     reply.code(status).send({ error: message });
   });
 
-  for (const plugin of [statusRoutes, filesRoutes, fileopsRoutes, notesRoutes, resourcesRoutes, searchRoutes, compileRoutes, synctexRoutes, memoriaRoutes, datosRoutes, plantillaRoutes, eventsRoutes, settingsRoutes]) {
+  for (const plugin of [statusRoutes, filesRoutes, fileopsRoutes, notesRoutes, resourcesRoutes, searchRoutes, compileRoutes, synctexRoutes, memoriaRoutes, refsRoutes, diagramasRoutes, datosRoutes, plantillaRoutes, eventsRoutes, settingsRoutes]) {
     await app.register(plugin, { ctx });
   }
 

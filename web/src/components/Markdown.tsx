@@ -2,12 +2,14 @@ import { memo, useEffect, useId, useMemo, useRef, useState, type ReactNode } fro
 import ReactMarkdown, { defaultUrlTransform, type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { parse as parseYaml } from 'yaml';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Workflow } from 'lucide-react';
 import { api, type Root } from '../api';
 import { dirname, ext, join } from '../lib/paths';
 import { openFile } from '../state/workspace';
 import { confirmDialog } from '../state/ui';
 import { createNoteAt } from '../state/files';
+import { copyFromNote } from '../state/diagramas';
+import { renderAppMermaid } from '../lib/mermaid';
 
 // ---------- Frontmatter ----------
 
@@ -154,27 +156,14 @@ function EmbedImage({ target, alt, notePath }: { target: string; alt: string; no
 
 // ---------- Mermaid ----------
 
-let mermaidPromise: Promise<typeof import('mermaid').default> | null = null;
-function loadMermaid() {
-  if (!mermaidPromise) {
-    mermaidPromise = import('mermaid').then((m) => {
-      const dark = window.matchMedia?.('(prefers-color-scheme: dark)').matches;
-      m.default.initialize({ startOnLoad: false, securityLevel: 'strict', theme: dark ? 'dark' : 'default', fontFamily: 'inherit' });
-      return m.default;
-    });
-  }
-  return mermaidPromise;
-}
-
 let mermaidSeq = 0;
-function Mermaid({ code }: { code: string }) {
+function Mermaid({ code, notePath }: { code: string; notePath?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const baseId = useId().replace(/[^a-zA-Z0-9]/g, '');
   useEffect(() => {
     let alive = true;
-    loadMermaid()
-      .then((m) => m.render(`mmd-${baseId}-${++mermaidSeq}`, code))
+    renderAppMermaid(`mmd-${baseId}-${++mermaidSeq}`, code)
       .then(({ svg }) => {
         if (alive && ref.current) {
           ref.current.innerHTML = svg;
@@ -186,13 +175,32 @@ function Mermaid({ code }: { code: string }) {
       alive = false;
     };
   }, [code, baseId]);
+  // v0.8: copiar el bloque a la memoria como diagrama (copia explícita e independiente).
+  const useInMemoria = notePath ? (
+    <button
+      type="button"
+      className="absolute top-1 right-1 hidden items-center gap-1 rounded-md border border-line bg-bg px-1.5 py-0.5 text-[11px] text-muted shadow-sm group-hover/mmd:inline-flex group-focus-within/mmd:inline-flex hover:text-fg"
+      title="Copiar este diagrama a diagramas/ de la memoria y abrirlo"
+      onClick={() => copyFromNote(code, notePath)}
+    >
+      <Workflow size={12} /> Usar en la memoria
+    </button>
+  ) : null;
   if (error)
     return (
-      <pre className="border-danger/40!">
-        <code>{`Error de Mermaid: ${error}\n\n${code}`}</code>
-      </pre>
+      <div className="group/mmd relative">
+        <pre className="border-danger/40!">
+          <code>{`Error de Mermaid: ${error}\n\n${code}`}</code>
+        </pre>
+        {useInMemoria}
+      </div>
     );
-  return <div ref={ref} className="et-mermaid my-3 flex justify-center" aria-label="Diagrama Mermaid" />;
+  return (
+    <div className="group/mmd relative">
+      <div ref={ref} className="et-mermaid my-3 flex justify-center" aria-label="Diagrama Mermaid" />
+      {useInMemoria}
+    </div>
+  );
 }
 
 // ---------- Vista ----------
@@ -274,7 +282,7 @@ export const MarkdownView = memo(function MarkdownView({ content, path, root = '
         const cls = code?.properties?.className;
         const classes = Array.isArray(cls) ? cls.map(String) : typeof cls === 'string' ? [cls] : [];
         if (code?.tagName === 'code' && classes.includes('language-mermaid')) {
-          return <Mermaid code={textOf(code).replace(/\n$/, '')} />;
+          return <Mermaid code={textOf(code).replace(/\n$/, '')} notePath={root === 'notes' ? path : undefined} />;
         }
         return <pre {...rest}>{children}</pre>;
       },

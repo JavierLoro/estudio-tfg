@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CornerDownLeft, FilePlus2, FileCode2, FileText, Inbox, Search } from 'lucide-react';
+import { CornerDownLeft, FilePlus2, FileCode2, FileText, Inbox, Search, Workflow } from 'lucide-react';
 import type { Root } from '../api';
 import { basename, stripExt } from '../lib/paths';
 import { createNoteAt } from '../state/files';
+import { openNewDiagram, sanitizeDiagramName, useNewDiagram } from '../state/diagramas';
 import { flattenTree, useUI } from '../state/ui';
 import { openFile, openResource, openSearch } from '../state/workspace';
 import { fold, highlight, useSearch } from './SearchView';
@@ -14,6 +15,7 @@ type Item =
   | { kind: 'resource'; path: string; title: string; score: number }
   | { kind: 'hit'; root: Root; path: string; line: number; snippet: string }
   | { kind: 'create'; path: string }
+  | { kind: 'diagram'; name: string }
   | { kind: 'search' };
 
 /** Puntuación difusa sencilla: subsecuencia, premiando el nombre y los inicios de palabra. */
@@ -82,6 +84,10 @@ export function QuickOpen() {
       .slice(0, 8)
       .map((r) => ({ kind: 'resource' as const, path: r.path, title: r.title, score: 0 }));
     out.push(...res);
+    // v0.8: «Nuevo diagrama» al escribir «nuevo diagrama» o «diagrama <nombre>».
+    const dm = /^(?:nuevo\s+)?diagrama\s+(.+)$/.exec(fold(q.trim()));
+    if (fq.length >= 3 && 'nuevo diagrama'.includes(fq)) out.push({ kind: 'diagram', name: '' });
+    else if (dm && sanitizeDiagramName(dm[1])) out.push({ kind: 'diagram', name: sanitizeDiagramName(q.trim().split(/\s+/).slice(dm[0].startsWith('nuevo') ? 2 : 1).join(' ')) });
     // Sin coincidencia exacta con una nota: ofrecer crearla (admite Carpeta/Nombre).
     const typed = q.trim().replace(/^\/+|\/+$/g, '');
     if (typed) {
@@ -118,6 +124,10 @@ export function QuickOpen() {
     if (it.kind === 'file') openFile(it.root, it.path, { side });
     else if (it.kind === 'resource') openResource(it.path, { side });
     else if (it.kind === 'create') void createNoteAt(it.path);
+    else if (it.kind === 'diagram') {
+      openNewDiagram('');
+      if (it.name) useNewDiagram.setState((s) => ({ req: s.req ? { ...s.req, name: it.name } : s.req }));
+    }
     else if (it.kind === 'hit') openFile(it.root, it.path, { side, line: it.line });
     else openSearch(q.trim(), 'all', { side });
   };
@@ -177,6 +187,13 @@ export function QuickOpen() {
               return (
                 <div key="create" {...common} className={cx(common.className, 'text-accent')}>
                   <FilePlus2 size={14} className="shrink-0" /> Crear nota «{it.path}»
+                  {active && <CornerDownLeft size={12} className="ml-auto opacity-60" />}
+                </div>
+              );
+            if (it.kind === 'diagram')
+              return (
+                <div key="diagram" {...common} className={cx(common.className, 'text-accent')}>
+                  <Workflow size={14} className="shrink-0" /> {it.name ? `Nuevo diagrama «${it.name}» en la memoria` : 'Nuevo diagrama en la memoria…'}
                   {active && <CornerDownLeft size={12} className="ml-auto opacity-60" />}
                 </div>
               );

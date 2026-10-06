@@ -8,7 +8,7 @@ import {
   type IWatermarkPanelProps,
   type DockviewTheme,
 } from 'dockview-react';
-import { ClipboardList, FileCode2, FileText, Home, Inbox, Search, Settings, X, FileType2 } from 'lucide-react';
+import { ClipboardList, FileCode2, FileText, Home, Inbox, Search, Settings, Workflow, X, FileType2 } from 'lucide-react';
 import { docKey } from '../lib/paths';
 import { indicatorOf, useDocs } from '../state/docs';
 import { useUI } from '../state/ui';
@@ -30,12 +30,14 @@ import { SearchPanel } from '../panels/SearchPanel';
 import { HomePanel } from '../panels/HomePanel';
 import { SettingsPanel } from '../panels/SettingsPanel';
 import { DatosPanel } from '../panels/DatosPanel';
+import { DiagramPanel } from '../panels/DiagramPanel';
 import { indicatorColor } from './DocBanners';
 import { MOD, cx } from './ui';
 
 const components = {
   latex: LatexPanel,
   note: NotePanel,
+  diagram: DiagramPanel,
   pdf: PdfPanel,
   resource: ResourcePanel,
   search: SearchPanel,
@@ -47,6 +49,7 @@ const components = {
 const ICONS: Record<string, React.ReactNode> = {
   latex: <FileCode2 size={13} />,
   note: <FileText size={13} />,
+  diagram: <Workflow size={13} />,
   pdf: <FileType2 size={13} />,
   resource: <Inbox size={13} />,
   search: <Search size={13} />,
@@ -67,7 +70,7 @@ function useTitle(api: IDockviewPanelHeaderProps['api']) {
 function Tab({ api, params }: IDockviewPanelHeaderProps) {
   const title = useTitle(api);
   const p = params as Partial<FileParams>;
-  const isDoc = (api.component === 'latex' || api.component === 'note') && p.root && p.path;
+  const isDoc = (api.component === 'latex' || api.component === 'note' || api.component === 'diagram') && p.root && p.path;
   const ind = useDocs((s) => (isDoc ? indicatorOf(s.docs[docKey(p.root!, p.path!)]) : null));
   const label = ind && ind !== 'guardado' && ind !== 'cargando' ? `${title} (${ind})` : title;
   return (

@@ -3,6 +3,7 @@ import { Annotation, EditorSelection, EditorState, Prec } from '@codemirror/stat
 import { Decoration, EditorView, keymap } from '@codemirror/view';
 import { setDiagnostics, type Diagnostic as CmDiagnostic } from '@codemirror/lint';
 import { StateEffect, StateField } from '@codemirror/state';
+import { latexCompletion, wantsLatexCompletion } from '../lib/latexComplete';
 import { baseExtensions, languageExtension, type EditorLang } from '../lib/editor';
 import { setContent, useDocs } from '../state/docs';
 import { setCursorLine, useCursor } from '../state/cursor';
@@ -97,6 +98,7 @@ export function CodeEditor({ docKey, lang, lineNumbers = true, className, onSave
           ),
           baseExtensions({ lineNumbers }),
           languageExtension(lang),
+          wantsLatexCompletion(docKey) ? latexCompletion() : [],
           flashField,
           EditorView.updateListener.of((u) => {
             if (u.selectionSet || u.docChanged) setCursorLine(docKey, u.state.doc.lineAt(u.state.selection.main.head).number);

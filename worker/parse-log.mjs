@@ -91,6 +91,7 @@ function currentFile(stack) {
 const RE_FILE_LINE = /^((?:\.{1,2}\/|\/)?[^:\s][^:]*?\.[A-Za-z0-9]+):(\d+): (.*)$/;
 const RE_WARNING = /^(?:(LaTeX)|(?:Package|Class|Module) ([^\s]+)|(pdfTeX)) (Font )?[Ww]arning(?: \([^)]*\))?:? ?(.*)$/;
 const RE_INPUT_LINE = /\s*on input line (\d+)\.?/;
+const RE_PAGE_GROUP = /multiple pdfs with page group included in a single page/i;
 const RE_IGNORE_SECTION = /^(Overfull|Underfull|Loose|Tight) \\[hv]box/;
 
 /**
@@ -170,6 +171,9 @@ export function parseLog(text, opts = {}) {
         msg = msg.replace(RE_INPUT_LINE, '').replace(/\s+\.$/, '.');
         if (!/[.!?]$/.test(msg)) msg += '.';
       }
+      // Dos PDF incluidos en la misma página con grupo de transparencia (lo llevan siempre los
+      // de cairo/rsvg-convert, p. ej. los diagramas exportados, v0.8): inofensivo.
+      if (pdftex && RE_PAGE_GROUP.test(msg)) continue;
       const prefix = pkg ? `${pkg}: ` : pdftex ? 'pdfTeX: ' : '';
       diags.push({ severity: 'warning', file: fileOf(), line: ln, message: cleanMsg(prefix + msg) });
       continue;

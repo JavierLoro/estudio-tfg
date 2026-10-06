@@ -4,6 +4,7 @@ import { CaptureModal } from './components/CaptureModal';
 import { ContextMenuHost } from './components/ContextMenu';
 import { Header } from './components/Header';
 import { MoveDialog } from './components/MoveDialog';
+import { InsertFigureDialog, NewDiagramDialog } from './components/DiagramDialogs';
 import { PromptDialog } from './components/PromptDialog';
 import { QuickOpen } from './components/QuickOpen';
 import { Rail } from './components/Rail';
@@ -180,6 +181,8 @@ export function App() {
       <CaptureModal />
       <QuickOpen />
       <MoveDialog />
+      <NewDiagramDialog />
+      <InsertFigureDialog />
       <PromptDialog />
       <ContextMenuHost />
       <Toasts />

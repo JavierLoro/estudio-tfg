@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, Check, ExternalLink, FilePlus2, FolderPlus, Inbox, Paperclip, Play, RefreshCw, Search as SearchIcon, X } from 'lucide-react';
+import { Archive, Check, ExternalLink, FilePlus2, FolderPlus, Inbox, Paperclip, Play, RefreshCw, Search as SearchIcon, Workflow, X } from 'lucide-react';
 import type { Root } from '../api';
 import { formatDate, hostOf } from '../lib/paths';
 import { useCompile } from '../state/compile';
@@ -9,6 +9,7 @@ import { openResource, openSearch } from '../state/workspace';
 import { saveAndCompile } from '../panels/LatexPanel';
 import { FileTree } from './FileTree';
 import { createFileIn, createFolderIn } from '../state/files';
+import { openNewDiagram } from '../state/diagramas';
 import { OutlineView } from './OutlineTree';
 import { useOutline } from '../state/outline';
 import { load, save } from '../lib/storage';
@@ -96,6 +97,9 @@ function MemoriaSection() {
             </IconButton>
           </>
         )}
+        <IconButton label="Nuevo diagrama" onClick={() => openNewDiagram('')}>
+          <Workflow size={14} />
+        </IconButton>
         <IconButton
           label="Recargar"
           onClick={() => {

@@ -3,6 +3,8 @@
 //   GET  /health                → { ok: true }
 //   POST /compile               → { ok, buildId, durationMs, pdf, log, diagnostics }
 //        Content-Type: application/x-tar, X-Main: main.tex, cuerpo = tar de las fuentes (máx. 200 MB)
+//   POST /svg2pdf               → application/pdf (v0.8, diagramas)
+//        Content-Type: image/svg+xml, cuerpo = SVG (máx. 5 MB); rsvg-convert sin shell, sin red
 //
 // Extrae el tar (validando cada entrada: sin rutas absolutas, `..`, enlaces ni
 // dispositivos) en un temporal, ejecuta latexmk y deja
@@ -20,12 +22,16 @@ import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import { parseLog, parseBlg, finalize, dropRerunNoise } from './parse-log.mjs';
 import { extractTar } from './untar.mjs';
+import { MAX_SVG_BYTES, checkSvg } from './svg.mjs';
 
 const PORT = Number(process.env.PORT || 8090);
 const OUT_DIR = path.resolve(process.env.OUT_DIR || '/out');
 const TIMEOUT_MS = Number(process.env.COMPILE_TIMEOUT_MS || 120_000);
 const KEEP_BUILDS = Number(process.env.KEEP_BUILDS || 10);
 export const MAX_TAR_BYTES = Number(process.env.MAX_TAR_BYTES || 200 * 1024 * 1024);
+
+const SVG_TIMEOUT_MS = Number(process.env.SVG_TIMEOUT_MS || 20_000);
+const MAX_PDF_BYTES = 50 * 1024 * 1024;
 
 const BUILD_ID_RE = /^\d{8}-\d{6}-[0-9a-f]{6}$/;
 
@@ -49,9 +55,13 @@ function newBuildId() {
 }
 
 /** Ejecuta un comando en su propio grupo de procesos; mata el grupo entero al agotar el tiempo. */
-function run(cmd, args, { cwd, timeoutMs, env }) {
+function run(cmd, args, { cwd, timeoutMs, env, input }) {
   return new Promise((resolve) => {
-    const child = spawn(cmd, args, { cwd, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(cmd, args, { cwd, env, detached: true, stdio: [input == null ? 'ignore' : 'pipe', 'pipe', 'pipe'] });
+    if (input != null) {
+      child.stdin.on('error', () => {}); // EPIPE si el proceso muere antes de leerlo todo
+      child.stdin.end(input);
+    }
     let output = '';
     const onData = (b) => {
       output += b.toString('utf8');
@@ -244,6 +254,78 @@ export async function handleCompile(req, res) {
   return send(res, 200, result);
 }
 
+/** Lee el cuerpo entero con límite; null si lo supera. */
+async function readBody(req, max) {
+  const chunks = [];
+  let n = 0;
+  for await (const c of req) {
+    n += c.length;
+    if (n > max) return null;
+    chunks.push(c);
+  }
+  return Buffer.concat(chunks);
+}
+
+// Conversiones SVG → PDF: de una en una (son cortas) y aparte de la cola de compilación.
+let svgQueue = Promise.resolve();
+function enqueueSvg(fn) {
+  const p = svgQueue.then(fn, fn);
+  svgQueue = p.catch(() => {});
+  return p;
+}
+
+/**
+ * SVG → PDF con rsvg-convert. El SVG entra por stdin (sin URL base: rsvg no puede
+ * cargar archivos relativos) y el PDF sale a un temporal en /tmp que se borra al acabar.
+ * Devuelve { pdf } o { status, error }.
+ */
+export async function svgToPdf(svg) {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'svg2pdf-'));
+  const out = path.join(dir, 'out.pdf');
+  try {
+    const res = await run('rsvg-convert', ['--format=pdf', `--output=${out}`], {
+      cwd: dir,
+      timeoutMs: SVG_TIMEOUT_MS,
+      env: { PATH: process.env.PATH, HOME: process.env.HOME || '/tmp/home', LANG: 'C.UTF-8' },
+      input: svg,
+    });
+    if (res.timedOut) return { status: 504, error: `La conversión superó ${Math.round(SVG_TIMEOUT_MS / 1000)} s` };
+    if (res.code !== 0) {
+      const msg = res.output.trim().split('\n').slice(-3).join(' ').slice(0, 300) || `código ${res.code}`;
+      return { status: 400, error: `rsvg-convert no pudo convertir el SVG: ${msg}` };
+    }
+    const st = await fs.stat(out).catch(() => null);
+    if (!st || st.size === 0) return { status: 500, error: 'rsvg-convert no generó el PDF' };
+    if (st.size > MAX_PDF_BYTES) return { status: 413, error: 'El PDF resultante es demasiado grande' };
+    return { pdf: await fs.readFile(out) };
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+export async function handleSvg2pdf(req, res) {
+  const ctype = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+  if (ctype !== 'image/svg+xml') return reject(req, res, 415, 'Se espera Content-Type: image/svg+xml');
+  const len = Number(req.headers['content-length']);
+  if (Number.isFinite(len) && len > MAX_SVG_BYTES) {
+    return reject(req, res, 413, `El SVG supera el máximo de ${MAX_SVG_BYTES / 1024 / 1024} MB`);
+  }
+  const body = await readBody(req, MAX_SVG_BYTES);
+  if (!body) return reject(req, res, 413, `El SVG supera el máximo de ${MAX_SVG_BYTES / 1024 / 1024} MB`);
+  const text = body.toString('utf8');
+  const problem = checkSvg(text);
+  if (problem) return send(res, 400, { error: problem });
+  const started = Date.now();
+  const r = await enqueueSvg(() => svgToPdf(body));
+  if (!r.pdf) {
+    console.log(`[worker] svg2pdf error ${r.status}: ${r.error}`);
+    return send(res, r.status, { error: r.error });
+  }
+  console.log(`[worker] svg2pdf ${body.length} B → ${r.pdf.length} B en ${Date.now() - started} ms`);
+  res.writeHead(200, { 'content-type': 'application/pdf', 'content-length': r.pdf.length });
+  res.end(r.pdf);
+}
+
 export const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://worker');
   try {
@@ -253,6 +335,10 @@ export const server = http.createServer(async (req, res) => {
     if (url.pathname === '/compile') {
       if (req.method !== 'POST') return send(res, 405, { error: 'Método no permitido' });
       return await handleCompile(req, res);
+    }
+    if (url.pathname === '/svg2pdf') {
+      if (req.method !== 'POST') return send(res, 405, { error: 'Método no permitido' });
+      return await handleSvg2pdf(req, res);
     }
     send(res, 404, { error: 'No encontrado' });
   } catch (err) {

@@ -246,3 +246,16 @@ test('validateMain rechaza traversal, absolutas y opciones', () => {
   assert.equal(validateMain('./main.tex'), 'main.tex');
   assert.equal(validateMain('memoria/tfg.tex'), 'memoria/tfg.tex');
 });
+
+const wrap79 = (s) => s.match(/.{1,79}/g);
+
+test('se ignora el aviso de pdfTeX de varios PDF con grupo de página (diagramas de rsvg-convert)', () => {
+  const aviso = 'pdfTeX warning: pdflatex (file ./figuras/diagramas/t-secuencia.pdf): PDF inclusion: multiple pdfs with page group included in a single page';
+  const otro = 'pdfTeX warning (dest): name{chap:GFDL} has been referenced but does not exist, replaced by a fixed one';
+  // Log del worker (sin cortar) y el mismo cortado a 79 columnas.
+  for (const lines of [[aviso, otro], [...wrap79(aviso), ...wrap79(otro)]]) {
+    const d = parseLog(['(./1-capitulos/01-introduccion.tex', ...lines, ')'].join('\n'), { mainFile: 'tfg.tex' });
+    assert.equal(d.length, 1);
+    assert.match(d[0].message, /chap:GFDL/);
+  }
+});

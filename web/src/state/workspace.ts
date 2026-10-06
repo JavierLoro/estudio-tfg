@@ -9,7 +9,7 @@ import { useUI } from './ui';
 import { api as http } from '../api';
 
 // Tipos de panel y sus parámetros.
-export type PanelComponent = 'latex' | 'note' | 'pdf' | 'resource' | 'search' | 'home' | 'settings' | 'datos';
+export type PanelComponent = 'latex' | 'note' | 'diagram' | 'pdf' | 'resource' | 'search' | 'home' | 'settings' | 'datos';
 
 export interface FileParams {
   root: Root;
@@ -116,17 +116,18 @@ export function openDatos(opts: OpenOptions = {}) {
   addOrFocus('datos', 'datos', 'Datos del trabajo', {}, opts);
 }
 
+const isFilePanel = (c: string) => c === 'latex' || c === 'note' || c === 'diagram' || c === 'resource';
+
 /** Cierra las pestañas de archivos de las raíces indicadas (los borradores se conservan). */
 export function closeFilePanels(roots: Root[]) {
   if (!dock || !roots.length) return;
   for (const p of [...dock.panels]) {
     const params = p.params as Partial<FileParams> | undefined;
     const c = p.api.component;
-    if ((c === 'latex' || c === 'note' || c === 'resource') && params?.root && roots.includes(params.root)) p.api.close();
+    if (isFilePanel(c) && params?.root && roots.includes(params.root)) p.api.close();
   }
 }
 
-const isFilePanel = (c: string) => c === 'latex' || c === 'note' || c === 'resource';
 const under = (path: string, base: string) => path === base || path.startsWith(base + '/');
 
 /** Cierra las pestañas de los archivos de `root` bajo `base` (archivo o carpeta eliminados). */
@@ -190,7 +191,7 @@ export function activeFile(): FileParams | null {
   const p = dock?.activePanel;
   if (!p) return null;
   const params = p.params as Partial<FileParams> | undefined;
-  if ((p.api.component === 'latex' || p.api.component === 'note') && params?.root && params.path) {
+  if ((p.api.component === 'latex' || p.api.component === 'note' || p.api.component === 'diagram') && params?.root && params.path) {
     return { root: params.root, path: params.path };
   }
   return null;
@@ -253,7 +254,7 @@ export function resetLayout() {
 export function onPanelRemoved(panel: IDockviewPanel) {
   const params = panel.params as Partial<FileParams> | undefined;
   const c = panel.api.component;
-  if ((c === 'latex' || c === 'note') && params?.root && params.path) {
+  if ((c === 'latex' || c === 'note' || c === 'diagram') && params?.root && params.path) {
     releaseDoc(docKey(params.root, params.path));
   }
 }

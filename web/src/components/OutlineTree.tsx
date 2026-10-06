@@ -13,6 +13,7 @@ import {
   ListTodo,
   Plus,
   RefreshCw,
+  Workflow,
 } from 'lucide-react';
 import { api, errorMessage, FieldError, type NewSectionKind, type OutlineItem } from '../api';
 import { docKey } from '../lib/paths';
@@ -25,6 +26,7 @@ import { openContextMenu, type MenuItem } from './ContextMenu';
 import { showInPdf, useActiveOutlineId, usePdfView } from '../state/synctex';
 import { fold, highlight } from './SearchView';
 import { ALT, Button, Empty, Modal, Spinner, cx } from './ui';
+import { useStaleFigures } from '../state/diagramas';
 
 // ---- Nodos de presentación ----
 
@@ -657,6 +659,8 @@ function OutlineRow({
   const { node: n, depth, hasChildren, expanded } = row;
   const isBib = n.kind === 'bibliography';
   const refs = useBibCount(isBib ? n.item : null, generatedAt);
+  // v0.8: incluye (él o un apartado suyo) una figura de diagrama desactualizada.
+  const staleFigs = useStaleFigures(n.item?.id);
   const title = isBib && refs != null && !/\(/.test(n.title) ? `${n.title} (${refs} ${refs === 1 ? 'ref' : 'refs'})` : n.title;
   const isChapter = n.kind === 'chapter';
   const top = n.kind === 'chapter' || n.kind === 'appendix' || n.kind === 'group' || n.kind === 'datos' || n.kind === 'bibliography' || (n.kind === 'frontmatter' && depth === 0);
@@ -665,6 +669,7 @@ function OutlineRow({
     n.item ? `${n.item.file}:${n.item.line}` : null,
     n.words ? `${n.words.toLocaleString('es-ES')} palabras` : null,
     n.warnings.length ? `Avisos: ${n.warnings.join(', ')}` : null,
+    staleFigs ? `Figura desactualizada: ${staleFigs.join(', ')} (vuelve a exportar el diagrama)` : null,
     !n.enabled ? 'Desactivado (línea comentada)' : null,
     n.item ? `${ALT}clic: abrir al lado` : null,
   ]
@@ -723,6 +728,11 @@ function OutlineRow({
       {n.warnings.map((w, i) => (
         <WarningIcon key={i} w={w} />
       ))}
+      {staleFigs && (
+        <span title={`Figura desactualizada: ${staleFigs.join(', ')}`} aria-label="Figura desactualizada" className="shrink-0 text-warn">
+          <Workflow size={12} />
+        </span>
+      )}
       {n.words > 0 && (
         <span className={cx('shrink-0 text-[10.5px] text-faint tabular-nums', isChapter && 'group-hover:hidden')} title={`${n.words.toLocaleString('es-ES')} palabras`}>
           {compactWords(n.words)}

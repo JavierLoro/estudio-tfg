@@ -130,6 +130,36 @@ export interface OutlineResponse {
   warnings?: string[];
 }
 
+// ---- Autocompletado (v0.8): GET /api/memoria/refs ----
+
+export interface RefCita {
+  key: string;
+  tipo: string;
+  titulo: string;
+  autor: string;
+  anio: string;
+  archivo: string;
+}
+export type RefEtiquetaTipo = 'capitulo' | 'seccion' | 'figura' | 'tabla' | 'listado' | 'ecuacion' | 'anexo' | 'otro';
+export interface RefEtiqueta {
+  label: string;
+  tipo: RefEtiquetaTipo;
+  texto: string;
+  archivo: string;
+  linea: number;
+}
+export interface RefAcronimo {
+  sigla: string;
+  significado: string;
+  archivo: string;
+  linea: number;
+}
+export interface RefsResponse {
+  citas: RefCita[];
+  etiquetas: RefEtiqueta[];
+  acronimos: RefAcronimo[];
+}
+
 export type NewSectionKind = 'chapter' | 'section' | 'appendix';
 
 export interface NewSectionRequest {
@@ -476,6 +506,10 @@ export const api = {
     }
   },
 
+  // ---- Autocompletado (v0.8) ----
+
+  memoriaRefs: () => json<RefsResponse>('/api/memoria/refs'),
+
   // ---- Vista Documento (v0.3) ----
 
   outline: () => json<OutlineResponse>('/api/memoria/outline'),
@@ -595,3 +629,30 @@ export function errorMessage(e: unknown): string {
   if (e instanceof Error) return e.message;
   return String(e);
 }
+
+// ---- Diagramas (v0.8) ----
+
+export type EstadoDiagrama = 'sin-exportar' | 'exportado' | 'desactualizado';
+
+export interface DiagramaEstado {
+  estado: EstadoDiagrama;
+  pdf: string | null;
+  svg: string | null;
+  exportadoEn: string | null;
+}
+
+/** Elemento de GET /api/diagramas/estado sin `path`. */
+export interface DiagramaItem extends DiagramaEstado {
+  path: string;
+  /** `diagramas/<nombre>` (lo que va en \includegraphics). */
+  nombre: string;
+  usos: { file: string; line: number }[];
+}
+
+export const diagramasApi = {
+  estado: (path: string) => json<DiagramaEstado>(`/api/diagramas/estado?${qs({ path })}`),
+  lista: () => json<{ items: DiagramaItem[] }>('/api/diagramas/estado'),
+  /** ApiError 409 si la fuente cambió desde `rev` (body.rev = la actual). */
+  exportar: (path: string, svg: string, rev: string) =>
+    json<{ pdf: string; svg: string; exportadoEn: string }>('/api/diagramas/exportar', jsonBody('POST', { path, svg, rev })),
+};

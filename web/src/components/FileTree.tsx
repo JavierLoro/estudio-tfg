@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronRight, Ellipsis, File, FileCode2, FileImage, FileText, Folder, FolderOpen } from 'lucide-react';
+import { ChevronDown, ChevronRight, Ellipsis, File, FileCode2, FileImage, FileText, Folder, FolderOpen, Workflow } from 'lucide-react';
 import type { Entry, Root } from '../api';
 import { basename, dirname, ext, join, panelKindFor } from '../lib/paths';
 import { indicatorOf, useDocs } from '../state/docs';
 import { canMoveInto, createFileIn, createFolderIn, deleteEntry, expandPath, moveEntry, moveInto, toggleExpanded, useExpanded } from '../state/files';
 import { flattenTree, useUI } from '../state/ui';
 import { openFile, panelIdFor, useActivePanel } from '../state/workspace';
+import { openNewDiagram, refreshDiagramasSoon, useDiagramas } from '../state/diagramas';
 import { openContextMenu, type MenuItem } from './ContextMenu';
 import { fold, highlight } from './SearchView';
 import { openMoveDialog } from './MoveDialog';
@@ -15,6 +16,7 @@ function iconFor(path: string) {
   const e = ext(path);
   if (['tex', 'sty', 'cls', 'bib', 'bst'].includes(e)) return <FileCode2 size={14} className="shrink-0 text-muted" />;
   if (e === 'md') return <FileText size={14} className="shrink-0 text-muted" />;
+  if (e === 'mmd') return <Workflow size={14} className="shrink-0 text-muted" />;
   if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'pdf', 'eps'].includes(e)) return <FileImage size={14} className="shrink-0 text-faint" />;
   return <File size={14} className="shrink-0 text-faint" />;
 }
@@ -81,6 +83,13 @@ export function FileTree({ root, filter }: { root: Root; filter: string }) {
   );
   const stateMap = useMemo(() => new Map(openStates ? openStates.split(';').map((x) => x.split('|') as [string, string]) : []), [openStates]);
 
+  // v0.8: diagramas con la figura exportada desactualizada (solo en la memoria).
+  const staleList = useDiagramas((s) => (root === 'memoria' ? (s.items ?? []).filter((i) => i.estado === 'desactualizado').map((i) => i.path).join('\n') : ''));
+  const stale = useMemo(() => new Set(staleList ? staleList.split('\n') : []), [staleList]);
+  useEffect(() => {
+    if (root === 'memoria') refreshDiagramasSoon(0);
+  }, [root]);
+
   const q = fold(filter.trim());
   const flat = useMemo(() => (q ? flattenTree(entries).filter((p) => fold(p).includes(q)) : null), [entries, q]);
 
@@ -98,7 +107,10 @@ export function FileTree({ root, filter }: { root: Root; filter: string }) {
       </div>
     );
 
-  const isActive = (path: string) => activeId === panelIdFor(panelKindFor(root, path) === 'latex' ? 'latex' : 'note', path);
+  const isActive = (path: string) => {
+    const k = panelKindFor(root, path);
+    return activeId === panelIdFor(k === 'external' ? 'note' : k, path);
+  };
 
   // ---- Renombrar ----
   const commitRename = (path: string, isDir: boolean, raw: string) => {
@@ -163,6 +175,7 @@ export function FileTree({ root, filter }: { root: Root; filter: string }) {
   const emptyMenu = (e: React.MouseEvent) =>
     openContextMenu(e, [
       { label: root === 'notes' ? 'Nueva nota…' : 'Nuevo archivo…', run: () => void createFileIn(root, '') },
+      ...(root === 'memoria' ? [{ label: 'Nuevo diagrama…', run: () => openNewDiagram('') }] : []),
       { label: 'Nueva carpeta…', run: () => void createFolderIn(root, '') },
     ]);
 
@@ -177,6 +190,7 @@ export function FileTree({ root, filter }: { root: Root; filter: string }) {
 
   const dirMenu = (path: string): MenuItem[] => [
     { label: root === 'notes' ? 'Nueva nota aquí…' : 'Nuevo archivo aquí…', run: () => void createFileIn(root, path) },
+    ...(root === 'memoria' ? [{ label: 'Nuevo diagrama…', run: () => openNewDiagram(path) }] : []),
     { label: 'Nueva carpeta aquí…', run: () => void createFolderIn(root, path) },
     { label: 'Renombrar', hint: 'F2', run: () => setRenaming(path) },
     { label: 'Mover a…', run: () => openMoveDialog(root, path) },
@@ -222,6 +236,11 @@ export function FileTree({ root, filter }: { root: Root; filter: string }) {
       >
         {iconFor(path)}
         <span className="min-w-0 flex-1 truncate">{label ?? basename(path)}</span>
+        {stale.has(path) && (
+          <span className="shrink-0 rounded px-1 text-[10px] text-warn" title="La figura exportada está desactualizada: la fuente cambió desde la última exportación">
+            desactualizada
+          </span>
+        )}
         {st === 'sin guardar' && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-warn" title="Sin guardar" />}
         {st === 'conflicto' && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-danger" title="Conflicto" />}
         <RowMenuButton label={`Acciones de ${basename(path)}`} items={() => fileMenu(path)} />

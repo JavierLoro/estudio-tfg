@@ -5,11 +5,16 @@ Contrato: `docs/CONTRACT.md` → «Worker».
 
 | Archivo | Qué es |
 | --- | --- |
-| `server.mjs` | HTTP en `:8090`: `GET /health`, `POST /compile` (cuerpo tar, cabecera `X-Main`) |
+| `server.mjs` | HTTP en `:8090`: `GET /health`, `POST /compile` (cuerpo tar, cabecera `X-Main`), `POST /svg2pdf` (diagramas, v0.8) |
+| `svg.mjs` | Validación del SVG de `/svg2pdf` (sin DTD, sin referencias externas) |
+| `woff2sfnt.mjs` | WOFF → TTF (solo al construir la imagen: la fuente de los diagramas) |
+| `fontconfig-diagramas.conf` | Descarta la Source Sans 3 de TeX Live (se usa la misma versión que la web) |
 | `untar.mjs` | Extractor tar en streaming, sin dependencias, que valida cada entrada |
 | `parse-log.mjs` | Parser de `.log` (LaTeX) y `.blg` (BibTeX/Biber) → `Diagnostic[]` |
 | `parse-log.test.mjs` | Tests `node:test` (snippets + logs reales en `test-logs/`) |
 | `untar.test.mjs` | Tests `node:test` del extractor (tars válidos y maliciosos) y de los rechazos HTTP |
+| `svg.test.mjs` | Tests `node:test` de la validación del SVG y de los rechazos HTTP de `/svg2pdf` |
+| `woff2sfnt.test.mjs` | Tests `node:test` del conversor WOFF → TTF (también con la fuente real si `web/node_modules` existe) |
 | `Dockerfile` | TeX Live full + binario `node` copiado de `node:24-slim`, usuario uid 1000 |
 
 ## Uso
@@ -25,7 +30,7 @@ node -e "import('./scripts/memoria-template.mjs').then((m) => m.copyTemplate('/t
 docker compose logs -f worker
 
 # tests (no necesitan Docker)
-node --test worker/parse-log.test.mjs worker/untar.test.mjs
+node --test worker/*.test.mjs
 ```
 
 Sin Compose (equivalente):
@@ -38,7 +43,7 @@ docker run -d --init -p 127.0.0.1:8090:8090 \
   --security-opt no-new-privileges --memory 2g estudio-tfg-worker
 ```
 
-Variables: `PORT` (8090), `OUT_DIR` (/out), `COMPILE_TIMEOUT_MS` (120000), `KEEP_BUILDS` (10), `MAX_TAR_BYTES` (200 MB).
+Variables: `PORT` (8090), `OUT_DIR` (/out), `COMPILE_TIMEOUT_MS` (120000), `KEEP_BUILDS` (10), `MAX_TAR_BYTES` (200 MB), `SVG_TIMEOUT_MS` (20000).
 
 ## Qué hace `POST /compile`
 
@@ -54,6 +59,21 @@ Petición: `Content-Type: application/x-tar` (si no, **415**), cabecera `X-Main:
 6. Borra el temporal y deja solo los 10 últimos `buildId` en `/out` (no toca otras carpetas).
 7. Respuesta: `{ ok, buildId, durationMs, pdf: "<id>/main.pdf"|null, log: "<id>/main.log", diagnostics }`. `ok` = latexmk salió con 0, hay PDF y no hay errores.
 
+## Qué hace `POST /svg2pdf` (v0.8)
+
+Convierte el SVG de un diagrama (dibujado por Mermaid en el navegador) a PDF vectorial para `\includegraphics`.
+
+```sh
+curl -s -XPOST localhost:8090/svg2pdf -H 'content-type: image/svg+xml' --data-binary @diagrama.svg -o diagrama.pdf
+```
+
+1. `Content-Type: image/svg+xml` (si no, **415**); más de 5 MB (por `Content-Length` o contando) → **413**.
+2. `svg.mjs` rechaza con **400** (`{ error }`): raíz que no sea `<svg>`, `DOCTYPE`/`ENTITY`, `<?xml-stylesheet`, `href`/`xlink:href`/`src` que no sean `#id` o `data:`, `url(…)` externas, `@import` y escapes CSS (`\72`).
+3. `rsvg-convert --format=pdf --output=/tmp/svg2pdf-XXXX/out.pdf` con `spawn` (sin shell), el SVG por **stdin** (sin URL base, así rsvg no puede abrir archivos relativos), en su propio grupo de procesos y con 20 s como máximo (**504**). De una en una, aparte de la cola de compilación. Si rsvg falla → **400** con su mensaje.
+4. Responde `200 application/pdf` y borra el temporal.
+
+**Fuente**: el texto se mide en el navegador y se dibuja aquí con la misma fuente, Source Sans 3 de `@fontsource/source-sans-3@5.3.0` (OFL-1.1): el `Dockerfile` descarga ese paquete npm (con su sha256), pasa sus `.woff` a `.ttf` con `woff2sfnt.mjs` (Pango/HarfBuzz no abren `.woff`) y los instala en `/usr/local/share/fonts/source-sans-3/`. TeX Live trae otra versión de la misma familia: `fontconfig-diagramas.conf` la descarta (pdfLaTeX no usa fontconfig, así que la compilación no cambia). Comprobar: `docker exec estudio-tfg-worker-1 fc-list 'Source Sans 3' file` solo debe listar esa carpeta. Si se cambia la versión en `web/package.json`, hay que cambiarla también en el `Dockerfile` (versión y sha256).
+
 ### Diagnósticos
 
 `{ severity, file, line, message }`, errores primero, deduplicados. `file` relativo al proyecto (`cap/intro.tex`); si el aviso viene de un paquete de TeX Live se deja la ruta absoluta (`/usr/local/texlive/...`).
@@ -61,7 +81,7 @@ Petición: `Content-Type: application/x-tar` (si no, **415**), cabecera `X-Main:
 - **Errores**: `./archivo.tex:12: mensaje` (file-line-error), `! Mensaje` + `l.N` (archivo por la pila de paréntesis del log), `*** (job aborted, no legal \end found)`, errores del `.blg` (`---line N of file x.bib`, Biber `ERROR -`). Si latexmk falla/agota tiempo sin error reconocible, se añade uno genérico.
 - **Avisos**: `LaTeX Warning`, `Package X Warning` (con líneas de continuación `(X)`), `Class X Warning`, `pdfTeX warning`, `Warning--` de BibTeX, `WARN -` de Biber. `… on input line N` → `line`.
 - **Biber** (plantilla v0.5, biblatex): los errores de sintaxis llegan como `BibTeX subsystem: /tmp/biber_tmp_…/….utf8, line N, …` (una copia temporal con las mismas líneas); se atribuyen al último `.bib` que Biber dice leer (`Found BibTeX data source '…'`) con su línea. `I didn't find a database entry` se omite (ya sale como cita indefinida en el `.log`).
-- **Se ignoran**: `Overfull/Underfull/Loose/Tight \hbox|\vbox` (y su contenido), `LaTeX Font Warning`, `Warning--I didn't find a database entry` (ya sale como `Citation … undefined`).
+- **Se ignoran**: `Overfull/Underfull/Loose/Tight \hbox|\vbox` (y su contenido), `pdfTeX warning: … multiple pdfs with page group included in a single page` (dos PDF de cairo/rsvg, p. ej. diagramas, en la misma página: inofensivo), `LaTeX Font Warning`, `Warning--I didn't find a database entry` (ya sale como `Citation … undefined`).
 - **Ruido de compilación abortada**: latexmk se detiene en el primer `pdflatex` con error y, como se compila desde cero, todas las citas/referencias salen indefinidas. Si hay errores, se ocultan `Citation/Reference … undefined`, `There were undefined references`, `Label(s) may have changed`, `rerunfilecheck`, `Acronym X is not defined`. En compilaciones sin errores sí se muestran.
 - El parser también tolera logs cortados a 79 columnas (por bytes), por si se usa fuera del worker.
 

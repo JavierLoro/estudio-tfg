@@ -252,6 +252,17 @@ function replaceContent(key: string, p: Partial<Doc> & { content: string }) {
   scheduleDraft(key);
 }
 
+/**
+ * Cambia el contenido de un documento abierto desde fuera del editor (p. ej. «Insertar en la
+ * memoria»): queda sin guardar, con borrador, y el editor lo aplica como un cambio que se puede deshacer.
+ */
+export function editContent(key: string, content: string): boolean {
+  const d = get().docs[key];
+  if (!d || d.status !== 'ready' || d.content === content) return false;
+  replaceContent(key, { content });
+  return true;
+}
+
 export function restoreDraft(key: string) {
   const d = get().docs[key];
   if (!d?.draftOffer) return;

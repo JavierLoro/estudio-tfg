@@ -44,11 +44,13 @@ export function join(dir: string, rel: string): string {
   return normalize(dir ? `${dir}/${rel}` : rel);
 }
 
-export type PanelKind = 'latex' | 'note' | 'external';
+export type PanelKind = 'latex' | 'note' | 'diagram' | 'external';
 
 /** Qué panel abre un archivo según raíz y extensión. */
 export function panelKindFor(root: Root, path: string): PanelKind {
   if (!isText(path)) return 'external';
+  // v0.8: los .mmd de la memoria son diagramas (fuente + vista previa + exportar).
+  if (root === 'memoria' && ext(path) === 'mmd') return 'diagram';
   if (root === 'memoria') return 'latex';
   return 'note';
 }

@@ -5,6 +5,7 @@ import { useCompile } from './compile';
 import { useUI } from './ui';
 import { handleMoveEvent } from './files';
 import { handleOutlineEvent, refreshOutlineSoon, useOutline } from './outline';
+import { invalidateRefs, refreshRefsSoon } from './refs';
 import { create } from 'zustand';
 
 type Listener = (ev: ChangeEvent) => void;
@@ -67,6 +68,7 @@ export function connectEvents() {
       useCompile.getState().markMemoriaChanged();
       // Respaldo: el server emite `outline` al cambiar; si no llega, se relee igualmente.
       if (/\.(tex|bib)$/i.test(ev.path)) refreshOutlineSoon(2000);
+      refreshRefsSoon(ev.path);
     }
     const sub = useUI.getState().status?.resourcesSubdir ?? 'Recursos';
     if (ev.root === 'notes' && (ev.path === sub || ev.path.startsWith(sub + '/'))) refreshResourcesSoon();
@@ -82,6 +84,7 @@ export function connectEvents() {
     } catch {
       /* da igual: se relee el estado */
     }
+    invalidateRefs();
     void notifySettingsChanged(data && 'values' in data && 'sources' in data ? (data as SettingsResponse) : undefined);
   });
   es.addEventListener('outline', (msg) => handleOutlineEvent((msg as MessageEvent).data));

@@ -28,6 +28,7 @@ import { stex } from '@codemirror/legacy-modes/mode/stex';
 import { markdown } from '@codemirror/lang-markdown';
 import { tags as t } from '@lezer/highlight';
 import { ext } from './paths';
+import { mermaidLanguage } from './mermaidLang';
 
 /** Colores mediante variables CSS: el editor sigue el tema claro/oscuro sin reconfigurar. */
 const highlight = HighlightStyle.define([
@@ -99,12 +100,13 @@ const theme = EditorView.theme({
   '.cm-line.et-flash': { backgroundColor: 'var(--et-active)', transition: 'background-color .6s' },
 });
 
-export type EditorLang = 'stex' | 'markdown' | 'plain';
+export type EditorLang = 'stex' | 'markdown' | 'mermaid' | 'plain';
 
 export function langFor(path: string): EditorLang {
   const e = ext(path);
   if (['tex', 'sty', 'cls', 'bib', 'bst'].includes(e)) return 'stex';
   if (e === 'md') return 'markdown';
+  if (e === 'mmd') return 'mermaid';
   return 'plain';
 }
 
@@ -113,6 +115,7 @@ const stexLang = StreamLanguage.define(stex);
 export function languageExtension(lang: EditorLang): Extension {
   if (lang === 'stex') return stexLang;
   if (lang === 'markdown') return markdown();
+  if (lang === 'mermaid') return mermaidLanguage;
   return [];
 }
 
