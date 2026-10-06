@@ -32,19 +32,35 @@ function str(v: string | undefined, def: string): string {
   return t === '' ? def : t;
 }
 
+/**
+ * Personal content must never end up in this repo's git history: inside the repo,
+ * NOTES_DIR / MEMORIA_DIR may only live under the git-ignored workspace/ folder.
+ */
+function assertOutsideRepo(name: string, dir: string, repoRoot: string): void {
+  const rel = path.relative(repoRoot, dir);
+  const inside = rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+  if (inside && !(rel === 'workspace' || rel.startsWith(`workspace${path.sep}`))) {
+    throw new Error(`${name} (${dir}) está dentro del repositorio: usa una carpeta externa o workspace/ (ignorada por git)`);
+  }
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env, repoRoot = REPO_ROOT): Config {
   const buildDir = expandPath(str(env.BUILD_DIR, './data/builds'), repoRoot);
   const resourcesSubdir = str(env.RESOURCES_SUBDIR, 'Recursos').replace(/^\/+|\/+$/g, '');
   if (resourcesSubdir.split('/').some((s) => s === '..' || s === '.')) {
     throw new Error('RESOURCES_SUBDIR no válido');
   }
+  const notesDir = expandPath(str(env.NOTES_DIR, './workspace/notes'), repoRoot);
+  const memoriaDir = expandPath(str(env.MEMORIA_DIR, './workspace/memoria'), repoRoot);
+  assertOutsideRepo('NOTES_DIR', notesDir, REPO_ROOT);
+  assertOutsideRepo('MEMORIA_DIR', memoriaDir, REPO_ROOT);
   return {
     port: Number(str(env.PORT, '8787')),
     host: str(env.HOST, '127.0.0.1'),
     repoRoot,
-    notesDir: expandPath(str(env.NOTES_DIR, './test/fixtures/notes'), repoRoot),
+    notesDir,
     resourcesSubdir,
-    memoriaDir: expandPath(str(env.MEMORIA_DIR, './test/fixtures/memoria'), repoRoot),
+    memoriaDir,
     memoriaMain: str(env.MEMORIA_MAIN, 'main.tex'),
     buildDir,
     historyDir: path.join(path.dirname(buildDir), 'history'),

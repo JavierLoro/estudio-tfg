@@ -10,7 +10,9 @@ Todo el contenido vive en archivos; no hay base de datos en el piloto.
 | `server/` | API + estáticos de `web/dist` | Node 24, TypeScript (tsx), Fastify 5, chokidar |
 | `web/` | Interfaz | React 19, Vite, TypeScript, Tailwind 4, Dockview, CodeMirror 6, lucide-react |
 | `worker/` | Compilación LaTeX | Imagen `texlive/texlive:latest-full` + Node (HTTP mínimo, sin dependencias) |
-| `test/fixtures/` | Notas y memoria de prueba | Nunca usar el vault real en pruebas |
+| `templates/esi-tfg/` | Plantilla base de la memoria (UCLM-ESI) | Se copia a `MEMORIA_DIR` con `npm run init` |
+| `test/fixtures/` | Notas de prueba | Nunca usar el vault real en pruebas |
+| `workspace/` | Contenido local por defecto | Ignorado por git |
 
 `server` y `web` son paquetes npm independientes (cada uno con su `package-lock.json`). `worker` no tiene dependencias npm.
 
@@ -18,9 +20,9 @@ Todo el contenido vive en archivos; no hay base de datos en el piloto.
 
 ```
 PORT=8787
-NOTES_DIR=./test/fixtures/notes        # real: /Users/javierlc/Documents/Vault/DespachoTrabajo
+NOTES_DIR=./workspace/notes            # p. ej. ~/Vault/MiCarpetaTFG
 RESOURCES_SUBDIR=Recursos              # dentro de NOTES_DIR
-MEMORIA_DIR=./test/fixtures/memoria    # real: /Users/javierlc/Documents/tfg-memoria
+MEMORIA_DIR=./workspace/memoria        # p. ej. ~/Documents/tfg-memoria
 MEMORIA_MAIN=main.tex
 BUILD_DIR=./data/builds
 WORKER_URL=http://localhost:8090

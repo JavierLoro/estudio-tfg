@@ -7,6 +7,7 @@ import { REPO_ROOT, loadConfig, type Config } from '../src/config.ts';
 import type { Ctx } from '../src/context.ts';
 
 export const FIXTURES = path.join(REPO_ROOT, 'test', 'fixtures');
+export const TEMPLATE = path.join(REPO_ROOT, 'templates', 'esi-tfg');
 
 export interface TestEnv {
   dir: string;
@@ -16,10 +17,11 @@ export interface TestEnv {
   close: () => Promise<void>;
 }
 
-/** Copy test/fixtures into a fresh temp dir and build an app pointing there. Never touches the real vault. */
+/** Copy test/fixtures (notes) and templates/esi-tfg (memoria) into a fresh temp dir and build an app pointing there. Never touches the real vault. */
 export async function setup(env: Record<string, string> = {}): Promise<TestEnv> {
   const dir = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'estudio-tfg-test-')));
   await fs.cp(FIXTURES, path.join(dir, 'fixtures'), { recursive: true });
+  await fs.cp(TEMPLATE, path.join(dir, 'fixtures', 'memoria'), { recursive: true });
   const cfg = loadConfig(
     {
       NOTES_DIR: './fixtures/notes',

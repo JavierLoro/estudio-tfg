@@ -28,7 +28,7 @@ Sin Compose (equivalente):
 ```sh
 docker build -t estudio-tfg-worker worker
 docker run -d --init -p 127.0.0.1:8090:8090 \
-  -v "$PWD/test/fixtures/memoria:/src:ro" -v "$PWD/data/builds:/out" \
+  -v "$PWD/templates/esi-tfg:/src:ro" -v "$PWD/data/builds:/out" \
   --read-only --tmpfs /tmp:rw,exec,size=1g --cap-drop ALL \
   --security-opt no-new-privileges --memory 2g estudio-tfg-worker
 ```
@@ -57,7 +57,7 @@ Variables: `PORT` (8090), `SRC_DIR` (/src), `OUT_DIR` (/out), `COMPILE_TIMEOUT_M
 - **Ruido de compilación abortada**: latexmk se detiene en el primer `pdflatex` con error y, como se compila desde cero, todas las citas/referencias salen indefinidas. Si hay errores, se ocultan `Citation/Reference … undefined`, `There were undefined references`, `Label(s) may have changed`, `rerunfilecheck`, `Acronym X is not defined`. En compilaciones sin errores sí se muestran.
 - El parser también tolera logs cortados a 79 columnas (por bytes), por si se usa fuera del worker.
 
-## Fase 0: plantilla esi-tfg (`test/fixtures/memoria`)
+## Fase 0: plantilla esi-tfg (`templates/esi-tfg`)
 
 Medido el 2026-10-06 en el Mac (Docker Desktop 29.8.1), imagen `texlive/texlive:latest-full` = **TeX Live 2026**, pdfTeX 1.40.29, latexmk 4.88. Imagen del worker: 9.2 GB.
 
@@ -81,7 +81,7 @@ Medido el 2026-10-06 en el Mac (Docker Desktop 29.8.1), imagen `texlive/texlive:
 **Avisos de la plantilla limpia** (12, todos de la propia plantilla):
 `hyphenat` (opción `htt`), `epstopdf: Shell escape feature is not enabled`, `blindtext: spanish not defined` (intro.tex:47, 53; anexo1.tex:7), `pdfTeX: destination with the same identifier (name{page.N})` ×6 (numeración de páginas repetida entre frontmatter y mainmatter con hyperref), `pdfTeX: name{chap:GFDL} has been referenced but does not exist` (main.tex, la GFDL está comentada).
 
-**Errores inyectados en una copia** (nunca en `test/fixtures`), diagnóstico obtenido:
+**Errores inyectados en una copia** (nunca en `templates/`), diagnóstico obtenido:
 
 | Inyección | Diagnóstico |
 | --- | --- |

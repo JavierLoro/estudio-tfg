@@ -6,3 +6,6 @@ data/
 .DS_Store
 test/fixtures/notes/Recursos/*
 !test/fixtures/notes/Recursos/.gitkeep
+
+# Contenido personal: nunca al repo
+workspace/

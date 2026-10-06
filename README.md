@@ -7,13 +7,28 @@ Especificación: [docs/CONTRACT.md](docs/CONTRACT.md) · Worker y requisitos de 
 ## Arrancar (Mac)
 
 ```bash
-cp .env.example .env        # ajustar NOTES_DIR y MEMORIA_DIR
+npm run init                # crea .env y tu memoria desde la plantilla (fuera de git)
 npm run install:all
 npm run worker              # TeX Live en Docker, 127.0.0.1:8090
 npm run dev                 # API en 8787 y web en http://localhost:5173
 ```
 
 Producción (Proxmox, más adelante): `docker compose --profile app up -d --build` → http://127.0.0.1:8787.
+
+## Qué va al repo y qué no
+
+Este repositorio es **solo la herramienta**: código, la plantilla base (`templates/esi-tfg/`) y datos de prueba ficticios. Tu trabajo nunca entra aquí:
+
+| Contenido | Dónde vive | Versionado |
+| --- | --- | --- |
+| Memoria del TFG | `MEMORIA_DIR` (p. ej. `~/Documents/tfg-memoria`) | Su propio git, independiente |
+| Notas y recursos | `NOTES_DIR` (tu vault de Obsidian) | El del vault |
+| Compilaciones e historial | `data/` | Ignorado |
+| Configuración local | `.env` | Ignorado |
+
+- `npm run init` copia `templates/esi-tfg/` a `MEMORIA_DIR` solo si está vacío y le crea su propio git. Nunca sobrescribe.
+- El servidor **se niega a arrancar** si `NOTES_DIR` o `MEMORIA_DIR` apuntan a una carpeta versionada del repo; dentro del repo solo se permite `workspace/`, que está ignorada.
+- Las mejoras a la plantilla base se hacen en `templates/esi-tfg/`; no se propagan solas a una memoria ya creada.
 
 ## Atajos
 
