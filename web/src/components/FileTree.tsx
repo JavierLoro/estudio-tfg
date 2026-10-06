@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronRight, File, FileCode2, FileImage, FileText, Folder, FolderOpen } from 'lucide-react';
+import { ChevronDown, ChevronRight, Ellipsis, File, FileCode2, FileImage, FileText, Folder, FolderOpen } from 'lucide-react';
 import type { Entry, Root } from '../api';
 import { basename, dirname, ext, join, panelKindFor } from '../lib/paths';
 import { indicatorOf, useDocs } from '../state/docs';
 import { canMoveInto, createFileIn, createFolderIn, deleteEntry, expandPath, moveEntry, moveInto, toggleExpanded, useExpanded } from '../state/files';
 import { flattenTree, useUI } from '../state/ui';
 import { openFile, panelIdFor, useActivePanel } from '../state/workspace';
-import { openContextMenu } from './ContextMenu';
+import { openContextMenu, type MenuItem } from './ContextMenu';
 import { fold, highlight } from './SearchView';
 import { openMoveDialog } from './MoveDialog';
 import { ALT, Empty, Spinner, cx, isMac } from './ui';
@@ -99,7 +99,6 @@ export function FileTree({ root, filter }: { root: Root; filter: string }) {
     );
 
   const isActive = (path: string) => activeId === panelIdFor(panelKindFor(root, path) === 'latex' ? 'latex' : 'note', path);
-  const noun = root === 'notes' ? 'nota' : 'archivo';
 
   // ---- Renombrar ----
   const commitRename = (path: string, isDir: boolean, raw: string) => {
@@ -167,6 +166,24 @@ export function FileTree({ root, filter }: { root: Root; filter: string }) {
       { label: 'Nueva carpeta…', run: () => void createFolderIn(root, '') },
     ]);
 
+  const fileMenu = (path: string): MenuItem[] => [
+    { label: 'Abrir', run: () => openFile(root, path) },
+    { label: 'Abrir al lado', hint: `${ALT}clic`, run: () => openFile(root, path, { side: true }) },
+    { label: 'Renombrar', hint: 'F2', run: () => setRenaming(path) },
+    { label: 'Mover a…', run: () => openMoveDialog(root, path) },
+    { label: 'Eliminar', hint: DEL_HINT, danger: true, run: () => void deleteEntry(root, path, false) },
+    { label: 'Copiar ruta', run: () => void navigator.clipboard?.writeText(path) },
+  ];
+
+  const dirMenu = (path: string): MenuItem[] => [
+    { label: root === 'notes' ? 'Nueva nota aquí…' : 'Nuevo archivo aquí…', run: () => void createFileIn(root, path) },
+    { label: 'Nueva carpeta aquí…', run: () => void createFolderIn(root, path) },
+    { label: 'Renombrar', hint: 'F2', run: () => setRenaming(path) },
+    { label: 'Mover a…', run: () => openMoveDialog(root, path) },
+    { label: 'Eliminar', hint: DEL_HINT, danger: true, run: () => void deleteEntry(root, path, true) },
+    { label: 'Copiar ruta', run: () => void navigator.clipboard?.writeText(path) },
+  ];
+
   const fileRow = (path: string, depth: number, label?: React.ReactNode) => {
     const st = stateMap.get(path);
     const cls = cx(
@@ -200,27 +217,21 @@ export function FileTree({ root, filter }: { root: Root; filter: string }) {
         onDrop={(e) => !flat && drop(e, dirname(path))}
         onContextMenu={(e) => {
           e.stopPropagation();
-          openContextMenu(e, [
-            { label: 'Abrir', run: () => openFile(root, path) },
-            { label: 'Abrir al lado', hint: `${ALT}clic`, run: () => openFile(root, path, { side: true }) },
-            { label: 'Renombrar', hint: 'F2', run: () => setRenaming(path) },
-            { label: 'Mover a…', run: () => openMoveDialog(root, path) },
-            { label: 'Eliminar', hint: DEL_HINT, danger: true, run: () => void deleteEntry(root, path, false) },
-            { label: 'Copiar ruta', run: () => void navigator.clipboard?.writeText(path) },
-          ]);
+          openContextMenu(e, fileMenu(path));
         }}
       >
         {iconFor(path)}
         <span className="min-w-0 flex-1 truncate">{label ?? basename(path)}</span>
         {st === 'sin guardar' && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-warn" title="Sin guardar" />}
         {st === 'conflicto' && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-danger" title="Conflicto" />}
+        <RowMenuButton label={`Acciones de ${basename(path)}`} items={() => fileMenu(path)} />
       </button>
     );
   };
 
   const dirRow = (e: Entry, depth: number, open: boolean) => {
     const cls = cx(
-      'flex h-[24px] w-full items-center gap-1 pr-2 text-left text-[12.5px] hover:bg-hover',
+      'group flex h-[24px] w-full items-center gap-1 pr-2 text-left text-[12.5px] hover:bg-hover',
       dropTarget === e.path && 'bg-accent/20 outline outline-1 -outline-offset-1 outline-accent',
     );
     const style = { paddingLeft: 8 + depth * 12 };
@@ -251,19 +262,13 @@ export function FileTree({ root, filter }: { root: Root; filter: string }) {
         onDrop={(ev) => drop(ev, e.path)}
         onContextMenu={(ev) => {
           ev.stopPropagation();
-          openContextMenu(ev, [
-            { label: `Nueva ${noun} aquí…`, run: () => void createFileIn(root, e.path) },
-            { label: 'Nueva carpeta aquí…', run: () => void createFolderIn(root, e.path) },
-            { label: 'Renombrar', hint: 'F2', run: () => setRenaming(e.path) },
-            { label: 'Mover a…', run: () => openMoveDialog(root, e.path) },
-            { label: 'Eliminar', hint: DEL_HINT, danger: true, run: () => void deleteEntry(root, e.path, true) },
-            { label: 'Copiar ruta', run: () => void navigator.clipboard?.writeText(e.path) },
-          ]);
+          openContextMenu(ev, dirMenu(e.path));
         }}
       >
         {chevron}
         {folder}
-        <span className="truncate">{e.name}</span>
+        <span className="min-w-0 flex-1 truncate">{e.name}</span>
+        <RowMenuButton label={`Acciones de ${e.name}`} items={() => dirMenu(e.path)} />
       </button>
     );
   };
@@ -310,4 +315,30 @@ export function FileTree({ root, filter }: { root: Root; filter: string }) {
     });
 
   return wrapper(entries.length ? render(entries, 0) : <Empty>Carpeta vacía.</Empty>);
+}
+
+/** «⋯» al pasar por la fila (o con ella enfocada): abre el mismo menú que el clic derecho. */
+function RowMenuButton({ label, items }: { label: string; items: () => MenuItem[] }) {
+  const open = (el: HTMLElement) => {
+    const r = el.getBoundingClientRect();
+    openContextMenu({ clientX: r.left, clientY: r.bottom + 2, preventDefault: () => {} }, items());
+  };
+  return (
+    // span y no button: la fila ya es un <button> y no se pueden anidar.
+    <span
+      role="button"
+      tabIndex={-1}
+      aria-label={label}
+      title="Más acciones"
+      className="hidden h-5 w-5 shrink-0 items-center justify-center rounded text-muted group-hover:inline-flex group-focus-visible:inline-flex hover:bg-hover hover:text-fg"
+      onClick={(e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        open(e.currentTarget);
+      }}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <Ellipsis size={13} />
+    </span>
+  );
 }
