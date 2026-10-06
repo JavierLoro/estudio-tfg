@@ -208,6 +208,9 @@ Coordenadas siempre en **puntos PDF (bp)**, origen en la **esquina superior izqu
   - Línea sin contenido propio (en blanco, comentario, `\end{…}`…) → la siguiente línea del archivo que lo tenga; si no hay, la anterior.
 - `GET /api/synctex/inverse?page=<n>&x=<pt>&y=<pt>[&build=<buildId>]` → `{ build, file, line }`
   - `file` siempre relativa a la memoria y editable: nunca un archivo de TeX Live ni un auxiliar generado (`.aux`, `.toc`, `.bbl`…). Clic entre líneas → la línea siguiente si el hueco es claro (entre párrafos, bajo un título); si no, la más cercana.
+- `GET /api/synctex/outline[?build=<buildId>]` → `{ build, items: [{ id, page, y }] }`
+  - Posición en el PDF del título de cada apartado activo de la vista Documento (`id` como en `/api/memoria/outline`), en orden del documento; se omiten los que no aparecen en el PDF (p. ej. «Datos del trabajo»). `y` = borde superior, como en `forward`.
+  - Se calcula como `forward` sobre `file:line` de cada apartado, pero ignorando las páginas que TeX envió mientras leía esa línea (el `\cleardoublepage` de un `\chapter` deja registros suyos en la página anterior).
 - `GET /api/synctex/file/<buildId>` → el `synctex.gz` tal cual (`application/gzip`, caché `immutable` como el PDF).
 - Errores: **400** si `file` no es relativa o contiene `..`, `line`/`page` no son enteros ≥ 1, `x`/`y` no son números o `build` no es un buildId válido. **404** `Aún no hay ningún PDF compilado` (sin `build` y sin PDF bueno), `No hay datos de SyncTeX para esta compilación`, `No se encontró <file>:<line> en el PDF` o `No se encontró código de la memoria en esa posición del PDF`.
 - Contrastado con el CLI `synctex view/edit` del worker: misma página en todas las líneas comparables; mismo borde superior (±4 pt) en las líneas de texto. Diferencias deliberadas: no se salta a páginas en blanco (un `\chapter` en `\cleardoublepage` va al título, no a la página vacía previa) y en tablas se devuelve la fila de esa línea.
@@ -219,4 +222,5 @@ Coordenadas siempre en **puntos PDF (bp)**, origen en la **esquina superior izqu
 - Al recompilar se conservan la página, el desplazamiento y el zoom.
 - **PDF → código**: ⌘/Ctrl+clic en el PDF abre el `.tex` en esa línea (⌥ para abrirlo al lado).
 - **Código → PDF**: «Ver en PDF» (⌘⇧J o botón en el editor de un `.tex` de la memoria; menú de cada apartado en la vista Documento) salta a la página y resalta la zona unos segundos.
+- **Apartado visible**: la vista Documento marca (barra de acento, `aria-current="location"`) el apartado que se está viendo en el PDF: el último cuyo título queda por encima de un cuarto de la altura visible del visor (si está plegado, su antepasado visible). Usa `/api/synctex/outline`, que se relee al cambiar el PDF mostrado o el índice. Mientras se desplaza el PDF, el árbol se desplaza para mantenerlo visible, salvo si el puntero o el foco están en el árbol; no cambia la selección ni el foco.
 - Siempre se consulta el SyncTeX del build que se está mostrando (`build` = el de `pdfUrl`).

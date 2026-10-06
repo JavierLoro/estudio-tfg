@@ -242,8 +242,11 @@ interface Cand {
 
 const pt = (data: SynctexData, h: number, v: number) => ({ px: h * data.scale + data.xOffset, py: v * data.scale + data.yOffset });
 
-/** Código → PDF. `null` si el archivo no aparece en el synctex. */
-export function forward(data: SynctexData, file: string, line: number): ForwardHit | null {
+/**
+ * Código → PDF. `null` si el archivo no aparece en el synctex.
+ * `heading`: la línea es un título; se ignoran los registros que deja en las páginas que expulsa.
+ */
+export function forward(data: SynctexData, file: string, line: number, opts: { heading?: boolean } = {}): ForwardHit | null {
   const tags = tagsFor(data, file);
   if (!tags.size) return null;
   const byLine = new Map<number, Cand[]>();
@@ -279,7 +282,15 @@ export function forward(data: SynctexData, file: string, line: number): ForwardH
   const all = byLine.get(target)!;
   const tierMax = Math.max(1, best(target));
   const cands = all.filter((c) => c.tier <= tierMax);
-  const page = cands.reduce((m, c) => Math.min(m, c.page), Infinity);
+  // En un título se descartan las páginas que TeX envió mientras leía esa línea (su caja raíz
+  // lleva esa línea): son el material anterior que expulsa el `\cleardoublepage` de un `\chapter`.
+  const shipped = (p: number) => {
+    const info = data.pages.get(p);
+    const root = info && info.boxStart < info.boxEnd ? data.boxes[info.boxStart] : null;
+    return !!root && root.parent < 0 && root.line === target && tags.has(root.tag);
+  };
+  const pool = opts.heading && cands.some((c) => !shipped(c.page)) ? cands.filter((c) => !shipped(c.page)) : cands;
+  const page = pool.reduce((m, c) => Math.min(m, c.page), Infinity);
   const onPage = cands.filter((c) => c.page === page);
 
   const rects: Rect[] = [];
@@ -420,4 +431,33 @@ export function inverse(data: SynctexData, page: number, x: number, y: number): 
     consider(b.tag, b.line, b.h, b.v);
   }
   return fb;
+}
+
+export interface OutlineRefLine {
+  id: string;
+  file: string;
+  line: number;
+}
+
+export interface OutlinePos {
+  id: string;
+  page: number;
+  y: number;
+}
+
+/** Resultados de `forward` por synctex analizado (se reutilizan mientras siga en la caché del compilador). */
+const forwardMemo = new WeakMap<SynctexData, Map<string, ForwardHit | null>>();
+
+/** Posición en el PDF (página y borde superior) del título de cada apartado; se omiten los que no aparecen. */
+export function outlinePositions(data: SynctexData, refs: OutlineRefLine[]): OutlinePos[] {
+  let memo = forwardMemo.get(data);
+  if (!memo) forwardMemo.set(data, (memo = new Map()));
+  const out: OutlinePos[] = [];
+  for (const r of refs) {
+    const key = `${r.file}\0${r.line}`;
+    let hit = memo.get(key);
+    if (hit === undefined) memo.set(key, (hit = forward(data, r.file, r.line, { heading: true })));
+    if (hit) out.push({ id: r.id, page: hit.page, y: hit.y });
+  }
+  return out;
 }

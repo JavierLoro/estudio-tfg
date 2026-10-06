@@ -4,7 +4,8 @@ import type { FastifyInstance } from 'fastify';
 import { isValidBuildId } from '../compile.ts';
 import type { Ctx } from '../context.ts';
 import { badRequest, notFound } from '../errors.ts';
-import { forward, inverse } from '../synctex.ts';
+import { resolveSafe } from '../paths.ts';
+import { forward, inverse, outlinePositions } from '../synctex.ts';
 
 const NO_SYNCTEX = 'No hay datos de SyncTeX para esta compilación';
 
@@ -26,8 +27,21 @@ function relFile(v: unknown): string {
   return parts.join('/');
 }
 
+/** Línea que abre un título (\chapter, \section…): al saltar a ella hay que ignorar la página que cierra el \cleardoublepage. */
+const HEADING_RE = /^\s*\\(part|chapter|section|subsection|subsubsection)\*?\s*[[{]/;
+
 export default async function synctexRoutes(app: FastifyInstance, { ctx }: { ctx: Ctx }) {
   const { compiler } = ctx;
+
+  async function isHeadingLine(file: string, line: number): Promise<boolean> {
+    try {
+      const { abs } = await resolveSafe(ctx.cfg, 'memoria', file);
+      const text = await fs.readFile(abs, 'utf8');
+      return HEADING_RE.test(text.split('\n')[line - 1] ?? '');
+    } catch {
+      return false;
+    }
+  }
 
   /** Compilación pedida o, por defecto, la del último PDF bueno. */
   async function load(build: unknown) {
@@ -50,7 +64,8 @@ export default async function synctexRoutes(app: FastifyInstance, { ctx }: { ctx
     const file = relFile(q.file);
     const line = num(q.line, 'line', true);
     const { id, data } = await load(q.build);
-    const hit = forward(data, file, line);
+    const heading = await isHeadingLine(file, line);
+    const hit = forward(data, file, line, { heading });
     if (!hit) throw notFound(`No se encontró ${file}:${line} en el PDF`);
     return { build: id, ...hit };
   });
@@ -64,6 +79,14 @@ export default async function synctexRoutes(app: FastifyInstance, { ctx }: { ctx
     const hit = inverse(data, page, x, y);
     if (!hit) throw notFound('No se encontró código de la memoria en esa posición del PDF');
     return { build: id, ...hit };
+  });
+
+  /** Posición en el PDF de cada apartado de la vista Documento (orden del documento). */
+  app.get('/api/synctex/outline', async (req) => {
+    const q = req.query as Record<string, unknown>;
+    const { id, data } = await load(q.build);
+    const { flat } = await ctx.outline.built();
+    return { build: id, items: outlinePositions(data, flat.filter((it) => it.enabled)) };
   });
 
   app.get('/api/synctex/file/:buildId', async (req, reply) => {

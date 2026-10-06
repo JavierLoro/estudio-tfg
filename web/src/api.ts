@@ -174,6 +174,12 @@ export interface SynctexForward {
   h: number;
 }
 
+/** v0.4: posición del título de cada apartado en el PDF (orden del documento). */
+export interface SynctexOutline {
+  build: string;
+  items: { id: string; page: number; y: number }[];
+}
+
 export interface SynctexInverse {
   build: string;
   file: string;
@@ -400,6 +406,7 @@ export const api = {
     json<SynctexForward>(`/api/synctex/forward?${qs({ file, line: String(line), build })}`),
   synctexInverse: (page: number, x: number, y: number, build?: string) =>
     json<SynctexInverse>(`/api/synctex/inverse?${qs({ page: String(page), x: x.toFixed(2), y: y.toFixed(2), build })}`),
+  synctexOutline: (build?: string) => json<SynctexOutline>(`/api/synctex/outline?${qs({ build })}`),
 
   // ---- Ajustes (v0.2) ----
 

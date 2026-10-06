@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { afterEach, describe, expect, it } from 'vitest';
-import { forward, inverse, isSourceFile, parseSynctex } from '../src/synctex.ts';
+import { forward, inverse, isSourceFile, outlinePositions, parseSynctex } from '../src/synctex.ts';
 import { setup, type TestEnv } from './helpers.ts';
 
 /** bp → sp (lo que escribe pdfTeX con Unit:1). */
@@ -190,6 +190,31 @@ describe('real synctex', () => {
     expect(inverse(d, 23, 200, 290)).toEqual({ file: '1-capitulos/01-introduccion.tex', line: 11 });
     expect(inverse(d, 25, 188.5, 334.3)).toEqual({ file: '1-capitulos/02-objetivos.tex', line: 16 });
   });
+
+  it('outlinePositions: heading position of each item, skipping the pages its \\cleardoublepage ships', async () => {
+    const d = parseSynctex(zlib.gunzipSync(await fs.readFile(REAL)).toString('utf8'));
+    // \chapter{Abstract} expulsa las páginas 7–8 (el resumen) mientras se lee su línea.
+    expect(forward(d, '0-inicio/abstract.tex', 2)?.page).toBe(7);
+    expect(forward(d, '0-inicio/abstract.tex', 2, { heading: true })).toMatchObject({ page: 9, y: 140.51 });
+    const refs = [
+      { id: 'datos', file: 'datos.tex', line: 1 },
+      { id: 'resumen', file: '0-inicio/resumen.tex', line: 4 },
+      { id: 'abstract', file: '0-inicio/abstract.tex', line: 2 },
+      { id: 'objetivos', file: '1-capitulos/02-objetivos.tex', line: 1 },
+      { id: 'general', file: '1-capitulos/02-objetivos.tex', line: 9 },
+      { id: 'no-existe', file: '1-capitulos/99-nada.tex', line: 1 },
+      { id: 'bib', file: 'tfg.tex', line: 33 },
+    ];
+    const pos = outlinePositions(d, refs);
+    expect(pos).toEqual([
+      { id: 'resumen', page: 7, y: 140.51 },
+      { id: 'abstract', page: 9, y: 140.51 },
+      { id: 'objetivos', page: 25, y: 112.16 },
+      { id: 'general', page: 25, y: 232.23 },
+      { id: 'bib', page: 35, y: 112.16 },
+    ]);
+    expect(outlinePositions(d, refs)).toEqual(pos); // memorizado por synctex
+  });
 });
 
 describe('routes', () => {
@@ -265,6 +290,29 @@ describe('routes', () => {
     r = await t.app.inject({ url: '/api/synctex/inverse?page=1&x=1&y=1' });
     expect(r.statusCode).toBe(404);
     expect(r.json().error).toBe('Aún no hay ningún PDF compilado');
+    r = await t.app.inject({ url: '/api/synctex/outline' });
+    expect(r.statusCode).toBe(404);
+  });
+
+  it('outline: positions of the outline items of the memoria', async () => {
+    t = await withBuild();
+    const r = await t.app.inject({ url: '/api/synctex/outline' });
+    expect(r.statusCode).toBe(200);
+    const body = r.json() as { build: string; items: { id: string; page: number; y: number }[] };
+    expect(body.build).toBe(BUILD);
+    const ids = body.items.map((i) => i.id);
+    const { flat } = await t.ctx.outline.built();
+    // Orden del documento; sin «Datos del trabajo» (no genera texto en el PDF).
+    expect(ids).toEqual(flat.filter((it) => ids.includes(it.id)).map((it) => it.id));
+    expect(ids).not.toContain(flat.find((it) => it.kind === 'datos')?.id);
+    const at = (id: string) => body.items.find((i) => i.id === id);
+    expect(at('chapter:1-capitulos/01-introduccion.tex#introduccion')).toEqual({ id: 'chapter:1-capitulos/01-introduccion.tex#introduccion', page: 23, y: 112.16 });
+    expect(at('section:1-capitulos/02-objetivos.tex#objetivo-general')).toMatchObject({ page: 25, y: 232.23 });
+    expect(at('frontmatter:0-inicio/abstract.tex#abstract')).toMatchObject({ page: 9 });
+    const r2 = await t.app.inject({ url: `/api/synctex/outline?build=${BUILD}` });
+    expect(r2.json()).toEqual(body);
+    expect((await t.app.inject({ url: '/api/synctex/outline?build=otro' })).statusCode).toBe(404);
+    expect((await t.app.inject({ url: '/api/synctex/outline?build=..' })).statusCode).toBe(400);
   });
 
   it('serves the raw synctex.gz', async () => {
@@ -282,6 +330,7 @@ describe('routes', () => {
     t = await withBuild({ AUTH_TOKEN: 's3cret' });
     expect((await t.app.inject({ url: '/api/synctex/inverse?page=23&x=200&y=290' })).statusCode).toBe(401);
     expect((await t.app.inject({ url: `/api/synctex/file/${BUILD}` })).statusCode).toBe(401);
+    expect((await t.app.inject({ url: '/api/synctex/outline' })).statusCode).toBe(401);
     const ok = await t.app.inject({ url: '/api/synctex/inverse?page=23&x=200&y=290', headers: { authorization: 'Bearer s3cret' } });
     expect(ok.statusCode).toBe(200);
   });

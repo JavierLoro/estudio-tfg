@@ -125,6 +125,42 @@ export default function PdfViewer({ url }: { url: string }) {
     });
     ro.observe(c);
 
+    // Posición de lectura (para resaltar el apartado en la vista Documento): punto del PDF
+    // a un cuarto de la altura visible, para que cuente un título recién entrado en la vista.
+    let raf = 0;
+    const updatePos = () => {
+      raf = 0;
+      try {
+        const n = viewer.pagesCount;
+        if (!n || !docRef.current || !hasSize()) return;
+        const box = c.getBoundingClientRect();
+        const probe = box.top + c.clientHeight / 4;
+        // Primera página cuyo borde inferior queda por debajo de la sonda (desde la actual).
+        let i = Math.min(Math.max(viewer.currentPageNumber - 1, 0), n - 1);
+        while (i > 0 && viewer.getPageView(i).div.getBoundingClientRect().top > probe) i--;
+        while (i < n - 1 && viewer.getPageView(i).div.getBoundingClientRect().bottom < probe) i++;
+        const pv = viewer.getPageView(i);
+        const r = pv.div.getBoundingClientRect();
+        const [, py] = pv.viewport.convertToPdfPoint(0, Math.min(Math.max(probe - r.top - pv.div.clientTop, 0), pv.div.clientHeight)) as number[];
+        const [, , , vy1] = pv.viewport.viewBox as number[];
+        const pos = { page: i + 1, y: Math.round((vy1 - py) * 10) / 10 };
+        const prev = usePdfView.getState().pos;
+        if (!prev || prev.page !== pos.page || Math.abs(prev.y - pos.y) > 2) usePdfView.setState({ pos });
+      } catch {
+        /* páginas aún sin preparar */
+      }
+    };
+    const schedulePos = () => {
+      if (!raf) raf = requestAnimationFrame(updatePos);
+    };
+    const onScroll = () => {
+      usePdfView.setState({ scrolledAt: performance.now() });
+      schedulePos();
+    };
+    c.addEventListener('scroll', onScroll, { passive: true });
+    bus.on('pagesinit', schedulePos);
+    bus.on('scalechanging', schedulePos);
+
     // ⌘/Ctrl + rueda (o pellizco en el trackpad): zoom alrededor del puntero.
     const onWheel = (e: WheelEvent) => {
       if (!e.ctrlKey && !e.metaKey) return;
@@ -151,6 +187,9 @@ export default function PdfViewer({ url }: { url: string }) {
 
     return () => {
       ro.disconnect();
+      cancelAnimationFrame(raf);
+      c.removeEventListener('scroll', onScroll);
+      usePdfView.setState({ pos: null });
       c.removeEventListener('wheel', onWheel);
       c.removeEventListener('click', onClick, true);
       viewer.setDocument(null as unknown as pdfjs.PDFDocumentProxy);

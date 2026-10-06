@@ -22,7 +22,7 @@ import { compactWords, createSection, outlineLabel, useOutline } from '../state/
 import { flattenTree, toast, useUI } from '../state/ui';
 import { openFile, useActivePanel } from '../state/workspace';
 import { openContextMenu, type MenuItem } from './ContextMenu';
-import { showInPdf } from '../state/synctex';
+import { showInPdf, useActiveOutlineId, usePdfView } from '../state/synctex';
 import { fold, highlight } from './SearchView';
 import { ALT, Button, Empty, Modal, Spinner, cx } from './ui';
 
@@ -482,6 +482,28 @@ function OutlineTree({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentKey]);
 
+  // Apartado que se está viendo en el PDF (o su antepasado visible si está plegado).
+  const readingId = useActiveOutlineId();
+  const readingKey = useMemo(() => {
+    if (!readingId) return null;
+    const visible = new Set(rows.map((r) => r.node.key));
+    let k: string | null = readingId;
+    while (k && !visible.has(k)) k = parentOf.get(k) ?? null;
+    return k;
+  }, [readingId, rows, parentOf]);
+
+  // Seguirlo solo mientras se desplaza el PDF, no mientras se usa el árbol.
+  const pointerIn = useRef(false);
+  useEffect(() => {
+    if (!readingKey || pointerIn.current) return;
+    const tree = treeRef.current;
+    if (!tree || tree.contains(document.activeElement)) return;
+    if (performance.now() - usePdfView.getState().scrolledAt > 600) return;
+    const i = rows.findIndex((r) => r.node.key === readingKey);
+    if (i >= 0) tree.querySelector(`#ol-row-${i}`)?.scrollIntoView({ block: 'nearest' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [readingKey]);
+
   const focusIdx = Math.max(
     0,
     rows.findIndex((r) => r.node.key === focusKey),
@@ -575,6 +597,8 @@ function OutlineTree({
       tabIndex={0}
       aria-activedescendant={focusKey ? `ol-row-${focusIdx}` : undefined}
       onKeyDown={onKeyDown}
+      onPointerEnter={() => (pointerIn.current = true)}
+      onPointerLeave={() => (pointerIn.current = false)}
       onFocus={() => {
         if (!focusKey && rows.length) setFocusKey((currentKey && rows.some((r) => r.node.key === currentKey) ? currentKey : rows[0].node.key));
       }}
@@ -590,6 +614,7 @@ function OutlineTree({
           filter={filter}
           focused={focusKey === r.node.key}
           current={currentKey === r.node.key}
+          reading={readingKey === r.node.key}
           generatedAt={generatedAt}
           onToggle={() => setExpanded(r.node.key, !r.expanded)}
           onOpen={(side) => {
@@ -609,6 +634,7 @@ function OutlineRow({
   filter,
   focused,
   current,
+  reading,
   generatedAt,
   onToggle,
   onOpen,
@@ -619,6 +645,8 @@ function OutlineRow({
   filter: string;
   focused: boolean;
   current: boolean;
+  /** Apartado que se está viendo en el PDF. */
+  reading: boolean;
   generatedAt: string;
   onToggle: () => void;
   onOpen: (side: boolean) => void;
@@ -649,7 +677,8 @@ function OutlineRow({
       aria-expanded={hasChildren ? expanded : undefined}
       aria-selected={current}
       aria-disabled={!n.enabled || undefined}
-      title={tip}
+      aria-current={reading ? 'location' : undefined}
+      title={reading ? `${tip}\nSe está viendo en el PDF` : tip}
       className={cx(
         'group relative flex h-[24px] cursor-pointer items-center gap-1 pr-1.5 text-[12.5px] select-none hover:bg-hover',
         current && 'bg-active',
@@ -663,6 +692,7 @@ function OutlineRow({
         if (items.length) openContextMenu(e, items);
       }}
     >
+      {reading && <span aria-hidden className="absolute inset-y-[3px] left-0 w-[2px] rounded-full bg-accent" />}
       {hasChildren ? (
         <button
           type="button"
@@ -682,7 +712,7 @@ function OutlineRow({
       {n.kind === 'datos' && <ClipboardList size={13} className="shrink-0 text-muted" />}
       {isBib && <BookMarked size={13} className="shrink-0 text-muted" />}
       {n.number && (
-        <span className={cx('shrink-0 tabular-nums', n.enabled ? 'text-muted' : 'text-faint', top ? 'font-semibold' : 'text-[11.5px]')}>{n.number}</span>
+        <span className={cx('shrink-0 tabular-nums', reading ? 'text-accent' : n.enabled ? 'text-muted' : 'text-faint', top ? 'font-semibold' : 'text-[11.5px]')}>{n.number}</span>
       )}
       <span className={cx('min-w-0 flex-1 truncate', top && n.enabled && 'font-medium', n.kind === 'group' && 'text-muted')}>
         {highlight(title, filter)}
