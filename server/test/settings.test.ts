@@ -441,17 +441,31 @@ describe('not configured at startup', () => {
 });
 
 describe('hot-apply restarts the watcher', () => {
-  it('change events come from the new folder after PUT', async () => {
+  it('change events come from the new folder after PUT', { timeout: 40_000 }, async () => {
     t = await setup({}, { watch: true });
     const notes2 = await newDir(t, 'notas2');
     const changes: any[] = [];
     t.ctx.bus.on('change', (e) => changes.push(e));
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const waitFor = async (pred: () => boolean, ms: number) => {
+      const deadline = Date.now() + ms;
+      while (!pred() && Date.now() < deadline) await sleep(50);
+      return pred();
+    };
     expect((await put(t, { notesDir: notes2 })).statusCode).toBe(200);
+    // 'ready' can fire before fs.watch/FSEvents actually delivers events (under load the first
+    // writes get lost): probe with fresh files until the new watcher is demonstrably live.
+    let live = false;
+    for (let i = 0; i < 20 && !live; i++) {
+      await fs.writeFile(path.join(notes2, `sonda-${i}.md`), 'x');
+      live = await waitFor(() => changes.some((c) => c.root === 'notes' && c.path.startsWith('sonda-')), 1000);
+    }
+    expect(live).toBe(true);
     await fs.writeFile(path.join(notes2, 'nueva.md'), 'x');
     await fs.writeFile(path.join(t.dir, 'fixtures', 'notes', 'vieja.md'), 'x');
-    const deadline = Date.now() + 5000;
-    while (!changes.some((c) => c.path === 'nueva.md') && Date.now() < deadline) await new Promise((r) => setTimeout(r, 50));
-    await new Promise((r) => setTimeout(r, 300));
+    await waitFor(() => changes.some((c) => c.path === 'nueva.md'), 10_000);
+    // grace period so a (wrong) event from the old folder would have arrived
+    await sleep(500);
     expect(changes).toContainEqual({ root: 'notes', path: 'nueva.md', kind: 'add' });
     expect(changes.some((c) => c.path === 'vieja.md')).toBe(false);
   });
