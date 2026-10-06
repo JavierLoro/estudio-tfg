@@ -353,3 +353,47 @@ Ampliaciones y detalles que el texto anterior no fijaba:
 - **Actualizar.** La comparación con la vista previa usa `archivo`, `accion` y, si el cliente los envía, `motivo` y `rev`. El **409** responde `{ error, actual }` (`actual` = vista previa recalculada); también si la memoria ya está al día o es `desconocida`. Si el commit falla, los archivos quedan actualizados y se añade a `revisar` `{ archivo: ".git", motivo }`. Un archivo afectado con cambios sin commit previos entra en el commit con ellos.
 - **Deshacer.** Responde `{ restaurados: string[], commit: string|null }`. El registro es `data/history/plantilla/<id>.json` (contenido anterior de cada archivo y hash del nuevo). **409** si `id` no es la última actualización, si ya se deshizo o si algún archivo afectado cambió después (no se pisa nada). El commit de deshacer se construye con un índice temporal: revierte solo las rutas de ese commit y no toca el resto del índice ni de la carpeta.
 - **Interfaz.** El aviso sale arriba del panel y, si no hay `institucion.tex`, también en la sección Institución (en lugar del de «plantilla anterior»). Al abrir el diálogo se recalcula la vista previa; si al aplicar hay un 409, el diálogo muestra la lista nueva para confirmarla otra vez. Antes de aplicar se guardan el panel y todos los documentos de la memoria; si un archivo afectado sigue sin guardar o en conflicto, no se aplica.
+
+## Gestión de archivos: carpetas, renombrar, mover y papelera (v0.7)
+
+Operaciones de archivo para las dos raíces (`notes` y `memoria`), pensadas sobre todo para las notas. **Nada se borra de verdad** y los enlaces se mantienen al renombrar o mover.
+
+### API
+
+- `POST /api/dir` `{ root, path }` → 201 `{ path }`. Crea carpetas intermedias. **409** si ya existe (archivo o carpeta).
+- `POST /api/move` `{ root, from, to, updateLinks?: boolean }` (por defecto `true`) → `{ path, moved: [{ from, to }], updated: [{ path, rev }] }`
+  - Sirve para renombrar y para mover, archivos o carpetas (con todo su contenido). Crea carpetas intermedias de `to`.
+  - `moved` lista cada archivo movido (una carpeta se expande en sus archivos). `updated` lista los archivos reescritos para mantener enlaces.
+  - **404** si `from` no existe; **409** si `to` ya existe; **400** si `to` está dentro de `from`, si alguna ruta sale de la raíz o es la raíz.
+  - Los archivos reescritos se guardan como cualquier escritura: atómica, con copia en el historial y bloqueo; emiten su evento `change`.
+- `DELETE /api/file?root&path` (archivo o carpeta) → `{ path, trashPath }`. Mueve a la papelera:
+  - `notes`: `<notas>/.trash/<path>` (la papelera de Obsidian). Si ya existe, se añade ` (2)`, ` (3)`… antes de la extensión.
+  - `memoria`: `data/trash/memoria/<marca de tiempo>/<path>` (fuera del git de la memoria).
+  - `trashPath` es opaco para el cliente: solo sirve para restaurar.
+- `POST /api/trash/restore` `{ root, path, trashPath }` → `{ path }`. Devuelve el archivo o carpeta a `path`; **409** si `path` existe ahora.
+- Eventos: además de `add`/`change`/`unlink`, el server emite `event: change` con `{ root, path: <to>, from, kind: "move" }` por cada archivo movido, **antes** de los `unlink`/`add` que detecte el vigilante. `.trash/` sigue oculta del árbol y la búsqueda (como toda carpeta que empieza por punto).
+
+### Mantener enlaces (`updateLinks`)
+
+Se calcula con las rutas **antes** de mover: cada enlace que apuntaba a un archivo movido se reescribe para que siga apuntando a él, y los enlaces relativos **dentro** de los archivos movidos se recalculan. Solo se reescribe el destino del enlace; el resto del texto no cambia.
+
+- `notes` (en todos los `.md`):
+  - Wikilinks `[[destino]]`, `[[destino|alias]]`, `[[destino#título]]`, `[[destino^bloque]]` y embebidos `![[…]]`. El destino se resuelve con la misma lógica que `GET /api/notes/resolve`. Se conserva la forma: si era solo el nombre y el nuevo nombre sigue sin ser ambiguo, queda solo el nombre nuevo; si llevaba ruta, ruta nueva; con o sin `.md` como estaba.
+  - Enlaces Markdown `[texto](ruta)` y `![alt](ruta)` relativos (no `http:`, `mailto:`…), respetando la codificación (`%20`) y los anclajes `#…`.
+  - En notas de recurso, el campo `attachment:` del frontmatter.
+- `memoria` (en todos los `.tex`): `\input{…}`, `\include{…}`, `\includegraphics[…]{…}`, `\bibliography{…}`, `\addbibresource{…}`; rutas relativas a la raíz de la memoria, con o sin extensión como estaban. En `\includegraphics`, se tienen en cuenta las carpetas de `\graphicspath` de la plantilla (`figuras/`, `estilo/`).
+- No se reescriben enlaces dentro de bloques de código (``` … ``` y `` `…` `` en Markdown; `verbatim`/`lstlisting` y comentarios `%` en LaTeX).
+
+### Interfaz
+
+- **Menú contextual del árbol**:
+  - Archivo: Abrir, Abrir al lado, Renombrar (F2), Mover a…, Eliminar (Supr / ⌘⌫), Copiar ruta.
+  - Carpeta: Nueva nota aquí / Nuevo archivo aquí, Nueva carpeta aquí, Renombrar, Mover a…, Eliminar, Copiar ruta.
+  - Zona vacía del árbol: Nueva nota / Nuevo archivo, Nueva carpeta.
+- **Cabecera de la sección**: botones «Nueva nota» y «Nueva carpeta» (en la memoria, «Nuevo archivo» y «Nueva carpeta»).
+- **Renombrar** en línea dentro del árbol: el nombre se selecciona sin la extensión; ↵ confirma, Esc cancela; si no se escribe extensión se conserva la que tenía.
+- **Mover**: arrastrar y soltar archivos y carpetas sobre una carpeta o sobre la raíz (la carpeta destino se resalta y se despliega tras un momento), o «Mover a…» (diálogo con buscador de carpetas y «Nueva carpeta…»).
+- **Eliminar**: va a la papelera sin pedir confirmación para un archivo (toast con «Deshacer»); para una carpeta se confirma indicando cuántos archivos contiene. Si el archivo tiene cambios sin guardar, se pide confirmación.
+- **Pestañas abiertas**: antes de mover se guardan los documentos afectados con cambios; después, las pestañas, los borradores, recientes y el estado de carpetas desplegadas pasan a la ruta nueva sin cerrar ni recargar el editor. Al eliminar se cierran sus pestañas.
+- Tras mover, toast «Movida a <ruta> · N archivos con enlaces actualizados».
+- **Crear**: una nota nueva se abre en modo edición. En la búsqueda rápida (⌘K), si no hay coincidencia exacta, se ofrece «Crear nota «texto»» (admite `Carpeta/Nombre`). Al pulsar un `[[enlace]]` a una nota que no existe, se ofrece crearla (en la carpeta de la nota actual).
