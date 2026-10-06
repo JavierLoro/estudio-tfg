@@ -7,8 +7,11 @@
 #   docker compose --profile app up -d --build
 #
 # Las rutas de .env (NOTES_DIR, MEMORIA_DIR…) son relativas a la raíz del repo;
-# Compose las lee de .env para montar los volúmenes y dentro de los contenedores
-# se usan rutas fijas (/src, /out, /data/...).
+# Compose las lee de .env para montar los volúmenes de la app y dentro de los
+# contenedores se usan rutas fijas (/out, /data/...).
+#
+# El worker no monta la memoria: el server le envía un tar de las fuentes en
+# cada compilación (POST /compile, application/x-tar) y recoge el PDF de /out.
 
 name: estudio-tfg
 
@@ -20,7 +23,6 @@ services:
     ports:
       - "127.0.0.1:8090:8090"       # para el server nativo en el Mac
     volumes:
-      - ${MEMORIA_DIR:?Define MEMORIA_DIR en .env}:/src:ro
       - ./data/builds:/out
     environment:
       COMPILE_TIMEOUT_MS: "120000"
@@ -48,15 +50,15 @@ services:
       PORT: "8787"
       NOTES_DIR: /data/notes
       MEMORIA_DIR: /data/memoria
-      BUILD_DIR: /data/builds         # history → /data/history (BUILD_DIR/../history)
+      BUILD_DIR: /data/app/builds     # settings.json e history/ quedan en /data/app (persistentes)
       WORKER_URL: http://worker:8090
+      ALLOWED_ROOTS: /data             # carpetas elegibles desde Ajustes
     ports:
       - "127.0.0.1:8787:8787"
     volumes:
-      - ${NOTES_DIR:?Define NOTES_DIR en .env}:/data/notes
-      - ${MEMORIA_DIR:?Define MEMORIA_DIR en .env}:/data/memoria
-      - ./data/builds:/data/builds
-      - ./data/history:/data/history
+      - ${NOTES_DIR:-./workspace/notes}:/data/notes
+      - ${MEMORIA_DIR:-./workspace/memoria}:/data/memoria
+      - ./data:/data/app
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true

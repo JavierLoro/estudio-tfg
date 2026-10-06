@@ -45,7 +45,14 @@ export function locate(cfg: Config, abs: string): { root: RootName; rel: string 
 }
 
 export function startWatcher(cfg: Config, bus: EventBus): FSWatcher {
-  const dirs = ROOTS.map((r) => rootDir(cfg, r));
+  // Missing roots (not configured yet) are simply not watched; restart() after settings change.
+  const dirs = ROOTS.map((r) => rootDir(cfg, r)).filter((d) => {
+    try {
+      return fs.statSync(d).isDirectory();
+    } catch {
+      return false;
+    }
+  });
   const watcher = chokidar.watch(dirs, {
     ignoreInitial: true,
     followSymlinks: false,
@@ -68,4 +75,53 @@ export function startWatcher(cfg: Config, bus: EventBus): FSWatcher {
   watcher.on('unlinkDir', emit('unlink'));
   watcher.on('error', () => {});
   return watcher;
+}
+
+/** Owns the chokidar watcher so it can be restarted when settings change. */
+export class WatchManager {
+  private watcher: FSWatcher | null = null;
+  private chain: Promise<unknown> = Promise.resolve();
+
+  constructor(
+    private cfg: Config,
+    private bus: EventBus,
+  ) {}
+
+  /** Resolves when the (new) watcher is ready. */
+  restart(): Promise<void> {
+    const next = this.chain.then(async () => {
+      const old = this.watcher;
+      this.watcher = null;
+      await old?.close().catch(() => {});
+      const w = startWatcher(this.cfg, this.bus);
+      this.watcher = w;
+      await new Promise<void>((r) => {
+        const t = setTimeout(r, 10_000);
+        w.once('ready', () => {
+          clearTimeout(t);
+          r();
+        });
+      });
+    });
+    this.chain = next.catch(() => undefined);
+    return next;
+  }
+
+  start(): Promise<void> {
+    return this.restart();
+  }
+
+  close(): Promise<void> {
+    const next = this.chain.then(async () => {
+      const old = this.watcher;
+      this.watcher = null;
+      await old?.close().catch(() => {});
+    });
+    this.chain = next.catch(() => undefined);
+    return next;
+  }
+
+  get current(): FSWatcher | null {
+    return this.watcher;
+  }
 }

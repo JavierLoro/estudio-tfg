@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { Ctx } from '../context.ts';
 import { walkFiles } from '../fsutil.ts';
 import { ROOTS } from '../paths.ts';
+import { instanceId, isConfigured } from '../settings.ts';
 
 export async function workerStatus(url: string): Promise<'up' | 'down'> {
   try {
@@ -30,6 +31,8 @@ export default async function statusRoutes(app: FastifyInstance, { ctx }: { ctx:
       resourcesSubdir: cfg.resourcesSubdir,
       syncConflicts: (conflicts as string[][]).flat().sort(),
       worker,
+      configured: isConfigured(cfg),
+      instanceId: instanceId(cfg),
     };
   });
 }

@@ -8,15 +8,18 @@ import { isAuthorized } from './auth.ts';
 import { Compiler } from './compile.ts';
 import type { Ctx } from './context.ts';
 import { HttpError } from './errors.ts';
-import { EventBus } from './events.ts';
+import { EventBus, WatchManager } from './events.ts';
 import { KeyedLock } from './fsutil.ts';
 import { MAX_UPLOAD } from './capture.ts';
+import { ROOTS, rootDir, type RootName } from './paths.ts';
+import { NOT_CONFIGURED, Settings, isDirSync } from './settings.ts';
 import compileRoutes from './routes/compile.ts';
 import eventsRoutes from './routes/events.ts';
 import filesRoutes from './routes/files.ts';
 import notesRoutes from './routes/notes.ts';
 import resourcesRoutes from './routes/resources.ts';
 import searchRoutes from './routes/search.ts';
+import settingsRoutes from './routes/settings.ts';
 import statusRoutes from './routes/status.ts';
 
 export interface BuildOptions {
@@ -24,6 +27,20 @@ export interface BuildOptions {
   bus?: EventBus;
   /** Serve web/dist if present (default true). */
   serveWeb?: boolean;
+  /** Start the chokidar watcher (restarted on settings changes). Default false. */
+  watch?: boolean;
+}
+
+const pickRoot = (v: unknown): RootName[] | null => (v === 'notes' || v === 'memoria' ? [v] : null);
+
+/** Roots a request needs to exist (null = route does not touch the roots). */
+function rootsFor(method: string, url: string, query: any, body: any): RootName[] | null {
+  const p = url.split('?')[0];
+  if (p === '/api/tree' || p === '/api/file' || p === '/api/raw') return pickRoot(query?.root ?? body?.root) ?? [];
+  if (p.startsWith('/api/notes/') || p === '/api/resources' || p === '/api/capture') return ['notes'];
+  if (p === '/api/search') return pickRoot(query?.root) ?? ROOTS;
+  if (p === '/api/compile' && method === 'POST') return ['memoria'];
+  return null;
 }
 
 export async function buildApp(cfg: Config, opts: BuildOptions = {}): Promise<{ app: FastifyInstance; ctx: Ctx }> {
@@ -34,8 +51,16 @@ export async function buildApp(cfg: Config, opts: BuildOptions = {}): Promise<{ 
   });
   const bus = opts.bus ?? new EventBus();
   const compiler = new Compiler(cfg, (r) => bus.emit('compile', r));
-  const ctx: Ctx = { cfg, bus, compiler, locks: new KeyedLock() };
+  const watcher = opts.watch ? new WatchManager(cfg, bus) : null;
+  const settings = new Settings(cfg, bus, { onApply: () => watcher?.restart() });
+  // settings.json > .env > defaults (invalid stored values fall back and are reported as checks).
+  settings.load();
+  const ctx: Ctx = { cfg, bus, compiler, locks: new KeyedLock(), settings, watcher };
   await compiler.load();
+  if (watcher) {
+    await watcher.start();
+    app.addHook('onClose', async () => watcher.close());
+  }
 
   await app.register(multipart, {
     limits: { fileSize: MAX_UPLOAD, files: 1, fields: 20, fieldSize: 5 * 1024 * 1024 },
@@ -45,6 +70,20 @@ export async function buildApp(cfg: Config, opts: BuildOptions = {}): Promise<{ 
     if (!cfg.authToken || !req.url.startsWith('/api/')) return;
     if (!isAuthorized(req, cfg.authToken)) {
       reply.code(401).send({ error: 'No autorizado' });
+      return reply;
+    }
+  });
+
+  // Not configured yet (folders missing): file endpoints answer 409 with a clear message.
+  app.addHook('preHandler', async (req, reply) => {
+    const roots = rootsFor(req.method, req.url, req.query, req.body);
+    if (!roots) return;
+    const missing = roots.filter((r) => !isDirSync(rootDir(cfg, r)));
+    if (missing.length) {
+      reply.code(409).send({
+        error: `${NOT_CONFIGURED}: no existe ${missing.map((r) => (r === 'notes' ? `la carpeta de notas (${cfg.notesDir})` : `la carpeta de la memoria (${cfg.memoriaDir})`)).join(' ni ')}`,
+        code: 'not_configured',
+      });
       return reply;
     }
   });
@@ -61,7 +100,7 @@ export async function buildApp(cfg: Config, opts: BuildOptions = {}): Promise<{ 
     reply.code(status).send({ error: message });
   });
 
-  for (const plugin of [statusRoutes, filesRoutes, notesRoutes, resourcesRoutes, searchRoutes, compileRoutes, eventsRoutes]) {
+  for (const plugin of [statusRoutes, filesRoutes, notesRoutes, resourcesRoutes, searchRoutes, compileRoutes, eventsRoutes, settingsRoutes]) {
     await app.register(plugin, { ctx });
   }
 

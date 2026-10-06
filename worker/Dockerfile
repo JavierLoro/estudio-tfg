@@ -10,16 +10,15 @@ COPY --from=node /usr/local/bin/node /usr/local/bin/node
 RUN (getent passwd 1000 >/dev/null && userdel -r "$(getent passwd 1000 | cut -d: -f1)" || true) \
  && (getent group 1000 >/dev/null || groupadd -g 1000 latex) \
  && useradd -u 1000 -g 1000 -M -d /tmp/home -s /usr/sbin/nologin latex \
- && mkdir -p /src /out && chown 1000:1000 /out \
+ && mkdir -p /out && chown 1000:1000 /out \
  && node --version && latexmk -v | head -2
 
 WORKDIR /app
-COPY server.mjs parse-log.mjs ./
+COPY server.mjs parse-log.mjs untar.mjs ./
 
 # Con raíz de solo lectura todo lo escribible vive en /tmp (tmpfs).
 ENV NODE_ENV=production \
     PORT=8090 \
-    SRC_DIR=/src \
     OUT_DIR=/out \
     HOME=/tmp/home \
     TMPDIR=/tmp \

@@ -2,6 +2,8 @@ import fs from 'node:fs/promises';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
+import { pipeline } from 'node:stream/promises';
+import * as tar from 'tar';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.ts';
 import { computeSourceRev } from '../src/compile.ts';
@@ -14,20 +16,37 @@ interface Fake {
   maxConcurrent: number;
   mode: 'ok' | 'fail';
   delayMs: number;
+  /** Entries of the last tar received: path → { type, content }. */
+  lastTar: Map<string, { type: string; content: string }>;
+  lastHeaders: http.IncomingHttpHeaders;
+}
+
+/** Parse a tar request body with node-tar (as the fake worker). */
+async function readTar(req: http.IncomingMessage) {
+  const out = new Map<string, { type: string; content: string }>();
+  const parser = new tar.Parser({
+    onReadEntry: (e) => {
+      const chunks: Buffer[] = [];
+      e.on('data', (c: Buffer) => chunks.push(c));
+      e.on('end', () => out.set(e.path, { type: e.type, content: Buffer.concat(chunks).toString('utf8') }));
+    },
+  });
+  await pipeline(req, parser as any);
+  return out;
 }
 
 async function fakeWorker(buildDir: () => string): Promise<Fake> {
   let active = 0;
-  const f: Fake = { url: '', server: null as any, calls: 0, maxConcurrent: 0, mode: 'ok', delayMs: 50 };
+  const f: Fake = { url: '', server: null as any, calls: 0, maxConcurrent: 0, mode: 'ok', delayMs: 50, lastTar: new Map(), lastHeaders: {} };
   f.server = http.createServer(async (req, res) => {
     if (req.url === '/health') {
       res.setHeader('content-type', 'application/json');
       return res.end(JSON.stringify({ ok: true }));
     }
     if (req.method === 'POST' && req.url === '/compile') {
-      let body = '';
-      for await (const c of req) body += c;
-      const { main } = JSON.parse(body);
+      f.lastHeaders = req.headers;
+      f.lastTar = await readTar(req);
+      const main = decodeURIComponent(String(req.headers['x-main']));
       f.calls++;
       active++;
       f.maxConcurrent = Math.max(f.maxConcurrent, active);
@@ -158,6 +177,41 @@ describe('compile', () => {
     t.ctx.bus.on('compile', (r) => got.push(r));
     const r = (await t.app.inject({ method: 'POST', url: '/api/compile' })).json();
     expect(got).toEqual([r]);
+  });
+
+  it('sends a tar of the memoria sources (same filter as sourceRev) with X-Main', async () => {
+    await fs.writeFile(path.join(t.cfg.memoriaDir, 'main.aux'), 'aux');
+    await fs.writeFile(path.join(t.cfg.memoriaDir, '.oculto.tex'), 'x');
+    await fs.mkdir(path.join(t.cfg.memoriaDir, 'build'), { recursive: true });
+    await fs.writeFile(path.join(t.cfg.memoriaDir, 'build', 'x.tex'), 'x');
+    await fs.writeFile(path.join(t.dir, 'secreto.tex'), 'secreto');
+    await fs.symlink(path.join(t.dir, 'secreto.tex'), path.join(t.cfg.memoriaDir, 'fuera.tex'));
+    await fs.symlink(path.join(t.cfg.memoriaDir, 'intro.tex'), path.join(t.cfg.memoriaDir, 'enlace.tex'));
+    const r = (await t.app.inject({ method: 'POST', url: '/api/compile' })).json();
+    expect(r.ok).toBe(true);
+    expect(w.lastHeaders['content-type']).toBe('application/x-tar');
+    expect(w.lastHeaders['x-main']).toBe('main.tex');
+    const names = [...w.lastTar.keys()].sort();
+    expect(names).toContain('main.tex');
+    expect(names).toContain('intro.tex');
+    expect(names.some((n) => n.startsWith('figures/'))).toBe(true);
+    for (const bad of ['main.aux', '.oculto.tex', 'build/x.tex', 'fuera.tex', '.gitignore']) expect(names).not.toContain(bad);
+    // in-root symlink is sent as a regular file; no links at all in the tar
+    expect(w.lastTar.get('enlace.tex')).toEqual({ type: 'File', content: await fs.readFile(path.join(t.cfg.memoriaDir, 'intro.tex'), 'utf8') });
+    expect([...w.lastTar.values()].every((e) => e.type === 'File')).toBe(true);
+    expect(w.lastTar.get('main.tex')!.content).toBe(await fs.readFile(path.join(t.cfg.memoriaDir, 'main.tex'), 'utf8'));
+  });
+
+  it('uses the current memoriaDir after a settings change (hot-apply)', async () => {
+    const other = path.join(t.dir, 'otra-memoria');
+    await fs.mkdir(other);
+    await fs.writeFile(path.join(other, 'tesis.tex'), '\\documentclass{article}');
+    const put = await t.app.inject({ method: 'PUT', url: '/api/settings', payload: { memoriaDir: other, memoriaMain: 'tesis.tex' } });
+    expect(put.statusCode).toBe(200);
+    const r = (await t.app.inject({ method: 'POST', url: '/api/compile' })).json();
+    expect(r.ok).toBe(true);
+    expect(w.lastHeaders['x-main']).toBe('tesis.tex');
+    expect([...w.lastTar.keys()]).toEqual(['tesis.tex']);
   });
 
   it('rejects bad build ids', async () => {

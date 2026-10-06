@@ -40,7 +40,7 @@ async function realRoot(dir: string): Promise<string> {
   try {
     return await fs.realpath(dir);
   } catch {
-    throw new HttpError(500, `La carpeta raíz no existe: ${dir}`);
+    throw new HttpError(409, `Configura las carpetas en Ajustes (no existe: ${dir})`, { code: 'not_configured' });
   }
 }
 
@@ -80,7 +80,7 @@ export async function resolveSafe(cfg: Config, root: RootName, relInput: unknown
       } catch (le: any) {
         if (le instanceof HttpError) throw le;
       }
-      if (probe === base) throw new HttpError(500, 'La carpeta raíz no existe');
+      if (probe === base) throw new HttpError(409, 'Configura las carpetas en Ajustes (la carpeta raíz no existe)', { code: 'not_configured' });
       missing.push(path.basename(probe));
       probe = path.dirname(probe);
     }

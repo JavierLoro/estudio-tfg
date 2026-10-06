@@ -1,6 +1,8 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { Readable } from 'node:stream';
+import * as tar from 'tar';
 import type { Config } from './config.ts';
 import { atomicWrite, walkFiles } from './fsutil.ts';
 import { isInside } from './paths.ts';
@@ -29,16 +31,23 @@ interface Persisted {
 
 export const WORKER_DOWN_MSG = 'Worker de compilación no disponible';
 const WORKER_TIMEOUT_MS = 180_000;
+/** Same limit the worker enforces on the tar body. */
+export const MAX_TAR_BYTES = 200 * 1024 * 1024;
 const BUILD_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
 export function isValidBuildId(id: string): boolean {
   return BUILD_ID_RE.test(id) && !id.includes('..');
 }
 
-/** Hash over the (non-ignored) memoria sources: path + content of each file, sorted. */
-export async function computeSourceRev(cfg: Config): Promise<string> {
+async function sourceFiles(cfg: Config) {
   const files = await walkFiles(cfg, 'memoria');
   files.sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
+  return files;
+}
+
+/** Hash over the (non-ignored) memoria sources: path + content of each file, sorted. */
+export async function computeSourceRev(cfg: Config): Promise<string> {
+  const files = await sourceFiles(cfg);
   const h = crypto.createHash('sha256');
   for (const f of files) {
     try {
@@ -49,6 +58,28 @@ export async function computeSourceRev(cfg: Config): Promise<string> {
     }
   }
   return h.digest('hex').slice(0, 16);
+}
+
+/**
+ * Tar (uncompressed, portable) of the memoria sources, with the same filter as
+ * computeSourceRev. Symlinks inside the root are stored as regular files
+ * (walkFiles already dropped those escaping it); the worker rejects links.
+ */
+export async function createSourceTar(cfg: Config): Promise<{ stream: Readable; files: number; bytes: number }> {
+  const files = await sourceFiles(cfg);
+  let bytes = 0;
+  for (const f of files) bytes += await fs.stat(f.abs).then((s) => s.size, () => 0);
+  const base = await fs.realpath(cfg.memoriaDir);
+  const pack = tar.create({ cwd: base, portable: true, follow: true, noDirRecurse: true }, files.map((f) => f.rel));
+  pack.on('error', () => {});
+  // Never destroy the Pack itself (node-tar throws on writes after destroy): wrap it in a
+  // Node Readable and, on cleanup, let the Pack drain into the void.
+  const stream = Readable.from(pack as AsyncIterable<Buffer>, { objectMode: false });
+  const discard = () => {
+    pack.resume();
+  };
+  stream.once('close', discard);
+  return { stream, files: files.length, bytes };
 }
 
 function normDiagnostics(v: unknown): Diagnostic[] {
@@ -117,15 +148,30 @@ export class Compiler {
     await this.load();
     const started = new Date();
     const t0 = performance.now();
-    const sourceRev = await computeSourceRev(this.cfg);
+    // Snapshot: a settings change during a compile does not affect it (it finishes with the old folder).
+    const snap: Config = { ...this.cfg };
+    const sourceRev = await computeSourceRev(snap);
     let result: CompileResult;
+    let src: Awaited<ReturnType<typeof createSourceTar>> | null = null;
     try {
-      const res = await fetch(`${this.cfg.workerUrl}/compile`, {
+      src = await createSourceTar(snap);
+    } catch (e: any) {
+      result = await this.failure(localBuildId(started), started, t0, sourceRev, `No se pudieron empaquetar las fuentes: ${e?.message ?? e}`, snap);
+      return this.finish(result);
+    }
+    if (src.bytes > MAX_TAR_BYTES) {
+      src.stream.destroy();
+      result = await this.failure(localBuildId(started), started, t0, sourceRev, `Las fuentes de la memoria ocupan más de ${MAX_TAR_BYTES / 1024 / 1024} MB`, snap);
+      return this.finish(result);
+    }
+    try {
+      const res = await fetch(`${snap.workerUrl}/compile`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ main: this.cfg.memoriaMain }),
+        headers: { 'content-type': 'application/x-tar', 'x-main': encodeURIComponent(snap.memoriaMain) },
+        body: Readable.toWeb(src.stream) as any,
+        duplex: 'half',
         signal: AbortSignal.timeout(WORKER_TIMEOUT_MS),
-      });
+      } as RequestInit);
       const text = await res.text();
       let body: any = null;
       try {
@@ -135,12 +181,13 @@ export class Compiler {
       }
       const buildId = typeof body?.buildId === 'string' && isValidBuildId(body.buildId) ? body.buildId : localBuildId(started);
       if (!res.ok && !body?.diagnostics) {
-        result = await this.failure(buildId, started, t0, sourceRev, `Error del worker (HTTP ${res.status}): ${text.slice(0, 300)}`);
+        const msg = typeof body?.error === 'string' ? body.error : text.slice(0, 300);
+        result = await this.failure(buildId, started, t0, sourceRev, `Error del worker (HTTP ${res.status}): ${msg}`, snap);
       } else {
         const ok = Boolean(body?.ok) && typeof body?.pdf === 'string' && (await this.pdfExists(body.pdf));
         const diagnostics = normDiagnostics(body?.diagnostics);
         if (body?.ok && !ok) {
-          diagnostics.push({ severity: 'error', file: this.cfg.memoriaMain, line: null, message: 'El worker no generó el PDF esperado' });
+          diagnostics.push({ severity: 'error', file: snap.memoriaMain, line: null, message: 'El worker no generó el PDF esperado' });
         }
         const pdfUrl = ok ? `/api/pdf/${buildId}.pdf` : await this.lastGood();
         result = {
@@ -156,8 +203,14 @@ export class Compiler {
       }
     } catch (e: any) {
       const msg = e?.name === 'TimeoutError' ? `${WORKER_DOWN_MSG} (tiempo de espera agotado)` : WORKER_DOWN_MSG;
-      result = await this.failure(localBuildId(started), started, t0, sourceRev, msg);
+      result = await this.failure(localBuildId(started), started, t0, sourceRev, msg, snap);
+    } finally {
+      src.stream.destroy();
     }
+    return this.finish(result);
+  }
+
+  private async finish(result: CompileResult): Promise<CompileResult> {
     this.state.last = result;
     await this.persist();
     try {
@@ -176,13 +229,13 @@ export class Compiler {
     return url;
   }
 
-  private async failure(buildId: string, started: Date, t0: number, sourceRev: string, message: string): Promise<CompileResult> {
+  private async failure(buildId: string, started: Date, t0: number, sourceRev: string, message: string, snap: Config): Promise<CompileResult> {
     return {
       ok: false,
       buildId,
       startedAt: started.toISOString(),
       durationMs: Math.round(performance.now() - t0),
-      diagnostics: [{ severity: 'error', file: this.cfg.memoriaMain, line: null, message }],
+      diagnostics: [{ severity: 'error', file: snap.memoriaMain, line: null, message }],
       pdfUrl: await this.lastGood(),
       sourceRev,
     };

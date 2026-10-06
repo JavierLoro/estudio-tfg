@@ -18,7 +18,7 @@ export interface TestEnv {
 }
 
 /** Copy test/fixtures (notes) and templates/esi-tfg (memoria) into a fresh temp dir and build an app pointing there. Never touches the real vault. */
-export async function setup(env: Record<string, string> = {}): Promise<TestEnv> {
+export async function setup(env: Record<string, string> = {}, opts: { watch?: boolean; before?: (dir: string) => Promise<void> } = {}): Promise<TestEnv> {
   const dir = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'estudio-tfg-test-')));
   await fs.cp(FIXTURES, path.join(dir, 'fixtures'), { recursive: true });
   await fs.cp(TEMPLATE, path.join(dir, 'fixtures', 'memoria'), { recursive: true });
@@ -31,14 +31,16 @@ export async function setup(env: Record<string, string> = {}): Promise<TestEnv> 
       BUILD_DIR: './data/builds',
       WORKER_URL: 'http://127.0.0.1:1',
       AUTH_TOKEN: '',
+      ALLOWED_ROOTS: dir,
       ...env,
     },
     dir,
   );
-  for (const p of [cfg.notesDir, cfg.memoriaDir, cfg.buildDir]) {
+  for (const p of [cfg.notesDir, cfg.memoriaDir, cfg.buildDir, cfg.settingsFile]) {
     if (!p.startsWith(dir)) throw new Error(`Test config escapes temp dir: ${p}`);
   }
-  const { app, ctx } = await buildApp(cfg, { serveWeb: false });
+  await opts.before?.(dir);
+  const { app, ctx } = await buildApp(cfg, { serveWeb: false, watch: opts.watch });
   await app.ready();
   return {
     dir,

@@ -5,22 +5,25 @@ Contrato: `docs/CONTRACT.md` → «Worker».
 
 | Archivo | Qué es |
 | --- | --- |
-| `server.mjs` | HTTP en `:8090`: `GET /health`, `POST /compile {main}` |
+| `server.mjs` | HTTP en `:8090`: `GET /health`, `POST /compile` (cuerpo tar, cabecera `X-Main`) |
+| `untar.mjs` | Extractor tar en streaming, sin dependencias, que valida cada entrada |
 | `parse-log.mjs` | Parser de `.log` (LaTeX) y `.blg` (BibTeX/Biber) → `Diagnostic[]` |
 | `parse-log.test.mjs` | Tests `node:test` (snippets + logs reales en `test-logs/`) |
+| `untar.test.mjs` | Tests `node:test` del extractor (tars válidos y maliciosos) y de los rechazos HTTP |
 | `Dockerfile` | TeX Live full + binario `node` copiado de `node:24-slim`, usuario uid 1000 |
 
 ## Uso
 
 ```sh
-# desde la raíz del repo (lee MEMORIA_DIR de .env)
+# desde la raíz del repo (el worker no monta la memoria: recibe un tar)
 docker compose up -d --build worker      # o: npm run worker
 curl -s localhost:8090/health
-curl -s -XPOST localhost:8090/compile -H 'content-type: application/json' -d '{"main":"main.tex"}'
+(cd templates/esi-tfg && COPYFILE_DISABLE=1 tar -cf - *) \
+  | curl -s -XPOST localhost:8090/compile -H 'content-type: application/x-tar' -H 'x-main: main.tex' --data-binary @-
 docker compose logs -f worker
 
-# tests del parser (no necesitan Docker)
-node --test worker/parse-log.test.mjs
+# tests (no necesitan Docker)
+node --test worker/parse-log.test.mjs worker/untar.test.mjs
 ```
 
 Sin Compose (equivalente):
@@ -28,18 +31,20 @@ Sin Compose (equivalente):
 ```sh
 docker build -t estudio-tfg-worker worker
 docker run -d --init -p 127.0.0.1:8090:8090 \
-  -v "$PWD/templates/esi-tfg:/src:ro" -v "$PWD/data/builds:/out" \
+  -v "$PWD/data/builds:/out" \
   --read-only --tmpfs /tmp:rw,exec,size=1g --cap-drop ALL \
   --security-opt no-new-privileges --memory 2g estudio-tfg-worker
 ```
 
-Variables: `PORT` (8090), `SRC_DIR` (/src), `OUT_DIR` (/out), `COMPILE_TIMEOUT_MS` (120000), `KEEP_BUILDS` (10).
+Variables: `PORT` (8090), `OUT_DIR` (/out), `COMPILE_TIMEOUT_MS` (120000), `KEEP_BUILDS` (10), `MAX_TAR_BYTES` (200 MB).
 
 ## Qué hace `POST /compile`
 
-1. Valida `main`: relativa, termina en `.tex`, sin `..`, sin `/` inicial, sin segmentos que empiecen por `-` (evita que se cuele como opción de latexmk) → si no, **400**.
-2. Cola: una compilación a la vez; las peticiones concurrentes esperan su turno.
-3. Copia `/src` a `/tmp/build-XXXX` omitiendo dotfiles, `*.sync-conflict-*`, `*.lock`, `build/`, `node_modules/`, `_minted*` y auxiliares (`aux log out toc lof lot lol bbl blg fls fdb_latexmk synctex.gz acn acr alg bcf run.xml xdv nav snm vrb idx ilg ind glo gls glg`). Symlinks solo si apuntan dentro de `/src`.
+Petición: `Content-Type: application/x-tar` (si no, **415**), cabecera `X-Main: main.tex` (codificada con `encodeURIComponent`; por defecto `main.tex`), cuerpo = tar sin comprimir de las fuentes. El server lo genera con el paquete npm `tar` desde el `memoriaDir` actual y el mismo filtro que `sourceRev` (sin dotfiles, `*.lock`, `*.sync-conflict-*`, `node_modules/`, `build/` ni auxiliares de LaTeX).
+
+1. Valida `main` (`X-Main`): relativa, termina en `.tex`, sin `..`, sin `/` inicial, sin segmentos que empiecen por `-` (evita que se cuele como opción de latexmk) → si no, **400**.
+2. Extrae el tar en streaming en `/tmp/build-XXXX` (`untar.mjs`, sin usar el binario `tar`). Se aceptan solo archivos regulares y carpetas (ustar, prefijo, PAX `path`/`size`, nombres largos GNU). Se **rechaza con 400** (y se borra el temporal) cualquier entrada absoluta, con `..`, `\` o NUL, enlaces simbólicos o duros, dispositivos, FIFOs u otros tipos, checksums incorrectos o tars truncados; más de 50 000 entradas también. Más de 200 MB (por `Content-Length` o contando bytes) → **413**. Como solo se crean carpetas y archivos regulares, ninguna escritura puede seguir un symlink.
+3. Cola: una compilación a la vez; las peticiones concurrentes esperan su turno (la extracción ocurre antes de entrar en la cola).
 4. `latexmk -pdf -interaction=nonstopmode -file-line-error -synctex=1 -no-shell-escape <main>` en su propio grupo de procesos; al pasar el timeout se mata el grupo (SIGTERM, y SIGKILL a los 2 s). Con `max_print_line=10000` para que el log no se corte a 79 columnas.
 5. Escribe en `/out/<buildId>/` (`buildId` = `AAAAMMDD-HHMMSS-xxxxxx`, UTC):
    - `main.log` (siempre), `main.pdf` y `main.synctex.gz` (solo si `ok`), `latexmk.txt` (salida de latexmk; extra para depurar).
@@ -92,8 +97,8 @@ Medido el 2026-10-06 en el Mac (Docker Desktop 29.8.1), imagen `texlive/texlive:
 | quitar `}` en main.bib:4 | error `main.bib:9 BibTeX: I was expecting a `,' or a `}'` (BibTeX lo detecta al empezar la siguiente entrada) |
 | borrar `\end{document}` | error `main.tex Falta \end{document}` |
 | `\begin{itemize}` sin cerrar en intro.tex:3 | error `main.tex:48 LaTeX Error: \begin{itemize} on input line 3 ended by \end{document}.` |
-| `main` = `../etc/passwd.tex`, `/etc/x.tex`, `-shell-escape.tex`, `a/../main.tex`, `main.sty` | 400 |
-| `main` = `sub/otro.tex` | compila; salida igualmente en `<id>/main.pdf` |
+| `X-Main` = `../etc/passwd.tex`, `/etc/x.tex`, `-shell-escape.tex`, `a/../main.tex`, `main.sty` | 400 |
+| `X-Main` = `sub/otro.tex` | compila; salida igualmente en `<id>/main.pdf` |
 
 Seguridad verificada en Compose: uid 1000, `CapEff: 0`, raíz de solo lectura (escritura solo en `/tmp` tmpfs y `/out`), `-no-shell-escape`, `init: true` (sin procesos zombi tras matar latexmk por timeout).
 

@@ -1,9 +1,11 @@
 // Worker de compilación LaTeX de Estudio TFG. Sin dependencias npm.
 //
 //   GET  /health                → { ok: true }
-//   POST /compile { main }      → { ok, buildId, durationMs, pdf, log, diagnostics }
+//   POST /compile               → { ok, buildId, durationMs, pdf, log, diagnostics }
+//        Content-Type: application/x-tar, X-Main: main.tex, cuerpo = tar de las fuentes (máx. 200 MB)
 //
-// Copia SRC_DIR (solo lectura) a un temporal, ejecuta latexmk y deja
+// Extrae el tar (validando cada entrada: sin rutas absolutas, `..`, enlaces ni
+// dispositivos) en un temporal, ejecuta latexmk y deja
 // main.pdf / main.log / main.synctex.gz en OUT_DIR/<buildId>/.
 
 import http from 'node:http';
@@ -17,59 +19,15 @@ import { spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import { parseLog, parseBlg, finalize, dropRerunNoise } from './parse-log.mjs';
+import { extractTar } from './untar.mjs';
 
 const PORT = Number(process.env.PORT || 8090);
-const SRC_DIR = path.resolve(process.env.SRC_DIR || '/src');
 const OUT_DIR = path.resolve(process.env.OUT_DIR || '/out');
 const TIMEOUT_MS = Number(process.env.COMPILE_TIMEOUT_MS || 120_000);
 const KEEP_BUILDS = Number(process.env.KEEP_BUILDS || 10);
-const MAX_BODY = 64 * 1024;
+export const MAX_TAR_BYTES = Number(process.env.MAX_TAR_BYTES || 200 * 1024 * 1024);
 
-// Auxiliares/derivados que no se copian (contrato: "Ignorar siempre" + algunos más).
-const AUX_EXT = new Set([
-  'aux', 'log', 'out', 'toc', 'lof', 'lot', 'lol', 'bbl', 'blg', 'fls', 'fdb_latexmk',
-  'acn', 'acr', 'alg', 'bcf', 'xdv', 'nav', 'snm', 'vrb', 'idx', 'ilg', 'ind',
-  'glo', 'gls', 'glg', 'synctex',
-]);
-const SKIP_DIRS = new Set(['build', 'node_modules', '_minted']);
 const BUILD_ID_RE = /^\d{8}-\d{6}-[0-9a-f]{6}$/;
-
-function isAux(name) {
-  const lower = name.toLowerCase();
-  if (lower.endsWith('.run.xml') || lower.endsWith('.synctex.gz') || lower.endsWith('.synctex(busy)')) return true;
-  if (lower.endsWith('.lock')) return true;
-  const dot = lower.lastIndexOf('.');
-  return dot > 0 && AUX_EXT.has(lower.slice(dot + 1));
-}
-
-function skipEntry(name, isDir) {
-  if (name.startsWith('.')) return true;
-  if (name.includes('.sync-conflict-')) return true;
-  if (isDir) return SKIP_DIRS.has(name) || name.startsWith('_minted');
-  return isAux(name);
-}
-
-/** Copia recursiva src→dst omitiendo auxiliares. Symlinks solo si apuntan dentro de SRC_DIR. */
-async function copyTree(src, dst, realRoot) {
-  await fs.mkdir(dst, { recursive: true });
-  for (const ent of await fs.readdir(src, { withFileTypes: true })) {
-    const from = path.join(src, ent.name);
-    const to = path.join(dst, ent.name);
-    let isDir = ent.isDirectory();
-    let isFile = ent.isFile();
-    if (ent.isSymbolicLink()) {
-      let real;
-      try { real = await fs.realpath(from); } catch { continue; }
-      if (real !== realRoot && !real.startsWith(realRoot + path.sep)) continue;
-      const st = await fs.stat(real);
-      isDir = st.isDirectory();
-      isFile = st.isFile();
-    }
-    if (skipEntry(ent.name, isDir)) continue;
-    if (isDir) await copyTree(from, to, realRoot);
-    else if (isFile) await fs.copyFile(from, to);
-  }
-}
 
 /** Valida `main`: relativa, sin "..", sin opciones disfrazadas, .tex. Devuelve la ruta normalizada o null. */
 export function validateMain(main) {
@@ -126,6 +84,10 @@ async function exists(p) {
   try { await fs.access(p); return true; } catch { return false; }
 }
 
+async function isFile(p) {
+  try { return (await fs.lstat(p)).isFile(); } catch { return false; }
+}
+
 /** Reescribe las rutas del temporal en el synctex para que queden relativas al proyecto. */
 async function copySynctex(from, to, workDir) {
   const gunzip = promisify(zlib.gunzip);
@@ -145,11 +107,10 @@ async function pruneBuilds() {
   }
 }
 
-async function compile(main) {
-  const started = Date.now();
+/** Compila `main` dentro de `workDir` (fuentes ya extraídas). Borra `workDir` al terminar. */
+async function compile(main, workDir, started = Date.now()) {
   const buildId = newBuildId();
   const outDir = path.join(OUT_DIR, buildId);
-  const workDir = await fs.mkdtemp(path.join(os.tmpdir(), 'build-'));
   // latexmk (sin -cd) deja los resultados en el cwd: <raíz>/<nombre>.{pdf,log,…}
   const base = path.posix.basename(main).replace(/\.tex$/i, '');
   const diagnostics = [];
@@ -158,13 +119,11 @@ async function compile(main) {
 
   try {
     await fs.mkdir(outDir, { recursive: true });
-    const realRoot = await fs.realpath(SRC_DIR);
-    if (!(await exists(path.join(SRC_DIR, main)))) {
+    if (!(await isFile(path.join(workDir, main)))) {
       diagnostics.push({ severity: 'error', file: main, line: null, message: `No existe el archivo principal ${main}` });
       await fs.writeFile(path.join(outDir, 'main.log'), `No existe ${main} en el proyecto.\n`);
       return { ok, buildId, durationMs: Date.now() - started, pdf, log: `${buildId}/main.log`, diagnostics };
     }
-    await copyTree(SRC_DIR, workDir, realRoot);
 
     const res = await run(
       'latexmk',
@@ -251,25 +210,41 @@ function send(res, status, body) {
   res.end(data);
 }
 
-function readBody(req) {
-  return new Promise((resolve, reject) => {
-    let size = 0;
-    const chunks = [];
-    req.on('data', (c) => {
-      size += c.length;
-      if (size > MAX_BODY) {
-        reject(Object.assign(new Error('Cuerpo demasiado grande'), { status: 413 }));
-        req.destroy();
-        return;
-      }
-      chunks.push(c);
-    });
-    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
-    req.on('error', reject);
-  });
+/** Respuesta de error que además corta la subida pendiente. */
+function reject(req, res, status, error) {
+  res.setHeader('connection', 'close');
+  res.on('finish', () => req.destroy());
+  send(res, status, { error });
 }
 
-const server = http.createServer(async (req, res) => {
+export async function handleCompile(req, res) {
+  const ctype = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+  if (ctype !== 'application/x-tar') {
+    return reject(req, res, 415, 'Se espera Content-Type: application/x-tar (tar de las fuentes)');
+  }
+  let mainRaw = req.headers['x-main'] ?? 'main.tex';
+  try { mainRaw = decodeURIComponent(String(mainRaw)); } catch { mainRaw = null; }
+  const main = validateMain(mainRaw);
+  if (!main) return reject(req, res, 400, 'Cabecera "X-Main" inválida');
+  const len = Number(req.headers['content-length']);
+  if (Number.isFinite(len) && len > MAX_TAR_BYTES) {
+    return reject(req, res, 413, `El tar supera el máximo de ${Math.round(MAX_TAR_BYTES / 1024 / 1024)} MB`);
+  }
+  const started = Date.now();
+  const workDir = await fs.mkdtemp(path.join(os.tmpdir(), 'build-'));
+  try {
+    await extractTar(req, workDir, { maxBytes: MAX_TAR_BYTES });
+  } catch (err) {
+    await fs.rm(workDir, { recursive: true, force: true }).catch(() => {});
+    if (err?.status) return reject(req, res, err.status, err.message);
+    throw err;
+  }
+  const result = await enqueue(() => compile(main, workDir, started));
+  console.log(`[worker] ${result.buildId} ok=${result.ok} ${result.durationMs} ms, ${result.diagnostics.length} diagnósticos`);
+  return send(res, 200, result);
+}
+
+export const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://worker');
   try {
     if (url.pathname === '/health' && (req.method === 'GET' || req.method === 'HEAD')) {
@@ -277,18 +252,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === '/compile') {
       if (req.method !== 'POST') return send(res, 405, { error: 'Método no permitido' });
-      let body;
-      try {
-        const raw = await readBody(req);
-        body = raw ? JSON.parse(raw) : {};
-      } catch (e) {
-        return send(res, e.status || 400, { error: e.status ? e.message : 'JSON inválido' });
-      }
-      const main = validateMain(body?.main ?? 'main.tex');
-      if (!main) return send(res, 400, { error: 'Parámetro "main" inválido' });
-      const result = await enqueue(() => compile(main));
-      console.log(`[worker] ${result.buildId} ok=${result.ok} ${result.durationMs} ms, ${result.diagnostics.length} diagnósticos`);
-      return send(res, 200, result);
+      return await handleCompile(req, res);
     }
     send(res, 404, { error: 'No encontrado' });
   } catch (err) {
@@ -301,6 +265,6 @@ const server = http.createServer(async (req, res) => {
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   if (!fss.existsSync(OUT_DIR)) fss.mkdirSync(OUT_DIR, { recursive: true });
   server.requestTimeout = TIMEOUT_MS + 60_000;
-  server.listen(PORT, '0.0.0.0', () => console.log(`[worker] escuchando en :${PORT} (src=${SRC_DIR}, out=${OUT_DIR})`));
+  server.listen(PORT, '0.0.0.0', () => console.log(`[worker] escuchando en :${PORT} (out=${OUT_DIR}, tar máx. ${Math.round(MAX_TAR_BYTES / 1024 / 1024)} MB)`));
   for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => server.close(() => process.exit(0)));
 }

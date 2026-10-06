@@ -17,6 +17,8 @@ RUN npm ci --omit=dev --no-audit --no-fund
 
 # --- final ---
 FROM node:24-slim
+# git: necesario para «Crear memoria desde la plantilla» (repo propio de la memoria)
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=8787
@@ -24,8 +26,10 @@ WORKDIR /app
 COPY --from=server-deps /app/server/node_modules server/node_modules
 COPY server/package.json server/tsconfig.json server/
 COPY server/src server/src
+COPY scripts scripts
+COPY templates templates
 COPY --from=web /app/web/dist web/dist
-RUN mkdir -p /data/notes /data/memoria /data/builds /data/history && chown -R node:node /data
+RUN mkdir -p /data/notes /data/memoria /data/app/builds && chown -R node:node /data
 USER node
 EXPOSE 8787
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s \
