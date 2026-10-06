@@ -9,9 +9,9 @@ import { basename, docKey, stripExt } from '../lib/paths';
 import { editContent, ensureDoc, requestReveal, saveDoc, useDocs, isDirty } from './docs';
 import { useCursor } from './cursor';
 import { onFileChange } from './events';
-import { expandPath } from './files';
+import { applyMoved, deleteEntry, expandPath, moveEntry } from './files';
 import { refreshOutlineSoon, useOutline, walkOutline } from './outline';
-import { toast, useUI } from './ui';
+import { confirmDialog, toast, useUI } from './ui';
 import { getDock, openFile, panelIdFor } from './workspace';
 import { saveAndCompile } from '../panels/LatexPanel';
 
@@ -346,4 +346,78 @@ export const openInsertFigure = (path: string) => useInsertFigure.setState({ pat
 export function copyFromNote(code: string, notePath?: string) {
   const suggested = notePath ? sanitizeDiagramName(stripExt(basename(notePath))) : '';
   useNewDiagram.setState({ req: { dir: '', source: code, name: suggested } });
+}
+
+// ---- Renombrar y eliminar (sección Diagramas) ----
+
+/** Figuras exportadas que acompañan a un diagrama (`figuras/diagramas/<nombre>.{pdf,svg}`). */
+function figurePaths(item: DiagramaItem): string[] {
+  return [item.pdf, item.svg].filter((p): p is string => Boolean(p));
+}
+
+/**
+ * Renombra la fuente y sus figuras exportadas a la vez; mover con `updateLinks` reescribe
+ * los `\includegraphics{diagramas/<nombre>}` de la memoria.
+ */
+export async function renameDiagram(item: DiagramaItem): Promise<boolean> {
+  const current = diagramName(item.path) ?? stripExt(basename(item.path));
+  const raw = await useUI.getState().ask({
+    title: 'Renombrar diagrama',
+    label: 'Nombre nuevo (sin tildes ni espacios; se pueden usar carpetas: tema/nombre)',
+    initial: current,
+    okLabel: 'Renombrar',
+  });
+  if (raw == null) return false;
+  const clean = sanitizeDiagramName(raw);
+  if (!clean) {
+    toast({ kind: 'error', text: 'El nombre del diagrama no es válido' });
+    return false;
+  }
+  if (clean === current) return false;
+  const to = `${DIAGRAMAS_DIR}/${clean}.mmd`;
+  if (!(await moveEntry('memoria', item.path, to, { rename: true }))) return false;
+  // Las figuras siguen a la fuente: mismo nombre en figuras/diagramas/.
+  for (const fig of figurePaths(item)) {
+    const ext = fig.slice(fig.lastIndexOf('.'));
+    try {
+      const r = await api.move('memoria', fig, `figuras/${DIAGRAMAS_DIR}/${clean}${ext}`, true);
+      applyMoved('memoria', r.moved);
+    } catch (e) {
+      toast({ kind: 'warn', text: `La fuente se renombró, pero no la figura «${fig}»: ${errorMessage(e)}` });
+    }
+  }
+  await useUI.getState().refreshTree('memoria');
+  refreshOutlineSoon(300);
+  refreshDiagramasSoon(0);
+  return true;
+}
+
+/**
+ * Lleva el diagrama a la papelera. Si la figura se usa en la memoria se conserva para que
+ * la compilación no falle; si no, también va a la papelera.
+ */
+export async function deleteDiagram(item: DiagramaItem): Promise<boolean> {
+  const n = item.usos.length;
+  const ok = await confirmDialog({
+    title: 'Eliminar diagrama',
+    text: n
+      ? `«${item.nombre}» se usa en ${n} ${n === 1 ? 'sitio' : 'sitios'} de la memoria. Irá a la papelera la fuente; la figura exportada se conserva para que la memoria siga compilando.`
+      : `¿Eliminar «${item.nombre}»? La fuente y su figura exportada irán a la papelera.`,
+    okLabel: 'Eliminar',
+    danger: true,
+  });
+  if (!ok) return false;
+  if (!(await deleteEntry('memoria', item.path, false))) return false;
+  if (!n) {
+    for (const fig of figurePaths(item)) {
+      try {
+        await api.deleteFile('memoria', fig);
+      } catch {
+        /* ya no estaba */
+      }
+    }
+  }
+  await useUI.getState().refreshTree('memoria');
+  refreshDiagramasSoon(0);
+  return true;
 }

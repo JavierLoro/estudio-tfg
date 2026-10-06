@@ -454,6 +454,7 @@ Los diagramas viven en la memoria: fuente en `diagramas/<nombre>.mmd` (Mermaid) 
 
   (`diagramas/<nombre>` se resuelve dentro de `figuras/` por el `\graphicspath` de la plantilla.) Después ofrece compilar.
 - **Avisos**: el árbol de la memoria marca los diagramas desactualizados; la vista Documento muestra un aviso en el apartado que incluye una figura desactualizada.
+- **Sección Diagramas** (barra lateral, entre Memoria y Notas): lista los diagramas de `diagramas/` con el estado de su figura (Exportada / Desactualizada / Sin exportar) y cuántas veces se usa en la memoria; filtro, «Nuevo diagrama» y, por diagrama (clic derecho o ⋯): Abrir, Abrir al lado, Exportar, Insertar en la memoria, Ver uso en…, Renombrar (renombra también `figuras/diagramas/<nombre>.{pdf,svg}`; los `\includegraphics` se actualizan), Copiar `\includegraphics` y Eliminar (a la papelera; si la figura se usa en la memoria se conserva para que siga compilando).
 - **Desde las notas**: cada bloque ```mermaid de una nota (modo lectura) tiene «Usar en la memoria», que **copia** el bloque a `diagramas/<nombre>.mmd` (pidiendo el nombre) y abre el panel Diagrama. Es una copia explícita: la nota y el diagrama quedan independientes.
 
 ### Precisiones de la implementación: diagramas (v0.8)

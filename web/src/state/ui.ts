@@ -3,7 +3,7 @@ import { api, errorMessage, type Entry, type Resource, type Root, type Status } 
 import { load, save } from '../lib/storage';
 
 /** Secciones del panel lateral. Inicio no es una sección: es una vista propia (homeView). */
-export type Section = 'memoria' | 'notes' | 'resources' | 'search';
+export type Section = 'memoria' | 'diagramas' | 'notes' | 'resources' | 'search';
 
 export const SIDEBAR_MIN = 180;
 export const SIDEBAR_MAX = 600;
@@ -99,7 +99,7 @@ let toastSeq = 1;
 const sidebarRaw = load<{ section: string; open: boolean }>(SIDEBAR_KEY, { section: 'memoria', open: true });
 // 'home' era antes una sección del panel lateral.
 const sidebarSaved: { section: Section; open: boolean } = {
-  section: (['memoria', 'notes', 'resources', 'search'].includes(sidebarRaw.section) ? sidebarRaw.section : 'memoria') as Section,
+  section: (['memoria', 'diagramas', 'notes', 'resources', 'search'].includes(sidebarRaw.section) ? sidebarRaw.section : 'memoria') as Section,
   open: sidebarRaw.open !== false,
 };
 

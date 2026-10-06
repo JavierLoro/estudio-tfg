@@ -1,10 +1,11 @@
-import { BookMarked, FileCode2, Home, Inbox, Plus, Search, Settings } from 'lucide-react';
+import { BookMarked, FileCode2, Home, Inbox, Plus, Search, Settings, Workflow } from 'lucide-react';
 import { useUI, type Section } from '../state/ui';
 import { openHome, openSettings, useActivePanel } from '../state/workspace';
 import { MOD, cx } from './ui';
 
 const ITEMS: { id: Section; label: string; icon: React.ReactNode }[] = [
   { id: 'memoria', label: 'Memoria', icon: <FileCode2 size={19} /> },
+  { id: 'diagramas', label: 'Diagramas', icon: <Workflow size={19} /> },
   { id: 'notes', label: 'Notas', icon: <BookMarked size={19} /> },
   { id: 'resources', label: 'Recursos', icon: <Inbox size={19} /> },
   { id: 'search', label: 'Buscar', icon: <Search size={19} /> },

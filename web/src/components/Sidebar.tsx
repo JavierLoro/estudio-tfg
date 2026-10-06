@@ -11,6 +11,7 @@ import { FileTree } from './FileTree';
 import { createFileIn, createFolderIn } from '../state/files';
 import { openNewDiagram } from '../state/diagramas';
 import { OutlineView } from './OutlineTree';
+import { DiagramasSection } from './DiagramasSection';
 import { useOutline } from '../state/outline';
 import { load, save } from '../lib/storage';
 import { ScopeSelect, SearchResults } from './SearchView';
@@ -18,6 +19,7 @@ import { ALT, Empty, IconButton, Spinner, cx } from './ui';
 
 const TITLES: Record<Section, string> = {
   memoria: 'Memoria',
+  diagramas: 'Diagramas',
   notes: 'Notas',
   resources: 'Recursos',
   search: 'Buscar',
@@ -54,6 +56,7 @@ export function Sidebar() {
       aria-label={`Panel lateral: ${TITLES[section]}`}
     >
       {section === 'memoria' && <MemoriaSection />}
+      {section === 'diagramas' && <DiagramasSection />}
       {section === 'notes' && <TreeSection root="notes" />}
       {section === 'resources' && <ResourcesSection />}
       {section === 'search' && <SearchSection />}
