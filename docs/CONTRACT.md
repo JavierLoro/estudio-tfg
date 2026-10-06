@@ -413,3 +413,45 @@ Detalles del servidor que el texto anterior no fijaba:
 - **Código (Markdown).** Bloques ``` y ~~~ (cierre con el mismo carácter y al menos la misma longitud) y código en línea con el mismo número de comillas, sin cruzar una línea en blanco. Los wikilinks del frontmatter (propiedades de Obsidian) sí se reescriben.
 - **LaTeX.** `\input{x}` busca `x.tex` y luego `x`; `\include{x}`, `x.tex`; `\bibliography{a,b}` (cada uno) `a.bib` y luego `a`; `\addbibresource` exacto; `\includegraphics` (también con `*` y varios `[…]`) en la raíz y luego en las carpetas de `\graphicspath` declaradas en los `.tex`/`.cls`/`.sty` de la memoria (si no hay ninguna, `figuras/` y `estilo/`), con las extensiones `.pdf .png .jpg .jpeg .mps .jbig2 .jb2 .eps` (y en mayúsculas). Si el original iba relativo a una carpeta de `\graphicspath`, el nuevo también cuando es posible. Se omiten comentarios `%` (no `\%`), los entornos `verbatim`, `Verbatim`, `lstlisting`, `minted` y `comment`, `\verb` y `\lstinline`, y los argumentos con macros (`\`, `#`, `$`).
 - **Límites.** Solo se reescriben archivos de hasta 2 MB en UTF-8 válido; los demás se dejan sin tocar. Cada archivo reescrito: bloqueo, copia en el historial (con su ruta nueva si se movió) y escritura atómica.
+
+## Autocompletado LaTeX y diagramas para la memoria (v0.8)
+
+### Autocompletado de citas, referencias y acrónimos
+
+- `GET /api/memoria/refs` → `{ citas: Cita[], etiquetas: Etiqueta[], acronimos: Acronimo[] }`
+  - `Cita = { key, tipo, titulo, autor, anio, archivo }`: entradas de los `.bib` de la memoria (los de `\bibliography{…}`/`\addbibresource{…}` de los `.tex` y, si no hay, todos los `.bib`). `autor` abreviado («García y Pérez», «Sommerville et al.»); campos LaTeX simplificados para mostrar (sin llaves ni comandos).
+  - `Etiqueta = { label, tipo, texto, archivo, linea }`: cada `\label{…}` de los `.tex` (sin comentarios). `tipo`: `capitulo` | `seccion` | `figura` | `tabla` | `listado` | `ecuacion` | `anexo` | `otro`, según el entorno o comando que la contiene; `texto` = el título o el `\caption` asociado.
+  - `Acronimo = { sigla, significado, archivo, linea }`: los `\acro{…}{…}` de la memoria.
+  - Se calcula bajo demanda con caché que se invalida con los eventos de cambio de la memoria.
+- En el editor LaTeX, CodeMirror ofrece sugerencias al escribir dentro de:
+  - `\cite{`, `\textcite{`, `\parencite{`, `\autocite{`, `\citep{`, `\citet{`, `\nocite{` (varias claves separadas por comas): clave, título, autor y año; filtra por clave, título o autor.
+  - `\ref{`, `\pageref{`, `\autoref{`, `\cref{`, `\Cref{`, `\eqref{`: etiqueta con su tipo y texto.
+  - `\ac{`, `\acs{`, `\acl{`, `\acf{`, `\acp{`…: sigla y significado.
+  - La lista se refresca al guardar cualquier archivo de la memoria. No sustituye a los avisos de la compilación.
+
+### Diagramas
+
+Los diagramas viven en la memoria: fuente en `diagramas/<nombre>.mmd` (Mermaid) y figura exportada en `figuras/diagramas/<nombre>.pdf` (vectorial, lo que usa LaTeX) junto a `figuras/diagramas/<nombre>.svg`. Así se compilan y versionan con la memoria.
+
+- **Panel Diagrama**: abrir un `.mmd` de la memoria abre el panel `diagram` (fuente a la izquierda con CodeMirror; vista previa en vivo a la derecha con Mermaid, con el error de sintaxis y su línea si no se puede dibujar). Barra: guardar, **Exportar** (PDF + SVG; también PNG a 2× para descargar), **Insertar en la memoria**, y el estado de la figura: «Sin exportar» | «Exportada» | «Desactualizada» (la fuente cambió desde la última exportación).
+- **Nuevo diagrama**: desde el árbol de la memoria (menú de carpeta y cabecera) y la búsqueda rápida; pide nombre y plantilla: flujo, secuencia, estados, arquitectura (bloques con subgrafos), modelo de datos (ER) y clases. Crea `diagramas/<nombre>.mmd`.
+- **Aspecto de impresión**: tema claro y neutro (blanco y negro con grises), sin depender del tema de la app; etiquetas como texto SVG puro (sin `foreignObject`) para que la conversión a PDF sea fiel; la misma fuente para medir en el navegador y para dibujar el PDF (una fuente libre servida por la app e instalada en el worker), parecida a la sans de la memoria.
+- **Exportar**: el navegador dibuja el SVG y lo envía; el server lo convierte a PDF con el worker y guarda los dos archivos. La figura exportada lleva un registro de qué versión de la fuente la generó.
+  - `POST /api/diagramas/exportar` `{ path, svg, rev }` (`path` = el `.mmd`; `rev` = la revisión de la fuente que se dibujó) → `{ pdf, svg, exportadoEn }`. **409** si la fuente cambió (`rev` distinto). **400** si el SVG no es válido o supera 5 MB.
+  - `GET /api/diagramas/estado?path` → `{ estado: 'sin-exportar'|'exportado'|'desactualizado', pdf, svg, exportadoEn }`.
+  - Worker: `POST /svg2pdf` (cuerpo `image/svg+xml`, máx. 5 MB) → `application/pdf`. Conversión sin shell, con tiempo límite, sin red; rechaza SVG con referencias externas (`href` a http/https/file).
+  - Una figura exportada solo cambia con una exportación explícita.
+- **Insertar en la memoria**: diálogo con el capítulo o archivo destino (lista de la vista Documento), posición (en el cursor si ese archivo está abierto en un editor; si no, al final del apartado elegido), pie de figura, etiqueta (`fig:<nombre>` por defecto) y ancho (% del texto). Exporta si hace falta e inserta:
+
+  ```latex
+  \begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{diagramas/<nombre>}
+    \caption{<pie>}
+    \label{fig:<nombre>}
+  \end{figure}
+  ```
+
+  (`diagramas/<nombre>` se resuelve dentro de `figuras/` por el `\graphicspath` de la plantilla.) Después ofrece compilar.
+- **Avisos**: el árbol de la memoria marca los diagramas desactualizados; la vista Documento muestra un aviso en el apartado que incluye una figura desactualizada.
+- **Desde las notas**: cada bloque ```mermaid de una nota (modo lectura) tiene «Usar en la memoria», que **copia** el bloque a `diagramas/<nombre>.mmd` (pidiendo el nombre) y abre el panel Diagrama. Es una copia explícita: la nota y el diagrama quedan independientes.
