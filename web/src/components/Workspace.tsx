@@ -8,7 +8,7 @@ import {
   type IWatermarkPanelProps,
   type DockviewTheme,
 } from 'dockview-react';
-import { FileCode2, FileText, Home, Inbox, Search, Settings, X, FileType2 } from 'lucide-react';
+import { ClipboardList, FileCode2, FileText, Home, Inbox, Search, Settings, X, FileType2 } from 'lucide-react';
 import { docKey } from '../lib/paths';
 import { indicatorOf, useDocs } from '../state/docs';
 import { useUI } from '../state/ui';
@@ -29,6 +29,7 @@ import { ResourcePanel } from '../panels/ResourcePanel';
 import { SearchPanel } from '../panels/SearchPanel';
 import { HomePanel } from '../panels/HomePanel';
 import { SettingsPanel } from '../panels/SettingsPanel';
+import { DatosPanel } from '../panels/DatosPanel';
 import { indicatorColor } from './DocBanners';
 import { MOD, cx } from './ui';
 
@@ -40,6 +41,7 @@ const components = {
   search: SearchPanel,
   home: HomePanel,
   settings: SettingsPanel,
+  datos: DatosPanel,
 };
 
 const ICONS: Record<string, React.ReactNode> = {
@@ -50,6 +52,7 @@ const ICONS: Record<string, React.ReactNode> = {
   search: <Search size={13} />,
   home: <Home size={13} />,
   settings: <Settings size={13} />,
+  datos: <ClipboardList size={13} />,
 };
 
 function useTitle(api: IDockviewPanelHeaderProps['api']) {

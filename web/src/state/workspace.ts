@@ -9,7 +9,7 @@ import { useUI } from './ui';
 import { api as http } from '../api';
 
 // Tipos de panel y sus parámetros.
-export type PanelComponent = 'latex' | 'note' | 'pdf' | 'resource' | 'search' | 'home' | 'settings';
+export type PanelComponent = 'latex' | 'note' | 'pdf' | 'resource' | 'search' | 'home' | 'settings' | 'datos';
 
 export interface FileParams {
   root: Root;
@@ -106,6 +106,10 @@ export function openHome() {
 
 export function openSettings(opts: OpenOptions = {}) {
   addOrFocus('settings', 'settings', 'Ajustes', {}, opts);
+}
+
+export function openDatos(opts: OpenOptions = {}) {
+  addOrFocus('datos', 'datos', 'Datos del trabajo', {}, opts);
 }
 
 /** Cierra las pestañas de archivos de las raíces indicadas (los borradores se conservan). */

@@ -5,6 +5,7 @@ import {
   errorMessage,
   FieldError,
   SETTINGS_KEYS,
+  type Perfil,
   type SettingsCheck,
   type SettingsKey,
   type SettingsResponse,
@@ -75,12 +76,23 @@ export function SettingsPanel() {
   const [resetting, setResetting] = useState<SettingsKey | null>(null);
   const [picker, setPicker] = useState<Picker>(null);
   const [creating, setCreating] = useState(false);
+  const [perfiles, setPerfiles] = useState<Perfil[] | null>(null);
+  const [perfil, setPerfil] = useState('');
   const baseline = useRef<SettingsValues | null>(null);
   /** Ruta real de la carpeta de notas (el selector devuelve rutas reales). */
   const [notesReal, setNotesReal] = useState<string | null>(null);
 
   useEffect(() => {
     void useSettings.getState().load();
+    // Perfiles de la plantilla (v0.5): si el servidor no los ofrece, no se muestra el selector.
+    api
+      .perfiles()
+      .then((p) => {
+        if (!p?.length) return;
+        setPerfiles(p);
+        setPerfil((cur) => cur || (p.find((x) => x.id === 'esi-uclm') ?? p[0]).id);
+      })
+      .catch(() => undefined);
   }, []);
 
   // Al llegar datos nuevos, actualizar los campos que el usuario no ha tocado.
@@ -169,7 +181,7 @@ export function SettingsPanel() {
   const createMemoria = async (dir: string) => {
     setCreating(true);
     try {
-      const r = await api.initMemoria(dir);
+      const r = await api.initMemoria(dir, perfiles ? perfil : undefined);
       setPicker(null);
       setFieldErrors((e) => ({ ...e, memoriaDir: undefined, memoriaMain: undefined }));
       // La memoria nueva sustituye a lo que hubiera en esos campos.
@@ -413,8 +425,26 @@ export function SettingsPanel() {
               </header>
               <div className="flex flex-wrap items-center gap-3 px-3 py-2.5 text-[12px] text-muted">
                 <p className="min-w-0 flex-[1_1_16rem]">
-                  Crea una carpeta con la plantilla de la memoria (UCLM-ESI), inicia un repositorio git y la usa como carpeta de la memoria.
+                  Crea una carpeta con la plantilla de la memoria, inicia un repositorio git y la usa como carpeta de la memoria.
                 </p>
+                {perfiles && (
+                  <label className="flex min-w-0 flex-col gap-0.5 text-[11px]">
+                    Perfil de institución
+                    <select
+                      value={perfil}
+                      onChange={(e) => setPerfil(e.target.value)}
+                      disabled={creating}
+                      className="h-7 min-w-0 rounded-md border border-line-strong bg-bg px-2 text-[12px] text-fg outline-none focus:border-accent"
+                      title={perfiles.find((p) => p.id === perfil)?.descripcion}
+                    >
+                      {perfiles.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.nombre}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
                 <Button onClick={() => setPicker({ kind: 'create' })} disabled={creating}>
                   <FolderPlus size={12} /> Crear memoria desde la plantilla
                 </Button>

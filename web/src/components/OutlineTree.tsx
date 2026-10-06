@@ -20,7 +20,7 @@ import { load, save } from '../lib/storage';
 import { useCursor } from '../state/cursor';
 import { compactWords, createSection, outlineLabel, useOutline } from '../state/outline';
 import { flattenTree, toast, useUI } from '../state/ui';
-import { openFile, useActivePanel } from '../state/workspace';
+import { openDatos, openFile, useActivePanel } from '../state/workspace';
 import { openContextMenu, type MenuItem } from './ContextMenu';
 import { showInPdf, useActiveOutlineId, usePdfView } from '../state/synctex';
 import { fold, highlight } from './SearchView';
@@ -510,7 +510,8 @@ function OutlineTree({
   );
 
   const open = (n: Node, side = false) => {
-    if (n.item) openFile('memoria', n.item.file, { line: n.item.line, side });
+    if (n.item?.kind === 'datos') openDatos({ side });
+    else if (n.item) openFile('memoria', n.item.file, { line: n.item.line, side });
     else setExpanded(n.key, !isExpanded(n));
   };
 
@@ -520,7 +521,8 @@ function OutlineTree({
       const it = n.item;
       items.push({ label: 'Abrir', run: () => open(n) });
       items.push({ label: 'Abrir al lado', hint: `${ALT}clic`, run: () => open(n, true) });
-      if (/\.tex$/i.test(it.file)) items.push({ label: 'Ver en PDF', run: () => void showInPdf(it.file, it.line) });
+      if (it.kind === 'datos') items.push({ label: 'Abrir datos.tex', run: () => openFile('memoria', it.file) });
+      else if (/\.tex$/i.test(it.file)) items.push({ label: 'Ver en PDF', run: () => void showInPdf(it.file, it.line) });
       if (it.kind === 'chapter') {
         items.push({ label: '+ Sección', run: () => onAddSection(it) });
         items.push({ label: 'Añadir capítulo después', run: () => onAddChapter(it) });

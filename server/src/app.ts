@@ -14,6 +14,7 @@ import { MAX_UPLOAD } from './capture.ts';
 import { ROOTS, rootDir, type RootName } from './paths.ts';
 import { OutlineService } from './outline.ts';
 import { NOT_CONFIGURED, Settings, isDirSync } from './settings.ts';
+import datosRoutes from './routes/datos.ts';
 import compileRoutes from './routes/compile.ts';
 import eventsRoutes from './routes/events.ts';
 import filesRoutes from './routes/files.ts';
@@ -106,7 +107,7 @@ export async function buildApp(cfg: Config, opts: BuildOptions = {}): Promise<{ 
     reply.code(status).send({ error: message });
   });
 
-  for (const plugin of [statusRoutes, filesRoutes, notesRoutes, resourcesRoutes, searchRoutes, compileRoutes, synctexRoutes, memoriaRoutes, eventsRoutes, settingsRoutes]) {
+  for (const plugin of [statusRoutes, filesRoutes, notesRoutes, resourcesRoutes, searchRoutes, compileRoutes, synctexRoutes, memoriaRoutes, datosRoutes, eventsRoutes, settingsRoutes]) {
     await app.register(plugin, { ctx });
   }
 

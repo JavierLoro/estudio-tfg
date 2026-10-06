@@ -192,6 +192,25 @@ export interface ChangeEvent {
   kind: 'add' | 'change' | 'unlink';
 }
 
+// ---- Datos del trabajo (v0.5) ----
+
+export interface DatosResponse {
+  datos: Record<string, string>;
+  institucion: Record<string, string>;
+  rev: { datos: string | null; institucion: string | null };
+}
+
+export interface DatosChanges {
+  datos?: Record<string, string>;
+  institucion?: Record<string, string>;
+}
+
+export interface Perfil {
+  id: string;
+  nombre: string;
+  descripcion: string;
+}
+
 export class ApiError extends Error {
   status: number;
   body: unknown;
@@ -211,6 +230,15 @@ export class FieldError extends ApiError {
   constructor(message: string, field: string, body: unknown) {
     super(400, message, body);
     this.field = field;
+  }
+}
+
+/** 409 de `PUT /api/memoria/datos`: trae el estado actual del disco. */
+export class DatosConflictError extends ApiError {
+  current: DatosResponse;
+  constructor(current: DatosResponse, body: unknown) {
+    super(409, 'conflict', body);
+    this.current = current;
   }
 }
 
@@ -398,6 +426,39 @@ export const api = {
     }
   },
 
+  // ---- Datos del trabajo (v0.5) ----
+
+  datos: () => json<DatosResponse>('/api/memoria/datos'),
+
+  /** Lanza DatosConflictError (409), FieldError (400 con `field`) o ApiError. */
+  saveDatos: async (changes: DatosChanges, baseRev: { datos?: string; institucion?: string }) => {
+    try {
+      return await json<DatosResponse>('/api/memoria/datos', jsonBody('PUT', { ...changes, baseRev }));
+    } catch (e) {
+      const b = e instanceof ApiError ? (e.body as { current?: DatosResponse } | null) : null;
+      if (e instanceof ApiError && e.status === 409 && b?.current) throw new DatosConflictError(b.current, e.body);
+      throw e;
+    }
+  },
+
+  uploadLogo: (file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return json<DatosResponse>('/api/memoria/logo', { method: 'POST', body: fd });
+  },
+
+  deleteLogo: () => json<DatosResponse>('/api/memoria/logo', { method: 'DELETE' }),
+
+  /** null si el servidor aún no ofrece perfiles (404). */
+  perfiles: async (): Promise<Perfil[] | null> => {
+    try {
+      return (await json<{ perfiles: Perfil[] }>('/api/templates/perfiles')).perfiles;
+    } catch (e) {
+      if (e instanceof ApiError && (e.status === 404 || e.status === 405)) return null;
+      throw e;
+    }
+  },
+
   logUrl: (buildId: string) => `/api/compile/log/${encodeURIComponent(buildId)}`,
 
   // ---- SyncTeX (v0.4) ----
@@ -422,9 +483,9 @@ export const api = {
   fsDirs: (path?: string) => guarded(json<FsDirsResponse>(`/api/fs/dirs?${qs({ path: path || undefined })}`)),
 
   /** 409 si la carpeta existe y no está vacía. */
-  initMemoria: async (dir: string) => {
+  initMemoria: async (dir: string, perfil?: string) => {
     try {
-      return await guarded(json<Partial<SettingsResponse>>('/api/settings/init-memoria', jsonBody('POST', { dir })));
+      return await guarded(json<Partial<SettingsResponse>>('/api/settings/init-memoria', jsonBody('POST', perfil ? { dir, perfil } : { dir })));
     } catch (e) {
       if (e instanceof ApiError && e.status === 409 && !(e instanceof ConflictError)) {
         throw new ApiError(409, e.message && e.message !== 'HTTP 409' ? e.message : 'La carpeta no está vacía', e.body);
