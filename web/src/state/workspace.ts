@@ -59,6 +59,8 @@ function addOrFocus(
   extra: { renderer?: 'always' | 'onlyWhenVisible' } = {},
 ): IDockviewPanel | null {
   if (!dock) return null;
+  // Abrir o enfocar cualquier panel devuelve al espacio de trabajo.
+  if (!opts.inactive) useUI.getState().hideHome();
   const existing = dock.getPanel(id);
   if (existing) {
     // Nunca dos editores para el mismo documento: se enfoca el existente.
@@ -97,8 +99,9 @@ export function openPdf(opts: OpenOptions = {}) {
   addOrFocus('pdf', 'pdf', 'PDF', {}, opts, { renderer: 'always' });
 }
 
-export function openHome(opts: OpenOptions = {}) {
-  addOrFocus('home', 'home', 'Inicio', {}, opts);
+/** Inicio es una vista propia (no una pestaña): ocupa el área central hasta abrir algo. */
+export function openHome() {
+  useUI.getState().showHome();
 }
 
 export function openSettings(opts: OpenOptions = {}) {
@@ -146,6 +149,8 @@ export function restoreLayout(api: DockviewApi): boolean {
   if (!data) return false;
   try {
     api.fromJSON(data as Parameters<DockviewApi['fromJSON']>[0]);
+    // Inicio ya no es una pestaña: se descarta si venía de un layout antiguo.
+    api.getPanel('home')?.api.close();
     return api.panels.length > 0;
   } catch (e) {
     console.warn('Layout guardado no válido, se descarta', e);
@@ -177,6 +182,7 @@ export function defaultLayout(memoriaMain: string) {
 
 export function resetLayout() {
   remove(layoutKey());
+  useUI.getState().hideHome();
   defaultLayout(useUI.getState().status?.memoriaMain ?? 'tfg.tex');
 }
 

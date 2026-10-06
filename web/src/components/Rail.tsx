@@ -4,7 +4,6 @@ import { openHome, openSettings, useActivePanel } from '../state/workspace';
 import { MOD, cx } from './ui';
 
 const ITEMS: { id: Section; label: string; icon: React.ReactNode }[] = [
-  { id: 'home', label: 'Inicio', icon: <Home size={19} /> },
   { id: 'memoria', label: 'Memoria', icon: <FileCode2 size={19} /> },
   { id: 'notes', label: 'Notas', icon: <BookMarked size={19} /> },
   { id: 'resources', label: 'Recursos', icon: <Inbox size={19} /> },
@@ -39,20 +38,25 @@ export function Rail() {
   const section = useUI((s) => s.section);
   const open = useUI((s) => s.sidebarOpen);
   const setSection = useUI((s) => s.setSection);
+  const homeView = useUI((s) => s.homeView);
   const inbox = useUI((s) => s.resources?.filter((r) => r.status === 'inbox').length ?? 0);
   const settingsActive = useActivePanel((s) => s.id === 'settings');
   const unconfigured = useUI((s) => s.status?.configured === false);
   return (
     <nav className="flex w-[52px] shrink-0 flex-col items-center gap-1 border-r border-line bg-rail py-2" aria-label="Secciones">
+      <RailButton
+        label="Inicio"
+        active={homeView}
+        onClick={() => (homeView ? useUI.getState().hideHome() : openHome())}
+      >
+        <Home size={19} />
+      </RailButton>
       {ITEMS.map((it) => (
         <RailButton
           key={it.id}
           label={it.label}
-          active={open && section === it.id}
-          onClick={() => {
-            setSection(it.id);
-            if (it.id === 'home') openHome();
-          }}
+          active={!homeView && open && section === it.id}
+          onClick={() => setSection(it.id)}
         >
           {it.icon}
           {it.id === 'resources' && inbox > 0 && (

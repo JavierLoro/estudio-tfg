@@ -4,8 +4,8 @@ import { Button, Empty, MOD, Spinner } from '../components/ui';
 import { basename, formatDate, hostOf } from '../lib/paths';
 import { countDiags, isPdfOutdated, useCompile } from '../state/compile';
 import { useCaptureQueue } from '../state/captureQueue';
-import { useUI } from '../state/ui';
-import { openFile, openPdf, openResource } from '../state/workspace';
+import { SIDEBAR_DEFAULT, useUI } from '../state/ui';
+import { openFile, openPdf, openResource, resetLayout } from '../state/workspace';
 import { saveAndCompile } from './LatexPanel';
 import { formatDuration } from './PdfPanel';
 
@@ -163,8 +163,22 @@ export function HomePanel() {
             <dd>Buscar en el editor</dd>
             <dt className="font-mono text-muted">⌥clic</dt>
             <dd>Abrir al lado</dd>
+            <dt className="font-mono text-muted">{MOD}B</dt>
+            <dd>Mostrar / ocultar el panel lateral (arrastra su borde para cambiar el ancho)</dd>
           </dl>
         </Card>
+      </div>
+      <div className="mx-auto mt-3 max-w-5xl px-1">
+        <button
+          type="button"
+          className="text-[11.5px] text-muted hover:text-fg hover:underline"
+          onClick={() => {
+            resetLayout();
+            useUI.getState().setSidebarWidth(SIDEBAR_DEFAULT);
+          }}
+        >
+          Restablecer distribución de paneles
+        </button>
       </div>
     </div>
   );

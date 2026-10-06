@@ -2,7 +2,13 @@ import { create } from 'zustand';
 import { api, errorMessage, type Entry, type Resource, type Root, type Status } from '../api';
 import { load, save } from '../lib/storage';
 
-export type Section = 'home' | 'memoria' | 'notes' | 'resources' | 'search';
+/** Secciones del panel lateral. Inicio no es una sección: es una vista propia (homeView). */
+export type Section = 'memoria' | 'notes' | 'resources' | 'search';
+
+export const SIDEBAR_MIN = 180;
+export const SIDEBAR_MAX = 600;
+export const SIDEBAR_DEFAULT = 260;
+const clampWidth = (w: number) => Math.round(Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, w)));
 
 export interface Toast {
   id: number;
@@ -33,6 +39,13 @@ interface UIState {
   sidebarOpen: boolean;
   setSection: (s: Section) => void;
   toggleSidebar: () => void;
+  sidebarWidth: number;
+  setSidebarWidth: (w: number, persist?: boolean) => void;
+
+  /** Vista Inicio a pantalla completa en el área central (el espacio de trabajo se conserva oculto). */
+  homeView: boolean;
+  showHome: () => void;
+  hideHome: () => void;
 
   captureOpen: boolean;
   setCaptureOpen: (v: boolean) => void;
@@ -74,19 +87,44 @@ interface UIState {
 
 const RECENTS_KEY = 'et:recents';
 const SIDEBAR_KEY = 'et:sidebar';
+const SIDEBAR_WIDTH_KEY = 'et:sidebar-width';
+const HOME_KEY = 'et:home-view';
 let toastSeq = 1;
 
-const sidebarSaved = load<{ section: Section; open: boolean }>(SIDEBAR_KEY, { section: 'memoria', open: true });
+const sidebarRaw = load<{ section: string; open: boolean }>(SIDEBAR_KEY, { section: 'memoria', open: true });
+// 'home' era antes una sección del panel lateral.
+const sidebarSaved: { section: Section; open: boolean } = {
+  section: (['memoria', 'notes', 'resources', 'search'].includes(sidebarRaw.section) ? sidebarRaw.section : 'memoria') as Section,
+  open: sidebarRaw.open !== false,
+};
 
 export const useUI = create<UIState>((set, get) => ({
   section: sidebarSaved.section,
   sidebarOpen: sidebarSaved.open,
   setSection: (s) => {
-    const { section, sidebarOpen } = get();
-    // Clic en la sección activa: pliega/despliega.
-    const open = s === section ? !sidebarOpen : true;
-    set({ section: s, sidebarOpen: open });
+    const { section, sidebarOpen, homeView } = get();
+    // Clic en la sección activa: pliega/despliega (salvo si se vuelve desde Inicio).
+    const open = s === section && !homeView ? !sidebarOpen : true;
+    set({ section: s, sidebarOpen: open, homeView: false });
     save(SIDEBAR_KEY, { section: s, open });
+    save(HOME_KEY, false);
+  },
+  sidebarWidth: clampWidth(load<number>(SIDEBAR_WIDTH_KEY, SIDEBAR_DEFAULT)),
+  setSidebarWidth: (w, persist = true) => {
+    const width = clampWidth(w);
+    set({ sidebarWidth: width });
+    if (persist) save(SIDEBAR_WIDTH_KEY, width);
+  },
+
+  homeView: load<boolean>(HOME_KEY, false),
+  showHome: () => {
+    set({ homeView: true });
+    save(HOME_KEY, true);
+  },
+  hideHome: () => {
+    if (!get().homeView) return;
+    set({ homeView: false });
+    save(HOME_KEY, false);
   },
   toggleSidebar: () => {
     const open = !get().sidebarOpen;

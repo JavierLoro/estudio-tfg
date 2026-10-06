@@ -9,6 +9,7 @@ import { Rail } from './components/Rail';
 import { Sidebar } from './components/Sidebar';
 import { Toasts } from './components/Toasts';
 import { Workspace } from './components/Workspace';
+import { HomePanel } from './panels/HomePanel';
 import { Button, Spinner } from './components/ui';
 import { docKey } from './lib/paths';
 import { initCaptureQueue } from './state/captureQueue';
@@ -142,6 +143,7 @@ export function App() {
   useUnloadGuard();
   useDragGuard();
   const sidebarOpen = useUI((s) => s.sidebarOpen);
+  const homeView = useUI((s) => s.homeView);
   const ready = useSettings((s) => s.ready);
   const statusError = useUI((s) => s.statusError);
   return (
@@ -149,8 +151,13 @@ export function App() {
       <Header />
       <div className="flex min-h-0 flex-1">
         <Rail />
-        {sidebarOpen && <Sidebar />}
-        <main className="flex min-w-0 flex-1" aria-label="Área de trabajo">
+        {sidebarOpen && !homeView && <Sidebar />}
+        {homeView && ready && (
+          <main className="min-w-0 flex-1 overflow-hidden bg-soft" aria-label="Inicio">
+            <HomePanel />
+          </main>
+        )}
+        <main className={homeView && ready ? 'hidden' : 'flex min-w-0 flex-1'} aria-label="Área de trabajo">
           {ready ? (
             <Workspace />
           ) : (

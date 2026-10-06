@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, Check, ExternalLink, FilePlus2, Inbox, LayoutDashboard, Paperclip, Play, RefreshCw, Search as SearchIcon, X } from 'lucide-react';
+import { Archive, Check, ExternalLink, FilePlus2, Inbox, Paperclip, Play, RefreshCw, Search as SearchIcon, X } from 'lucide-react';
 import type { Root } from '../api';
-import { basename, formatDate, hostOf } from '../lib/paths';
+import { formatDate, hostOf } from '../lib/paths';
 import { useCompile } from '../state/compile';
 import { STATUS_LABEL, setResourceStatus } from '../state/resources';
-import { useUI, type Section } from '../state/ui';
-import { openFile, openHome, openResource, openSearch, resetLayout } from '../state/workspace';
+import { SIDEBAR_DEFAULT, SIDEBAR_MAX, SIDEBAR_MIN, useUI, type Section } from '../state/ui';
+import { openResource, openSearch } from '../state/workspace';
 import { saveAndCompile } from '../panels/LatexPanel';
 import { FileTree, createFileIn } from './FileTree';
 import { OutlineView } from './OutlineTree';
@@ -15,7 +15,6 @@ import { ScopeSelect, SearchResults } from './SearchView';
 import { ALT, Empty, IconButton, Spinner, cx } from './ui';
 
 const TITLES: Record<Section, string> = {
-  home: 'Inicio',
   memoria: 'Memoria',
   notes: 'Notas',
   resources: 'Recursos',
@@ -45,13 +44,18 @@ function FilterInput({ value, onChange, placeholder, inputRef }: { value: string
 
 export function Sidebar() {
   const section = useUI((s) => s.section);
+  const width = useUI((s) => s.sidebarWidth);
   return (
-    <aside className="flex h-full w-[260px] shrink-0 flex-col border-r border-line bg-soft" aria-label={`Panel lateral: ${TITLES[section]}`}>
-      {section === 'home' && <HomeSection />}
+    <aside
+      className="relative flex h-full shrink-0 flex-col border-r border-line bg-soft"
+      style={{ width }}
+      aria-label={`Panel lateral: ${TITLES[section]}`}
+    >
       {section === 'memoria' && <MemoriaSection />}
       {section === 'notes' && <TreeSection root="notes" />}
       {section === 'resources' && <ResourcesSection />}
       {section === 'search' && <SearchSection />}
+      <ResizeHandle width={width} />
     </aside>
   );
 }
@@ -162,39 +166,6 @@ function TreeSection({ root }: { root: Root }) {
   );
 }
 
-function HomeSection() {
-  const recents = useUI((s) => s.recents);
-  return (
-    <>
-      <SectionHeader title="Inicio">
-        <IconButton label="Abrir panel de inicio" onClick={() => openHome()}>
-          <LayoutDashboard size={14} />
-        </IconButton>
-      </SectionHeader>
-      <div className="px-3 pb-1 text-[11px] font-medium text-faint">Recientes</div>
-      <div className="min-h-0 flex-1 overflow-auto pb-2">
-        {recents.length === 0 && <Empty>Sin archivos recientes.</Empty>}
-        {recents.map((r) => (
-          <button
-            key={`${r.root}:${r.path}`}
-            type="button"
-            className="flex h-[24px] w-full items-center gap-2 px-3 text-left text-[12.5px] hover:bg-hover"
-            onClick={(e) => openFile(r.root, r.path, { side: e.altKey })}
-            title={`${r.path}\n${ALT}clic: abrir al lado`}
-          >
-            <span className="min-w-0 flex-1 truncate">{basename(r.path)}</span>
-            <span className="shrink-0 text-[10.5px] text-faint">{r.root === 'memoria' ? 'memoria' : 'notas'}</span>
-          </button>
-        ))}
-      </div>
-      <div className="border-t border-line px-3 py-2">
-        <button type="button" className="text-[11.5px] text-muted hover:text-fg hover:underline" onClick={resetLayout}>
-          Restablecer distribución de paneles
-        </button>
-      </div>
-    </>
-  );
-}
 
 type StatusFilter = 'inbox' | 'revisado' | 'descartado' | 'all';
 
@@ -368,5 +339,51 @@ function SearchSection() {
         <SearchResults q={q} scope={scope} dense />
       </div>
     </>
+  );
+}
+
+/** Tirador del borde derecho: arrastrar cambia el ancho; doble clic lo restablece; ←/→ con foco. */
+function ResizeHandle({ width }: { width: number }) {
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = width;
+    const el = e.currentTarget;
+    el.setPointerCapture(e.pointerId);
+    // Los iframes (PDF) no deben robar el ratón durante el arrastre.
+    document.body.classList.add('et-dragging', 'et-resizing');
+    const move = (ev: PointerEvent) => useUI.getState().setSidebarWidth(startW + ev.clientX - startX, false);
+    const up = () => {
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointercancel', up);
+      document.body.classList.remove('et-dragging', 'et-resizing');
+      useUI.getState().setSidebarWidth(useUI.getState().sidebarWidth);
+    };
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+  };
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Ancho del panel lateral"
+      aria-valuenow={width}
+      aria-valuemin={SIDEBAR_MIN}
+      aria-valuemax={SIDEBAR_MAX}
+      tabIndex={0}
+      title="Arrastra para cambiar el ancho · doble clic: restablecer"
+      onPointerDown={onPointerDown}
+      onDoubleClick={() => useUI.getState().setSidebarWidth(SIDEBAR_DEFAULT)}
+      onKeyDown={(e) => {
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+          e.preventDefault();
+          useUI.getState().setSidebarWidth(width + (e.key === 'ArrowRight' ? 20 : -20));
+        }
+      }}
+      className="absolute top-0 -right-[3px] z-20 h-full w-[6px] cursor-col-resize touch-none transition-colors hover:bg-accent/40 focus-visible:bg-accent/60 focus-visible:outline-none"
+    />
   );
 }

@@ -290,3 +290,9 @@ body.et-dragging iframe {
 .et-spin {
   animation: et-spin 0.9s linear infinite;
 }
+
+/* Arrastre del ancho del panel lateral: cursor fijo y sin selección de texto. */
+body.et-resizing, body.et-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
