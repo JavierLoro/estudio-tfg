@@ -3,6 +3,7 @@ import { notifySettingsChanged } from './settings';
 import { handleExternalChange } from './docs';
 import { useCompile } from './compile';
 import { useUI } from './ui';
+import { handleMoveEvent } from './files';
 import { handleOutlineEvent, refreshOutlineSoon, useOutline } from './outline';
 import { create } from 'zustand';
 
@@ -61,6 +62,7 @@ export function connectEvents() {
       return;
     }
     if (ev.kind !== 'change') refreshTreeSoon(ev.root);
+    if (ev.kind === 'move' && ev.from) handleMoveEvent(ev.root, ev.from, ev.path);
     if (ev.root === 'memoria') {
       useCompile.getState().markMemoriaChanged();
       // Respaldo: el server emite `outline` al cambiar; si no llega, se relee igualmente.

@@ -189,7 +189,19 @@ export interface SynctexInverse {
 export interface ChangeEvent {
   root: Root;
   path: string;
-  kind: 'add' | 'change' | 'unlink';
+  /** `move` (v0.7): `path` es el destino y `from` el origen. */
+  from?: string;
+  kind: 'add' | 'change' | 'unlink' | 'move';
+}
+
+// ---- Gestión de archivos (v0.7) ----
+
+export interface MoveResponse {
+  path: string;
+  moved: { from: string; to: string }[];
+  updated: { path: string; rev: string }[];
+  /** Reescrituras de enlaces que fallaron (el movimiento ya está hecho). */
+  failed?: { path: string; error: string }[];
 }
 
 // ---- Datos del trabajo (v0.5) ----
@@ -421,6 +433,20 @@ export const api = {
 
   createFile: (root: Root, path: string, content: string) =>
     json<SaveResponse>('/api/file', jsonBody('POST', { root, path, content })),
+
+  /** v0.7: crea una carpeta (con intermedias). 409 si ya existe. */
+  createDir: (root: Root, path: string) => json<{ path: string }>('/api/dir', jsonBody('POST', { root, path })),
+
+  /** v0.7: renombra o mueve un archivo o carpeta. */
+  move: (root: Root, from: string, to: string, updateLinks = true) =>
+    json<MoveResponse>('/api/move', jsonBody('POST', { root, from, to, updateLinks })),
+
+  /** v0.7: mueve a la papelera. `trashPath` es opaco: solo sirve para restaurar. */
+  deleteFile: (root: Root, path: string) =>
+    json<{ path: string; trashPath: string }>(`/api/file?${qs({ root, path })}`, { method: 'DELETE' }),
+
+  restoreTrash: (root: Root, path: string, trashPath: string) =>
+    json<{ path: string }>('/api/trash/restore', jsonBody('POST', { root, path, trashPath })),
 
   rawUrl: (root: Root, path: string) => `/api/raw?${qs({ root, path })}`,
 

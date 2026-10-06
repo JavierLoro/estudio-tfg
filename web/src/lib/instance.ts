@@ -39,6 +39,15 @@ export function moveDraft(docKey: string, fromInstance: string | null, toInstanc
   moveKey(draftStorageKey(docKey, fromInstance), draftStorageKey(docKey, toInstance));
 }
 
+/** Pasa el borrador de un documento a la clave de otro (renombrar o mover). */
+export function renameDraft(fromDocKey: string, toDocKey: string) {
+  const from = draftStorageKey(fromDocKey);
+  const v = load<unknown>(from, null);
+  if (v == null) return;
+  save(draftStorageKey(toDocKey), v);
+  remove(from);
+}
+
 /**
  * Una sola vez: los borradores y el layout guardados antes de v0.2 (sin prefijo)
  * pasan a la instancia actual.

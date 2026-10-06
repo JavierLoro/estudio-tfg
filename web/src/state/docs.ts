@@ -1,11 +1,12 @@
 import { create } from 'zustand';
 import { api, ApiError, ConflictError, errorMessage, type ChangeEvent, type Root } from '../api';
 import { docKey } from '../lib/paths';
-import { draftStorageKey } from '../lib/instance';
+import { draftStorageKey, renameDraft } from '../lib/instance';
 import { load, remove, save } from '../lib/storage';
 import { toast } from './ui';
 import { useCompile } from './compile';
 import { refreshOutlineSoon } from './outline';
+import { useCursor } from './cursor';
 
 export interface Conflict {
   content: string;
@@ -173,6 +174,67 @@ export function releaseDoc(key: string) {
   useDocs.setState({ docs });
 }
 
+// ---- Renombrar, mover y eliminar (v0.7) ----
+
+/** Claves antiguas de documentos movidos: el `unlink` que detecte el vigilante no es un borrado. */
+const movedAway = new Map<string, number>();
+const MOVED_GRACE_MS = 15_000;
+const wasMovedAway = (key: string) => {
+  const t = movedAway.get(key);
+  if (t == null) return false;
+  if (Date.now() - t < MOVED_GRACE_MS) return true;
+  movedAway.delete(key);
+  return false;
+};
+
+/** Pasa un documento abierto (y su borrador y su cursor) a otra ruta, sin recargar el editor. Devuelve si había documento. */
+export function rekeyDoc(root: Root, from: string, to: string): boolean {
+  const oldKey = docKey(root, from);
+  const newKey = docKey(root, to);
+  if (oldKey === newKey) return false;
+  movedAway.set(oldKey, Date.now());
+  // Borrador pendiente de escribir: ahora, con la clave vieja, y luego se mueve.
+  const t = draftTimers.get(oldKey);
+  if (t) {
+    clearTimeout(t);
+    writeDraftNow(oldKey);
+  }
+  renameDraft(oldKey, newKey);
+  const cur = useCursor.getState().lines;
+  if (oldKey in cur) {
+    const lines = { ...cur, [newKey]: cur[oldKey] };
+    delete lines[oldKey];
+    useCursor.setState({ lines });
+  }
+  const d = get().docs[oldKey];
+  if (!d) return false;
+  const docs = { ...get().docs };
+  delete docs[oldKey];
+  docs[newKey] = { ...d, key: newKey, path: to };
+  const reveal = { ...get().reveal };
+  delete reveal[oldKey];
+  useDocs.setState({ docs, reveal });
+  return true;
+}
+
+/** Olvida un documento eliminado: sin pestaña, sin borrador y sin aviso al llegar el `unlink`. */
+export function dropDoc(root: Root, path: string) {
+  const key = docKey(root, path);
+  movedAway.set(key, Date.now());
+  const t = draftTimers.get(key);
+  if (t) clearTimeout(t);
+  draftTimers.delete(key);
+  remove(draftKey(key));
+  const docs = { ...get().docs };
+  delete docs[key];
+  useDocs.setState({ docs });
+}
+
+/** Documentos abiertos de una raíz bajo `path` (el propio archivo o los de una carpeta). */
+export function docsUnder(root: Root, path: string): Doc[] {
+  return Object.values(get().docs).filter((d) => d.root === root && (d.path === path || d.path.startsWith(path + '/')));
+}
+
 // ---- Edición ----
 
 export function setContent(key: string, content: string) {
@@ -276,7 +338,9 @@ export async function handleExternalChange(ev: ChangeEvent) {
   const key = docKey(ev.root, ev.path);
   const d = get().docs[key];
   if (!d || d.status !== 'ready') return;
+  if (ev.kind === 'move') return; // lo trata state/files.ts
   if (ev.kind === 'unlink') {
+    if (wasMovedAway(key)) return; // eco de un movimiento o borrado hecho desde aquí
     patch(key, { deleted: true });
     scheduleDraft(key);
     toast({ kind: 'warn', text: `«${ev.path}» se ha eliminado del disco. Guarda para recrearlo.` });

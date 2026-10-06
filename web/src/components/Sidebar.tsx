@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, Check, ExternalLink, FilePlus2, Inbox, Paperclip, Play, RefreshCw, Search as SearchIcon, X } from 'lucide-react';
+import { Archive, Check, ExternalLink, FilePlus2, FolderPlus, Inbox, Paperclip, Play, RefreshCw, Search as SearchIcon, X } from 'lucide-react';
 import type { Root } from '../api';
 import { formatDate, hostOf } from '../lib/paths';
 import { useCompile } from '../state/compile';
@@ -7,7 +7,8 @@ import { STATUS_LABEL, setResourceStatus } from '../state/resources';
 import { SIDEBAR_DEFAULT, SIDEBAR_MAX, SIDEBAR_MIN, useUI, type Section } from '../state/ui';
 import { openResource, openSearch } from '../state/workspace';
 import { saveAndCompile } from '../panels/LatexPanel';
-import { FileTree, createFileIn } from './FileTree';
+import { FileTree } from './FileTree';
+import { createFileIn, createFolderIn } from '../state/files';
 import { OutlineView } from './OutlineTree';
 import { useOutline } from '../state/outline';
 import { load, save } from '../lib/storage';
@@ -86,9 +87,14 @@ function MemoriaSection() {
     <>
       <SectionHeader title="Memoria">
         {tab === 'archivos' && (
-          <IconButton label="Nuevo archivo" onClick={() => createFileIn('memoria', '')}>
-            <FilePlus2 size={14} />
-          </IconButton>
+          <>
+            <IconButton label="Nuevo archivo" onClick={() => createFileIn('memoria', '')}>
+              <FilePlus2 size={14} />
+            </IconButton>
+            <IconButton label="Nueva carpeta" onClick={() => createFolderIn('memoria', '')}>
+              <FolderPlus size={14} />
+            </IconButton>
+          </>
         )}
         <IconButton
           label="Recargar"
@@ -148,6 +154,9 @@ function TreeSection({ root }: { root: Root }) {
       <SectionHeader title={root === 'memoria' ? 'Memoria' : 'Notas'}>
         <IconButton label={root === 'notes' ? 'Nueva nota' : 'Nuevo archivo'} onClick={() => createFileIn(root, '')}>
           <FilePlus2 size={14} />
+        </IconButton>
+        <IconButton label="Nueva carpeta" onClick={() => createFolderIn(root, '')}>
+          <FolderPlus size={14} />
         </IconButton>
         <IconButton label="Recargar" onClick={() => useUI.getState().refreshTree(root)}>
           <RefreshCw size={13} />

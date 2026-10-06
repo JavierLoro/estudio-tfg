@@ -3,6 +3,7 @@ import { registerTokenPrompt, type Status } from './api';
 import { CaptureModal } from './components/CaptureModal';
 import { ContextMenuHost } from './components/ContextMenu';
 import { Header } from './components/Header';
+import { MoveDialog } from './components/MoveDialog';
 import { PromptDialog } from './components/PromptDialog';
 import { QuickOpen } from './components/QuickOpen';
 import { Rail } from './components/Rail';
@@ -178,6 +179,7 @@ export function App() {
       </div>
       <CaptureModal />
       <QuickOpen />
+      <MoveDialog />
       <PromptDialog />
       <ContextMenuHost />
       <Toasts />

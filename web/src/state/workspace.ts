@@ -26,6 +26,8 @@ export interface OpenOptions {
   line?: number;
   /** No robar el foco. */
   inactive?: boolean;
+  /** Abrir una nota en modo edición (notas recién creadas). */
+  mode?: 'edit';
 }
 
 // Layout por instancia (ver lib/instance.ts).
@@ -86,7 +88,9 @@ export function openFile(root: Root, path: string, opts: OpenOptions = {}) {
     return;
   }
   const component: PanelComponent = kind;
-  addOrFocus(panelIdFor(component, path), component, basename(path), { root, path } satisfies FileParams, opts);
+  const params: FileParams & { mode?: 'edit' } = { root, path };
+  if (opts.mode) params.mode = opts.mode;
+  addOrFocus(panelIdFor(component, path), component, basename(path), params, opts);
   useUI.getState().pushRecent(root, path);
   if (opts.line != null) requestReveal(docKey(root, path), opts.line);
 }
@@ -120,6 +124,61 @@ export function closeFilePanels(roots: Root[]) {
     const c = p.api.component;
     if ((c === 'latex' || c === 'note' || c === 'resource') && params?.root && roots.includes(params.root)) p.api.close();
   }
+}
+
+const isFilePanel = (c: string) => c === 'latex' || c === 'note' || c === 'resource';
+const under = (path: string, base: string) => path === base || path.startsWith(base + '/');
+
+/** Cierra las pestañas de los archivos de `root` bajo `base` (archivo o carpeta eliminados). */
+export function closePanelsUnder(root: Root, base: string) {
+  if (!dock) return;
+  for (const p of [...dock.panels]) {
+    const params = p.params as Partial<FileParams> | undefined;
+    if (isFilePanel(p.api.component) && params?.root === root && params.path && under(params.path, base)) p.api.close();
+  }
+}
+
+/**
+ * Tras renombrar o mover: cada pestaña del archivo pasa a la ruta nueva.
+ * El id de un panel (`<componente>:<ruta>`) no se puede cambiar, así que se crea el panel
+ * con el id nuevo en la misma posición del mismo grupo y se cierra el viejo. El documento
+ * ya está re-clasificado en el store (el editor se vuelve a montar con el mismo contenido, y
+ * el cursor y el desplazamiento se restauran desde state/cursor.ts); el panel mantiene sus parámetros (modo).
+ */
+export function rekeyPanels(root: Root, pairs: { from: string; to: string }[]) {
+  if (!dock || !pairs.length) return;
+  const active = dock.activePanel;
+  let newActive: string | null = null;
+  for (const panel of [...dock.panels]) {
+    const params = panel.params as (Partial<FileParams> & Record<string, unknown>) | undefined;
+    const component = panel.api.component as PanelComponent;
+    if (!isFilePanel(component) || params?.root !== root || !params.path) continue;
+    const pair = pairs.find((p) => under(params.path!, p.from));
+    if (!pair) continue;
+    const newPath = pair.to + params.path.slice(pair.from.length);
+    const newId = panelIdFor(component, newPath);
+    const wasActive = active?.id === panel.id;
+    if (dock.getPanel(newId)) {
+      panel.api.close();
+      continue;
+    }
+    const group = panel.group;
+    const index = group.panels.indexOf(panel);
+    const groupActive = group.activePanel?.id === panel.id;
+    dock.addPanel({
+      id: newId,
+      component,
+      title: basename(newPath),
+      params: { ...params, root, path: newPath },
+      inactive: !groupActive,
+      position: { referenceGroup: group, index },
+    });
+    panel.api.close();
+    if (wasActive) newActive = newId;
+  }
+  // addPanel activa el grupo: devolver el foco al panel que lo tenía.
+  if (newActive) dock.getPanel(newActive)?.api.setActive();
+  else if (active && dock.getPanel(active.id)) active.api.setActive();
 }
 
 export function openSearch(q: string, scope: Root | 'all' = 'all', opts: OpenOptions = {}) {

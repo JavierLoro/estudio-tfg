@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CornerDownLeft, FileCode2, FileText, Inbox, Search } from 'lucide-react';
+import { CornerDownLeft, FilePlus2, FileCode2, FileText, Inbox, Search } from 'lucide-react';
 import type { Root } from '../api';
-import { basename } from '../lib/paths';
+import { basename, stripExt } from '../lib/paths';
+import { createNoteAt } from '../state/files';
 import { flattenTree, useUI } from '../state/ui';
 import { openFile, openResource, openSearch } from '../state/workspace';
 import { fold, highlight, useSearch } from './SearchView';
@@ -12,6 +13,7 @@ type Item =
   | { kind: 'file'; root: Root; path: string; score: number }
   | { kind: 'resource'; path: string; title: string; score: number }
   | { kind: 'hit'; root: Root; path: string; line: number; snippet: string }
+  | { kind: 'create'; path: string }
   | { kind: 'search' };
 
 /** Puntuación difusa sencilla: subsecuencia, premiando el nombre y los inicios de palabra. */
@@ -80,6 +82,16 @@ export function QuickOpen() {
       .slice(0, 8)
       .map((r) => ({ kind: 'resource' as const, path: r.path, title: r.title, score: 0 }));
     out.push(...res);
+    // Sin coincidencia exacta con una nota: ofrecer crearla (admite Carpeta/Nombre).
+    const typed = q.trim().replace(/^\/+|\/+$/g, '');
+    if (typed) {
+      const want = fold(typed.replace(/\.md$/i, ''));
+      const exact = flattenTree(trees.notes).some((p) => {
+        const noExt = fold(p.replace(/\.md$/i, ''));
+        return noExt === want || (!want.includes('/') && fold(stripExt(basename(p))) === want);
+      });
+      if (!exact) out.push({ kind: 'create', path: typed });
+    }
     if (fq.length >= 2) {
       out.push({ kind: 'search' });
       for (const h of (hits ?? []).filter((h) => h.line > 1 || !fold(basename(h.path)).includes(fq)).slice(0, 25)) {
@@ -87,7 +99,7 @@ export function QuickOpen() {
       }
     }
     return out;
-  }, [fq, trees, resources, recents, hits]);
+  }, [fq, q, trees, resources, recents, hits]);
 
   useEffect(() => {
     if (sel >= items.length) setSel(Math.max(0, items.length - 1));
@@ -105,6 +117,7 @@ export function QuickOpen() {
     close();
     if (it.kind === 'file') openFile(it.root, it.path, { side });
     else if (it.kind === 'resource') openResource(it.path, { side });
+    else if (it.kind === 'create') void createNoteAt(it.path);
     else if (it.kind === 'hit') openFile(it.root, it.path, { side, line: it.line });
     else openSearch(q.trim(), 'all', { side });
   };
@@ -160,6 +173,13 @@ export function QuickOpen() {
               onClick: (e: React.MouseEvent) => choose(it, e.altKey),
               className: cx('flex w-full cursor-pointer items-center gap-2 px-3 py-1 text-left text-[12.5px]', active && 'bg-active'),
             } as const;
+            if (it.kind === 'create')
+              return (
+                <div key="create" {...common} className={cx(common.className, 'text-accent')}>
+                  <FilePlus2 size={14} className="shrink-0" /> Crear nota «{it.path}»
+                  {active && <CornerDownLeft size={12} className="ml-auto opacity-60" />}
+                </div>
+              );
             if (it.kind === 'search')
               return (
                 <div key="search" {...common} className={cx(common.className, 'mt-1 border-t border-line pt-1.5 text-accent')}>

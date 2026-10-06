@@ -31,6 +31,9 @@ interface PromptRequest {
   initial?: string;
   password?: boolean;
   okLabel?: string;
+  /** Solo confirmar: sin campo de texto (`label` es el mensaje). Resuelve 'ok' o null. */
+  confirm?: boolean;
+  danger?: boolean;
   resolve: (v: string | null) => void;
 }
 
@@ -82,6 +85,8 @@ interface UIState {
 
   recents: RecentItem[];
   pushRecent: (root: Root, path: string) => void;
+  /** Tras renombrar o mover: cambia las rutas de los recientes. */
+  renameRecents: (root: Root, pairs: { from: string; to: string }[]) => void;
   dropRecent: (root: Root, path: string) => void;
 }
 
@@ -205,6 +210,21 @@ export const useUI = create<UIState>((set, get) => ({
     set({ recents });
     save(RECENTS_KEY, recents);
   },
+  renameRecents: (root, pairs) => {
+    const map = (path: string) => {
+      for (const p of pairs) {
+        if (path === p.from) return p.to;
+        if (path.startsWith(p.from + '/')) return p.to + path.slice(p.from.length);
+      }
+      return path;
+    };
+    const seen = new Set<string>();
+    const recents = get()
+      .recents.map((r) => (r.root === root ? { ...r, path: map(r.path) } : r))
+      .filter((r) => !seen.has(`${r.root}:${r.path}`) && !!seen.add(`${r.root}:${r.path}`));
+    set({ recents });
+    save(RECENTS_KEY, recents);
+  },
   dropRecent: (root, path) => {
     const recents = get().recents.filter((r) => !(r.root === root && r.path === path));
     set({ recents });
@@ -213,6 +233,12 @@ export const useUI = create<UIState>((set, get) => ({
 }));
 
 export const toast = (t: Omit<Toast, 'id'>) => useUI.getState().toast(t);
+
+/** Diálogo de confirmación (misma ventana que `ask`, sin campo de texto). */
+export async function confirmDialog(p: { title: string; text: string; okLabel?: string; danger?: boolean }): Promise<boolean> {
+  const r = await useUI.getState().ask({ title: p.title, label: p.text, okLabel: p.okLabel ?? 'Aceptar', confirm: true, danger: p.danger });
+  return r != null;
+}
 
 /** Lista plana de archivos de un árbol. */
 export function flattenTree(entries: Entry[] | undefined, out: string[] = []): string[] {

@@ -21,7 +21,12 @@ export function PromptDialog() {
           <Button variant="ghost" onClick={() => close(null)}>
             Cancelar
           </Button>
-          <Button variant="primary" onClick={() => close(value)} disabled={!value.trim()}>
+          <Button
+            variant={prompt?.danger ? 'danger' : 'primary'}
+            onClick={() => close(prompt?.confirm ? 'ok' : value)}
+            disabled={!prompt?.confirm && !value.trim()}
+            autoFocus={prompt?.confirm}
+          >
             {prompt?.okLabel ?? 'Aceptar'}
           </Button>
         </>
@@ -31,18 +36,19 @@ export function PromptDialog() {
         className="p-3"
         onSubmit={(e) => {
           e.preventDefault();
-          if (value.trim()) close(value);
+          if (prompt?.confirm) close('ok');
+          else if (value.trim()) close(value);
         }}
       >
-        {prompt?.label && <label className="mb-1 block text-[12px] text-muted">{prompt.label}</label>}
-        <input
+        {prompt?.label && <label className={prompt.confirm ? 'block text-[13px]' : 'mb-1 block text-[12px] text-muted'}>{prompt.label}</label>}
+        {!prompt?.confirm && <input
           autoFocus
           type={prompt?.password ? 'password' : 'text'}
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder={prompt?.placeholder}
           className="h-8 w-full rounded-md border border-line-strong bg-bg px-2 text-[13px] outline-none focus:border-accent"
-        />
+        />}
       </form>
     </Modal>
   );

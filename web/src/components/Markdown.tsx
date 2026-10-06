@@ -6,7 +6,8 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { api, type Root } from '../api';
 import { dirname, ext, join } from '../lib/paths';
 import { openFile } from '../state/workspace';
-import { toast } from '../state/ui';
+import { confirmDialog } from '../state/ui';
+import { createNoteAt } from '../state/files';
 
 // ---------- Frontmatter ----------
 
@@ -116,27 +117,21 @@ function urlTransform(url: string) {
   return defaultUrlTransform(url);
 }
 
-async function openWikilink(target: string, side: boolean, from?: string) {
+/** `rooted`: `target` ya es una ruta desde la raíz de las notas (enlace Markdown relativo). */
+async function openWikilink(target: string, side: boolean, from?: string, rooted = false) {
   try {
     const r = await api.resolveNote(target, from);
     openFile('notes', r.path, { side });
   } catch {
-    const path = /\.md$/i.test(target) ? target : `${target}.md`;
-    toast({
-      kind: 'warn',
-      text: `No existe la nota «${target}».`,
-      action: {
-        label: 'Crearla',
-        run: async () => {
-          try {
-            await api.createFile('notes', path, `# ${target.split('/').pop()}\n\n`);
-            openFile('notes', path, { side });
-          } catch (e) {
-            toast({ kind: 'error', text: `No se pudo crear: ${e instanceof Error ? e.message : e}` });
-          }
-        },
-      },
+    // La nota no existe: se ofrece crearla en la carpeta de la nota actual (contrato v0.7).
+    const name = /\.md$/i.test(target) ? target : `${target}.md`;
+    const path = rooted || !from ? name : join(dirname(from), name);
+    const ok = await confirmDialog({
+      title: 'La nota no existe',
+      text: `No existe la nota «${target}». ¿Crearla en ${dirname(path) ? `«${dirname(path)}/»` : 'la raíz'}?`,
+      okLabel: 'Crear nota',
     });
+    if (ok) await createNoteAt(path);
   }
 }
 
@@ -252,7 +247,7 @@ export const MarkdownView = memo(function MarkdownView({ content, path, root = '
               href="#"
               onClick={(e) => {
                 e.preventDefault();
-                if (/\.md$/i.test(target) || !ext(target)) void openWikilink(ext(target) ? target : `${target}.md`, e.altKey, path);
+                if (/\.md$/i.test(target) || !ext(target)) void openWikilink(ext(target) ? target : `${target}.md`, e.altKey, path, true);
                 else openFile(root, target, { side: e.altKey });
               }}
             >

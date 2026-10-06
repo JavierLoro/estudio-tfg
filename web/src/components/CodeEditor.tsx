@@ -5,7 +5,7 @@ import { setDiagnostics, type Diagnostic as CmDiagnostic } from '@codemirror/lin
 import { StateEffect, StateField } from '@codemirror/state';
 import { baseExtensions, languageExtension, type EditorLang } from '../lib/editor';
 import { setContent, useDocs } from '../state/docs';
-import { setCursorLine } from '../state/cursor';
+import { setCursorLine, useCursor } from '../state/cursor';
 
 export interface LineDiagnostic {
   line: number | null;
@@ -108,6 +108,12 @@ export function CodeEditor({ docKey, lang, lineNumbers = true, className, onSave
       }),
     });
     viewRef.current = view;
+    // Al remontar el editor (p. ej. tras mover el archivo) se vuelve a la línea del cursor.
+    const savedLine = useCursor.getState().lines[docKey];
+    if (savedLine && savedLine > 1) {
+      const pos = view.state.doc.line(Math.min(savedLine, view.state.doc.lines)).from;
+      view.dispatch({ selection: EditorSelection.cursor(pos), effects: EditorView.scrollIntoView(pos, { y: 'center' }) });
+    }
     if (diagRef.current?.length) view.dispatch(setDiagnostics(view.state, toCmDiagnostics(view.state, diagRef.current)));
     return () => {
       view.destroy();

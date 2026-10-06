@@ -1,15 +1,15 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, File, FileCode2, FileImage, FileText, Folder, FolderOpen } from 'lucide-react';
-import { api, errorMessage, type Entry, type Root } from '../api';
-import { basename, ext, join } from '../lib/paths';
-import { load, save } from '../lib/storage';
+import type { Entry, Root } from '../api';
+import { basename, dirname, ext, join, panelKindFor } from '../lib/paths';
 import { indicatorOf, useDocs } from '../state/docs';
-import { flattenTree, toast, useUI } from '../state/ui';
+import { canMoveInto, createFileIn, createFolderIn, deleteEntry, expandPath, moveEntry, moveInto, toggleExpanded, useExpanded } from '../state/files';
+import { flattenTree, useUI } from '../state/ui';
 import { openFile, panelIdFor, useActivePanel } from '../state/workspace';
 import { openContextMenu } from './ContextMenu';
 import { fold, highlight } from './SearchView';
-import { ALT, Empty, Spinner, cx } from './ui';
-import { panelKindFor } from '../lib/paths';
+import { openMoveDialog } from './MoveDialog';
+import { ALT, Empty, Spinner, cx, isMac } from './ui';
 
 function iconFor(path: string) {
   const e = ext(path);
@@ -19,36 +19,58 @@ function iconFor(path: string) {
   return <File size={14} className="shrink-0 text-faint" />;
 }
 
-const expKey = (root: Root) => `et:tree-expanded:${root}`;
+const DEL_HINT = isMac ? '⌘⌫' : 'Supr';
 
-export async function createFileIn(root: Root, dir: string) {
-  const ui = useUI.getState();
-  const isNotes = root === 'notes';
-  const name = await ui.ask({
-    title: isNotes ? 'Nueva nota' : 'Nuevo archivo de la memoria',
-    label: dir ? `En «${dir}/»` : 'En la raíz',
-    placeholder: isNotes ? 'Nombre de la nota' : 'capitulo.tex',
-    okLabel: 'Crear',
-  });
-  if (!name?.trim()) return;
-  let rel = name.trim();
-  if (!ext(rel)) rel += isNotes ? '.md' : '.tex';
-  const path = join(dir, rel);
-  const title = basename(path).replace(/\.[^.]+$/, '');
-  const content = ext(path) === 'md' ? `# ${title}\n\n` : ext(path) === 'tex' ? `% ${basename(path)}\n\n` : '';
-  try {
-    await api.createFile(root, path, content);
-    await useUI.getState().refreshTree(root);
-    openFile(root, path);
-  } catch (e) {
-    toast({ kind: 'error', text: `No se pudo crear «${path}»: ${errorMessage(e)}` });
-  }
+/** Lo que se está arrastrando (dataTransfer no se puede leer durante dragover). */
+let dragged: { root: Root; path: string } | null = null;
+
+/** Campo de renombrado en línea: selecciona el nombre sin la extensión; ↵ confirma, Esc cancela. */
+function RenameInput({ initial, isDir, onCommit, onCancel }: { initial: string; isDir: boolean; onCommit: (name: string) => void; onCancel: () => void }) {
+  const ref = useRef<HTMLInputElement>(null);
+  const done = useRef(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.focus();
+    const dot = initial.lastIndexOf('.');
+    el.setSelectionRange(0, !isDir && dot > 0 ? dot : initial.length);
+  }, [initial, isDir]);
+  const finish = (commit: boolean) => {
+    if (done.current) return;
+    done.current = true;
+    if (commit) onCommit(ref.current?.value ?? initial);
+    else onCancel();
+  };
+  return (
+    <input
+      ref={ref}
+      defaultValue={initial}
+      aria-label="Nuevo nombre"
+      className="h-[20px] min-w-0 flex-1 rounded border border-accent bg-bg px-1 text-[12.5px] outline-none"
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          finish(true);
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          finish(false);
+        }
+      }}
+      onBlur={() => finish(true)}
+    />
+  );
 }
 
 export function FileTree({ root, filter }: { root: Root; filter: string }) {
   const entries = useUI((s) => s.trees[root]);
   const error = useUI((s) => s.treeErrors[root]);
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(load<string[]>(expKey(root), [])));
+  const expanded = useExpanded((s) => s.sets[root]);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  /** Destino resaltado durante un arrastre: ruta de carpeta, '' = raíz. */
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
+  const hover = useRef<{ path: string; timer: ReturnType<typeof setTimeout> } | null>(null);
   const activeId = useActivePanel((s) => s.id);
   // Estado de guardado de los documentos abiertos de esta raíz: "ruta|estado;…"
   const openStates = useDocs((s) =>
@@ -59,16 +81,14 @@ export function FileTree({ root, filter }: { root: Root; filter: string }) {
   );
   const stateMap = useMemo(() => new Map(openStates ? openStates.split(';').map((x) => x.split('|') as [string, string]) : []), [openStates]);
 
-  const toggle = (path: string) => {
-    const next = new Set(expanded);
-    if (next.has(path)) next.delete(path);
-    else next.add(path);
-    setExpanded(next);
-    save(expKey(root), [...next]);
-  };
-
   const q = fold(filter.trim());
   const flat = useMemo(() => (q ? flattenTree(entries).filter((p) => fold(p).includes(q)) : null), [entries, q]);
+
+  const clearHover = () => {
+    if (hover.current) clearTimeout(hover.current.timer);
+    hover.current = null;
+  };
+  useEffect(() => clearHover, []);
 
   if (error && !entries) return <div className="px-3 py-2 text-[12px] text-danger">{error}</div>;
   if (!entries)
@@ -79,29 +99,116 @@ export function FileTree({ root, filter }: { root: Root; filter: string }) {
     );
 
   const isActive = (path: string) => activeId === panelIdFor(panelKindFor(root, path) === 'latex' ? 'latex' : 'note', path);
+  const noun = root === 'notes' ? 'nota' : 'archivo';
+
+  // ---- Renombrar ----
+  const commitRename = (path: string, isDir: boolean, raw: string) => {
+    setRenaming(null);
+    let name = raw.trim();
+    if (!name || name === basename(path) || name.includes('/')) return;
+    const old = ext(path);
+    if (!isDir && old && !ext(name)) name += '.' + old;
+    void moveEntry(root, path, join(dirname(path), name), { rename: true, isDir });
+  };
+
+  // ---- Arrastrar y soltar ----
+  const dragStart = (e: React.DragEvent, path: string) => {
+    dragged = { root, path };
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', path);
+  };
+  const dragEnd = () => {
+    dragged = null;
+    clearHover();
+    setDropTarget(null);
+  };
+  /** Fija el destino del arrastre; devuelve si es válido. */
+  const over = (e: React.DragEvent, dir: string, collapsedFolder = false): boolean => {
+    if (!dragged || dragged.root !== root || !canMoveInto(dragged.path, dir)) return false;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    if (dropTarget !== dir) setDropTarget(dir);
+    if (collapsedFolder) {
+      if (hover.current?.path !== dir) {
+        clearHover();
+        hover.current = { path: dir, timer: setTimeout(() => expandPath(root, dir), 600) };
+      }
+    } else if (hover.current && hover.current.path !== dir) clearHover();
+    return true;
+  };
+  const leave = (e: React.DragEvent) => {
+    if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node | null)) setDropTarget(null);
+  };
+  const drop = (e: React.DragEvent, dir: string) => {
+    const d = dragged;
+    dragEnd();
+    if (!d || d.root !== root || !canMoveInto(d.path, dir)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    void moveInto(root, d.path, dir);
+  };
+
+  // ---- Teclado en una fila ----
+  const rowKeys = (e: React.KeyboardEvent, path: string, isDir: boolean) => {
+    if (e.key === 'F2') {
+      e.preventDefault();
+      setRenaming(path);
+    } else if (e.key === 'Delete' || (e.key === 'Backspace' && e.metaKey)) {
+      e.preventDefault();
+      void deleteEntry(root, path, isDir);
+    }
+  };
+
+  // ---- Menús ----
+  const emptyMenu = (e: React.MouseEvent) =>
+    openContextMenu(e, [
+      { label: root === 'notes' ? 'Nueva nota…' : 'Nuevo archivo…', run: () => void createFileIn(root, '') },
+      { label: 'Nueva carpeta…', run: () => void createFolderIn(root, '') },
+    ]);
 
   const fileRow = (path: string, depth: number, label?: React.ReactNode) => {
     const st = stateMap.get(path);
+    const cls = cx(
+      'group flex h-[24px] w-full items-center gap-1.5 pr-2 text-left text-[12.5px] hover:bg-hover',
+      isActive(path) && 'bg-active text-fg',
+    );
+    const style = { paddingLeft: 8 + depth * 12 + 14 };
+    if (renaming === path)
+      return (
+        <div key={path} className={cls} style={style}>
+          {iconFor(path)}
+          <RenameInput initial={basename(path)} isDir={false} onCommit={(n) => commitRename(path, false, n)} onCancel={() => setRenaming(null)} />
+        </div>
+      );
     return (
       <button
         key={path}
         type="button"
         role="treeitem"
         aria-selected={isActive(path)}
-        className={cx(
-          'group flex h-[24px] w-full items-center gap-1.5 pr-2 text-left text-[12.5px] hover:bg-hover',
-          isActive(path) && 'bg-active text-fg',
-        )}
-        style={{ paddingLeft: 8 + depth * 12 + 14 }}
+        draggable
+        className={cls}
+        style={style}
         title={`${path}\n${ALT}clic: abrir al lado`}
         onClick={(e) => openFile(root, path, { side: e.altKey })}
-        onContextMenu={(e) =>
+        onKeyDown={(e) => rowKeys(e, path, false)}
+        onDragStart={(e) => dragStart(e, path)}
+        onDragEnd={dragEnd}
+        // Soltar sobre un archivo = soltar en su carpeta.
+        onDragOver={(e) => !flat && over(e, dirname(path))}
+        onDrop={(e) => !flat && drop(e, dirname(path))}
+        onContextMenu={(e) => {
+          e.stopPropagation();
           openContextMenu(e, [
             { label: 'Abrir', run: () => openFile(root, path) },
             { label: 'Abrir al lado', hint: `${ALT}clic`, run: () => openFile(root, path, { side: true }) },
+            { label: 'Renombrar', hint: 'F2', run: () => setRenaming(path) },
+            { label: 'Mover a…', run: () => openMoveDialog(root, path) },
+            { label: 'Eliminar', hint: DEL_HINT, danger: true, run: () => void deleteEntry(root, path, false) },
             { label: 'Copiar ruta', run: () => void navigator.clipboard?.writeText(path) },
-          ])
-        }
+          ]);
+        }}
       >
         {iconFor(path)}
         <span className="min-w-0 flex-1 truncate">{label ?? basename(path)}</span>
@@ -111,21 +218,82 @@ export function FileTree({ root, filter }: { root: Root; filter: string }) {
     );
   };
 
+  const dirRow = (e: Entry, depth: number, open: boolean) => {
+    const cls = cx(
+      'flex h-[24px] w-full items-center gap-1 pr-2 text-left text-[12.5px] hover:bg-hover',
+      dropTarget === e.path && 'bg-accent/20 outline outline-1 -outline-offset-1 outline-accent',
+    );
+    const style = { paddingLeft: 8 + depth * 12 };
+    const chevron = open ? <ChevronDown size={13} className="shrink-0 text-faint" /> : <ChevronRight size={13} className="shrink-0 text-faint" />;
+    const folder = open ? <FolderOpen size={14} className="shrink-0 text-muted" /> : <Folder size={14} className="shrink-0 text-muted" />;
+    if (renaming === e.path)
+      return (
+        <div className={cls} style={style}>
+          {chevron}
+          {folder}
+          <RenameInput initial={e.name} isDir onCommit={(n) => commitRename(e.path, true, n)} onCancel={() => setRenaming(null)} />
+        </div>
+      );
+    return (
+      <button
+        type="button"
+        role="treeitem"
+        aria-expanded={open}
+        draggable
+        className={cls}
+        style={style}
+        onClick={() => toggleExpanded(root, e.path)}
+        onKeyDown={(ev) => rowKeys(ev, e.path, true)}
+        onDragStart={(ev) => dragStart(ev, e.path)}
+        onDragEnd={dragEnd}
+        onDragOver={(ev) => over(ev, e.path, !open)}
+        onDragLeave={leave}
+        onDrop={(ev) => drop(ev, e.path)}
+        onContextMenu={(ev) => {
+          ev.stopPropagation();
+          openContextMenu(ev, [
+            { label: `Nueva ${noun} aquí…`, run: () => void createFileIn(root, e.path) },
+            { label: 'Nueva carpeta aquí…', run: () => void createFolderIn(root, e.path) },
+            { label: 'Renombrar', hint: 'F2', run: () => setRenaming(e.path) },
+            { label: 'Mover a…', run: () => openMoveDialog(root, e.path) },
+            { label: 'Eliminar', hint: DEL_HINT, danger: true, run: () => void deleteEntry(root, e.path, true) },
+            { label: 'Copiar ruta', run: () => void navigator.clipboard?.writeText(e.path) },
+          ]);
+        }}
+      >
+        {chevron}
+        {folder}
+        <span className="truncate">{e.name}</span>
+      </button>
+    );
+  };
+
+  const wrapper = (children: React.ReactNode) => (
+    <div
+      role="tree"
+      className={cx('min-h-full', dropTarget === '' && 'bg-accent/10 outline outline-1 -outline-offset-1 outline-accent')}
+      onContextMenu={emptyMenu}
+      onDragOver={(e) => over(e, '')}
+      onDragLeave={leave}
+      onDrop={(e) => drop(e, '')}
+    >
+      {children}
+    </div>
+  );
+
   if (flat) {
     if (!flat.length) return <Empty>Ningún archivo coincide.</Empty>;
-    return (
-      <div role="tree">
-        {flat.slice(0, 300).map((p) =>
-          fileRow(
-            p,
-            0,
-            <>
-              {highlight(basename(p), filter)}
-              <span className="ml-1.5 text-[11px] text-faint">{p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : ''}</span>
-            </>,
-          ),
-        )}
-      </div>
+    return wrapper(
+      flat.slice(0, 300).map((p) =>
+        fileRow(
+          p,
+          0,
+          <>
+            {highlight(basename(p), filter)}
+            <span className="ml-1.5 text-[11px] text-faint">{p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : ''}</span>
+          </>,
+        ),
+      ),
     );
   }
 
@@ -135,29 +303,11 @@ export function FileTree({ root, filter }: { root: Root; filter: string }) {
       const open = expanded.has(e.path);
       return (
         <div key={e.path} role="group">
-          <button
-            type="button"
-            role="treeitem"
-            aria-expanded={open}
-            className="flex h-[24px] w-full items-center gap-1 pr-2 text-left text-[12.5px] hover:bg-hover"
-            style={{ paddingLeft: 8 + depth * 12 }}
-            onClick={() => toggle(e.path)}
-            onContextMenu={(ev) =>
-              openContextMenu(ev, [
-                { label: root === 'notes' ? 'Nueva nota aquí…' : 'Nuevo archivo aquí…', run: () => void createFileIn(root, e.path) },
-                { label: 'Copiar ruta', run: () => void navigator.clipboard?.writeText(e.path) },
-              ])
-            }
-          >
-            {open ? <ChevronDown size={13} className="shrink-0 text-faint" /> : <ChevronRight size={13} className="shrink-0 text-faint" />}
-            {open ? <FolderOpen size={14} className="shrink-0 text-muted" /> : <Folder size={14} className="shrink-0 text-muted" />}
-            <span className="truncate">{e.name}</span>
-          </button>
+          {dirRow(e, depth, open)}
           {open && e.children && render(e.children, depth + 1)}
         </div>
       );
     });
 
-  if (!entries.length) return <Empty>Carpeta vacía.</Empty>;
-  return <div role="tree">{render(entries, 0)}</div>;
+  return wrapper(entries.length ? render(entries, 0) : <Empty>Carpeta vacía.</Empty>);
 }
