@@ -224,3 +224,81 @@ Coordenadas siempre en **puntos PDF (bp)**, origen en la **esquina superior izqu
 - **Código → PDF**: «Ver en PDF» (⌘⇧J o botón en el editor de un `.tex` de la memoria; menú de cada apartado en la vista Documento) salta a la página y resalta la zona unos segundos.
 - **Apartado visible**: la vista Documento marca (barra de acento, `aria-current="location"`) el apartado que se está viendo en el PDF: el último cuyo título queda por encima de un cuarto de la altura visible del visor (si está plegado, su antepasado visible). Usa `/api/synctex/outline`, que se relee al cambiar el PDF mostrado o el índice. Mientras se desplaza el PDF, el árbol se desplaza para mantenerlo visible, salvo si el puntero o el foco están en el árbol; no cambia la selección ni el foco.
 - Siempre se consulta el SyncTeX del build que se está mostrando (`build` = el de `pdfUrl`).
+
+## Plantilla genérica con perfiles de institución y panel «Datos del trabajo» (v0.5)
+
+La plantilla deja de ser solo de la ESI: la clase es genérica y lo institucional sale de un **perfil**. Nada de lo que escribe el usuario se toca.
+
+### Estructura en el repo
+
+```
+templates/
+  base/                      archivos comunes: tfg.tex, datos.tex, 0-inicio/, 2-anexos/, bibliografia.bib,
+                             figuras/, estilo/memoria.cls, LEEME.md, .gitignore
+  perfiles/<id>/             lo propio de cada perfil, se copia ENCIMA de base/:
+    perfil.json              { "id", "nombre", "descripcion" }
+    estilo/institucion.tex   datos de la institución (formato abajo)
+    estilo/logo.pdf          (opcional)
+    1-capitulos/…            capítulos de partida con sus guías
+```
+
+Perfiles de serie: `esi-uclm` (por defecto; equivale a la plantilla v0.3) y `generico` (sin logo; capítulos Introducción, Objetivos, Estado de la cuestión, Desarrollo, Resultados, Conclusiones). `templates/esi-tfg/` desaparece.
+
+La clase pasa a ser `estilo/memoria.cls` (`\documentclass{estilo/memoria}`), derivada de la anterior (mantiene la cabecera GPL y la atribución a ARCO). Lee `estilo/institucion.tex` **antes de `\LoadClass`** (con `\InputIfFileExists`), por eso puede fijar el tamaño de letra. Si falta, usa los valores del perfil genérico.
+
+### `estilo/institucion.tex`
+
+Un comando por línea, con `%` para comentarios. Todos son opcionales; vacío = no se muestra.
+
+| Comando | Valores | Por defecto (genérico) |
+|---|---|---|
+| `\universidad{…}` | texto | vacío |
+| `\escuela{…}` | texto (escuela o facultad) | vacío |
+| `\logo{…}` | archivo dentro de `estilo/` (`.pdf`, `.png`, `.jpg`); vacío = sin logo | vacío |
+| `\tipoTrabajo{…}` | `tfg` \| `tfm` \| `tesis` \| `otro` | `tfg` |
+| `\nombreTrabajo{…}` | texto que sustituye al del tipo («Trabajo Fin de Grado»…) | vacío |
+| `\titulacion{…}` | texto («Grado en Ingeniería Informática») | vacío |
+| `\etiquetaEspecialidad{…}` | texto («Tecnología específica», «Mención»); vacío = no se muestra la especialidad | vacío |
+| `\idiomaPortadas{…}` | `espanol` \| `ingles` \| `documento` (el de `\idioma`) | `documento` |
+| `\tamanoLetra{…}` | `10pt` \| `11pt` \| `12pt` | `12pt` |
+| `\margenes{int}{ext}{sup}{inf}` | longitudes TeX (`35mm`) | `30mm` `25mm` `25mm` `25mm` |
+| `\interlineado{…}` | `1` \| `1.15` \| `1.25` \| `1.5` \| `2` | `1.5` |
+
+Perfil `esi-uclm`: Universidad de Castilla-La Mancha, Escuela Superior de Informática, `esi_logo.pdf`, `tfg`, Grado en Ingeniería Informática, «Tecnología específica», portadas en `espanol`, `12pt`, márgenes `35mm 20mm 25mm 25mm`, `1.5`.
+
+Las portadas se generan con estos datos; si existe `estilo/portada.tex` se usa en su lugar (vía de escape para formatos muy distintos).
+
+### `datos.tex` (v0.5)
+
+Los de v0.3 (`\titulo`, `\autor`, `\email`, `\tutor`, `\cotutor`, `\departamento`, `\intensificacion`, `\fecha{mes}{año}`, `\ciudad`, `\palabrasClave`, `\idioma`, `\formato`, `\estiloBibliografia`) más:
+
+| Comando | Valores | Por defecto |
+|---|---|---|
+| `\keywords{…}` | palabras clave en inglés (para el Abstract) | vacío |
+| `\modo{…}` | `borrador` (marca «BORRADOR», `\todo` visibles) \| `final` (un `\todo` es un error) | `borrador` |
+| `\licencia{…}` | `reservados` \| `cc-by` \| `cc-by-sa` \| `cc-by-nc-sa` \| `ninguna` (texto en la página de créditos) | `reservados` |
+| `\atribucion{…}` | `si` \| `no` (página final de atribución a la clase de ARCO) | `si` |
+
+`\estiloBibliografia` pasa a biblatex + biber: `ieee` \| `apa` \| `numeric` \| `authoryear` \| `alphabetic` (por defecto `ieee`). Los nombres antiguos se aceptan: `ieeetr`→`ieee`, `plain`→`numeric`, `alpha`→`alphabetic`, `apalike`→`apa`. `\bibliography{bibliografia}` en `tfg.tex` sigue funcionando (la clase lo convierte en `\addbibresource` + `\printbibliography`). Fechas en español con minúscula: «junio de 2026».
+
+### API del panel
+
+Los dos archivos son de la raíz `memoria`. Cada campo se lee de la **primera línea no comentada** que empieza por su comando y se reescribe **solo su argumento** (llaves equilibradas), conservando el resto de la línea (comentarios). Si el comando no está, se añade al final bajo `%% Añadido por Estudio TFG`. Los valores viajan sin escapar; el server escapa `& % $ # _ { } ~ ^ \` al escribir y deshace esos escapes al leer.
+
+- `GET /api/memoria/datos` → `{ datos: Record<campo, string>, institucion: Record<campo, string>, rev: { datos: string|null, institucion: string|null } }`
+  - Claves: el nombre del comando sin `\` (`titulo`, `fecha` …). Comandos de dos o más argumentos: `fecha` → `{ fechaMes, fechaAnio }`; `margenes` → `{ margenInterior, margenExterior, margenSuperior, margenInferior }`.
+  - `rev` = null si el archivo no existe (memoria anterior a v0.5).
+- `PUT /api/memoria/datos` `{ datos?: Partial, institucion?: Partial, baseRev: { datos?: string, institucion?: string } }` → igual que GET.
+  - **409** `{ error, current }` si el `baseRev` de un archivo tocado no coincide (current = respuesta GET actual). **400** `{ error, field }` si un valor no está en su lista (`modo`, `licencia`, `tipoTrabajo`…), una longitud no es válida o la memoria no tiene `institucion.tex` y se piden campos de institución.
+  - Escritura atómica con copia en el historial, como el resto; emite el evento de cambio normal.
+- `POST /api/memoria/logo` (multipart, campo `file`: pdf, png o jpg, máx. 5 MB) → guarda `estilo/logo.<ext>`, pone `\logo{logo.<ext>}` y devuelve lo mismo que GET. `DELETE /api/memoria/logo` → `\logo{}`.
+- `GET /api/templates/perfiles` → `{ perfiles: [{ id, nombre, descripcion }] }`.
+- `POST /api/settings/init-memoria` acepta además `{ perfil?: string }` (por defecto `esi-uclm`); `npm run init` acepta `--perfil <id>`.
+
+### Interfaz
+
+- En la vista Documento, «Datos del trabajo» abre el panel **Datos del trabajo** (pestaña `datos`) en vez de `datos.tex`; el menú de esa fila ofrece también «Abrir datos.tex».
+- Secciones del panel: **Trabajo** (título, autor, email, tutor, cotutor, departamento, especialidad, fecha, ciudad), **Resumen** (palabras clave, keywords), **Documento** (idioma, formato, modo, bibliografía, licencia, atribución), **Institución** (todos los de `institucion.tex`, con subida del logo y vista previa).
+- Guardado al salir de cada campo (o ⌘S), con indicador «Guardado» como los editores; un 409 muestra los valores nuevos y avisa. Tras guardar, si el PDF queda desactualizado se ofrece «Compilar».
+- Si la memoria no tiene `institucion.tex` (anterior a v0.5), la sección Institución muestra «Esta memoria usa la plantilla anterior; podrás actualizarla más adelante» y no se puede editar.
+- Ajustes → «Crear memoria desde plantilla» deja elegir el perfil.
