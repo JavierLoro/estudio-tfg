@@ -1,18 +1,27 @@
 // Panel «Datos del trabajo» (v0.5): edita datos.tex y estilo/institucion.tex sin tocar el código.
+// v0.6: aviso y diálogo para actualizar la memoria a la plantilla actual.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertCircle, ClipboardList, ImagePlus, Play, Trash2 } from 'lucide-react';
+import { AlertCircle, ClipboardList, ImagePlus, Play, RefreshCw, Trash2, Undo2 } from 'lucide-react';
 import {
   api,
   DatosConflictError,
   errorMessage,
   FieldError,
+  PlantillaConflictError,
+  type AccionPlantilla,
+  type CambioPlantilla,
   type DatosChanges,
   type DatosResponse,
+  type Perfil,
+  type PlantillaPreview,
+  type PlantillaResultado,
 } from '../api';
 import { indicatorColor } from '../components/DocBanners';
-import { Banner, Button, MOD, Spinner, cx } from '../components/ui';
+import { Banner, Button, MOD, Modal, Spinner, cx } from '../components/ui';
 import { useCompile, isPdfOutdated } from '../state/compile';
+import { isDirty, saveAll, useDocs } from '../state/docs';
 import { onFileChange } from '../state/events';
+import { useOutline } from '../state/outline';
 import { openFile } from '../state/workspace';
 import { saveAndCompile } from './LatexPanel';
 
@@ -180,6 +189,12 @@ export function DatosPanel() {
   const [conflict, setConflict] = useState<{ key: string; mine: string }[] | null>(null);
   const [touched, setTouched] = useState(false);
   const [logoBusy, setLogoBusy] = useState(false);
+  const [plantilla, setPlantilla] = useState<PlantillaPreview | null>(null);
+  const [dlgOpen, setDlgOpen] = useState(false);
+  const [resultado, setResultado] = useState<
+    { kind: 'ok'; res: PlantillaResultado; version: string } | { kind: 'deshecho'; text: string } | null
+  >(null);
+  const [undoBusy, setUndoBusy] = useState(false);
 
   const dataRef = useRef<DatosResponse | null>(null);
   const formRef = useRef<Record<string, string>>({});
@@ -221,9 +236,32 @@ export function DatosPanel() {
     }
   }, []);
 
+  const loadPlantilla = useCallback(async () => {
+    try {
+      setPlantilla(await api.plantilla());
+    } catch {
+      /* sin aviso de plantilla */
+    }
+  }, []);
+
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadPlantilla();
+  }, [load, loadPlantilla]);
+
+  // La clase o institucion.tex cambiaron en disco: el estado de la plantilla puede ser otro.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const off = onFileChange((ev) => {
+      if (ev.root !== 'memoria' || !/^(estilo\/[^/]+\.cls|estilo\/institucion\.tex)$/i.test(ev.path)) return;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => void loadPlantilla(), 500);
+    });
+    return () => {
+      off();
+      if (timer) clearTimeout(timer);
+    };
+  }, [loadPlantilla]);
 
   // Cambios externos (editor de datos.tex, Syncthing…): se recargan si no hay nada pendiente.
   useEffect(() => {
@@ -354,6 +392,55 @@ export function DatosPanel() {
     }
   };
 
+  /** Tras actualizar o deshacer: relee datos, plantilla e índice y recompila. */
+  const afterTemplateChange = async () => {
+    await Promise.all([load(), loadPlantilla()]);
+    void useOutline.getState().refresh();
+    // Tras los avisos de cambio del watcher, para que el PDF no quede como desactualizado.
+    await new Promise((r) => setTimeout(r, 800));
+    void saveAndCompile();
+  };
+
+  /** Guarda todo, aplica la actualización y recompila. Lanza si no se puede (el diálogo lo muestra). */
+  const aplicarPlantilla = async (p: PlantillaPreview) => {
+    queueSave();
+    await chain.current;
+    if (dirtyKeys().length) throw new Error('Hay datos de este panel sin guardar: corrígelos antes de actualizar.');
+    await saveAll('memoria');
+    const afectados = new Set(p.cambios.map((c) => c.archivo));
+    const pendientes = Object.values(useDocs.getState().docs).filter(
+      (d) => d.root === 'memoria' && afectados.has(d.path) && (isDirty(d) || !!d.conflict),
+    );
+    if (pendientes.length) {
+      throw new Error(`No se pudo guardar ${pendientes.map((d) => `«${d.path}»`).join(', ')}: resuélvelo antes de actualizar.`);
+    }
+    const res = await api.actualizarPlantilla(p.perfil, p.cambios);
+    setDlgOpen(false);
+    setResultado({ kind: 'ok', res, version: p.versionPlantilla });
+    await afterTemplateChange();
+  };
+
+  const deshacerPlantilla = async () => {
+    if (resultado?.kind !== 'ok') return;
+    setUndoBusy(true);
+    setGeneral(null);
+    try {
+      await saveAll('memoria');
+      const r = await api.deshacerPlantilla(resultado.res.deshacer);
+      setResultado({
+        kind: 'deshecho',
+        text: `Se ha deshecho la actualización: ${r.restaurados.length} archivos restaurados${r.commit ? ` · commit ${r.commit.slice(0, 7)}` : ''}.`,
+      });
+      await afterTemplateChange();
+    } catch (e) {
+      setGeneral(`No se pudo deshacer: ${errorMessage(e)}`);
+    } finally {
+      setUndoBusy(false);
+    }
+  };
+
+  const desactualizada = plantilla?.estado === 'desactualizada';
+
   const phase: Phase = saving ? 'saving' : general || Object.values(errors).some(Boolean) ? 'error' : data && dirtyKeysFor(data, form) ? 'dirty' : 'ok';
 
   const hasInst = data ? data.rev.institucion !== null : false;
@@ -476,6 +563,56 @@ export function DatosPanel() {
           </span>
         </Banner>
       )}
+      {desactualizada && (
+        <Banner
+          kind="warn"
+          actions={
+            <Button variant="primary" onClick={() => setDlgOpen(true)}>
+              <RefreshCw size={12} /> Actualizar…
+            </Button>
+          }
+        >
+          Hay una versión nueva de la plantilla ({plantilla.versionMemoria} → {plantilla.versionPlantilla}). Lo que has escrito no se toca.
+        </Banner>
+      )}
+      {resultado && (
+        <Banner
+          kind="info"
+          actions={
+            <>
+              {resultado.kind === 'ok' && (
+                <Button onClick={() => void deshacerPlantilla()} disabled={undoBusy} title="Restaura los archivos y revierte el commit">
+                  {undoBusy ? <Spinner size={11} /> : <Undo2 size={12} />} Deshacer
+                </Button>
+              )}
+              <Button variant="ghost" onClick={() => setResultado(null)}>
+                Cerrar
+              </Button>
+            </>
+          }
+        >
+          {resultado.kind === 'ok' ? (
+            <div>
+              <span className="text-fg">
+                Plantilla actualizada a {resultado.version}: {resultado.res.aplicados.length} archivos
+                {resultado.res.commit ? ` · commit ${resultado.res.commit.slice(0, 7)}` : ''}.
+              </span>{' '}
+              El PDF se recompila a continuación.
+              {resultado.res.revisar.length > 0 && (
+                <ul className="mt-1 list-disc pl-4">
+                  {resultado.res.revisar.map((r) => (
+                    <li key={r.archivo + r.motivo}>
+                      Revisar a mano <span className="font-mono">{r.archivo}</span>: {r.motivo}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : (
+            resultado.text
+          )}
+        </Banner>
+      )}
       {general && <Banner kind="danger">{general}</Banner>}
       {loadError && (
         <Banner kind="danger" actions={<Button onClick={() => void load()}>Reintentar</Button>}>
@@ -510,11 +647,19 @@ export function DatosPanel() {
             <Section
               title="Institución"
               note={
-                !hasInst && (
+                !hasInst &&
+                (desactualizada ? (
+                  <div className="flex flex-wrap items-center gap-2 border-b border-line bg-warn-bg px-3 py-2 text-[12px] text-warn">
+                    <span className="min-w-0 flex-1">Hay una versión nueva de la plantilla: al actualizar podrás editar aquí los datos de la institución.</span>
+                    <Button variant="primary" onClick={() => setDlgOpen(true)}>
+                      <RefreshCw size={12} /> Actualizar…
+                    </Button>
+                  </div>
+                ) : (
                   <p className="border-b border-line bg-warn-bg px-3 py-2 text-[12px] text-warn">
                     Esta memoria usa la plantilla anterior; podrás actualizarla más adelante.
                   </p>
-                )
+                ))
               }
             >
               {hasInst ? (
@@ -613,7 +758,211 @@ export function DatosPanel() {
           </div>
         )}
       </div>
+      {plantilla && (
+        <PlantillaDialog
+          open={dlgOpen}
+          initial={plantilla}
+          hasInst={hasInst}
+          onClose={() => setDlgOpen(false)}
+          onApply={aplicarPlantilla}
+        />
+      )}
     </div>
+  );
+}
+
+const GRUPOS: [AccionPlantilla, string][] = [
+  ['crear', 'Se crean'],
+  ['sustituir', 'Se sustituyen (no tenían cambios tuyos)'],
+  ['editar', 'Se editan en el sitio (se conservan tus valores)'],
+  ['retirar', 'Se retiran'],
+];
+
+/** Diálogo «Actualizar plantilla» (v0.6): vista previa agrupada y aplicar. */
+function PlantillaDialog({
+  open,
+  initial,
+  hasInst,
+  onClose,
+  onApply,
+}: {
+  open: boolean;
+  initial: PlantillaPreview;
+  hasInst: boolean;
+  onClose: () => void;
+  onApply: (p: PlantillaPreview) => Promise<void>;
+}) {
+  const [prev, setPrev] = useState(initial);
+  const [perfiles, setPerfiles] = useState<Perfil[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const initialRef = useRef(initial);
+  initialRef.current = initial;
+
+  useEffect(() => {
+    if (!open) return;
+    setError(null);
+    setAviso(null);
+    setPrev(initialRef.current);
+    // Vista previa recién calculada al abrir (la del aviso puede ser antigua).
+    setLoading(true);
+    api
+      .plantilla(initialRef.current.perfil)
+      .then((p) => p && setPrev(p))
+      .catch((e) => setError(errorMessage(e)))
+      .finally(() => setLoading(false));
+    if (!hasInst) {
+      api
+        .perfiles()
+        .then(setPerfiles)
+        .catch(() => setPerfiles(null));
+    }
+  }, [open, hasInst]);
+
+  const changePerfil = async (id: string) => {
+    setLoading(true);
+    setError(null);
+    setAviso(null);
+    try {
+      const p = await api.plantilla(id);
+      if (p) setPrev(p);
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const apply = async () => {
+    setBusy(true);
+    setError(null);
+    setAviso(null);
+    try {
+      await onApply(prev);
+    } catch (e) {
+      if (e instanceof PlantillaConflictError) {
+        setPrev(e.actual);
+        setAviso('La memoria ha cambiado desde la vista previa: revisa la lista y vuelve a pulsar «Actualizar».');
+      } else setError(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const grupos = GRUPOS.map(([accion, label]) => [label, prev.cambios.filter((c) => c.accion === accion)] as const).filter(
+    ([, l]) => l.length > 0,
+  );
+  const puede = prev.estado === 'desactualizada' && !loading && !busy;
+
+  return (
+    <Modal
+      open={open}
+      onClose={() => !busy && onClose()}
+      title="Actualizar plantilla"
+      labelledBy="plantilla-dlg-title"
+      width={600}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={busy}>
+            Cancelar
+          </Button>
+          <Button variant="primary" onClick={() => void apply()} disabled={!puede}>
+            {busy ? <Spinner size={11} /> : <RefreshCw size={12} />} Actualizar
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-3 p-3 text-[12.5px]">
+        <p className="text-muted">
+          {prev.estado === 'desactualizada'
+            ? `De la plantilla ${prev.versionMemoria} a la ${prev.versionPlantilla}. Lo que has escrito no se toca: solo se sustituyen los archivos que siguen como los dejó la plantilla.`
+            : prev.estado === 'actual'
+              ? 'La memoria ya usa la plantilla actual.'
+              : 'No se reconoce la clase de esta memoria: no se puede actualizar automáticamente.'}
+        </p>
+
+        {!hasInst && perfiles && perfiles.length > 1 && (
+          <div>
+            <label htmlFor="plantilla-perfil" className="mb-1 block text-[12px] font-medium">
+              Perfil de institución
+            </label>
+            <select
+              id="plantilla-perfil"
+              value={prev.perfil}
+              disabled={loading || busy}
+              onChange={(e) => void changePerfil(e.target.value)}
+              className={cx(inputCls, 'border-line-strong')}
+            >
+              {perfiles.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nombre}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-[11px] text-faint">{perfiles.find((p) => p.id === prev.perfil)?.descripcion ?? ''}</p>
+          </div>
+        )}
+
+        {aviso && (
+          <p className="rounded-md border border-warn/30 bg-warn-bg px-2 py-1.5 text-warn" role="status">
+            {aviso}
+          </p>
+        )}
+        {error && (
+          <p className="rounded-md border border-danger/30 bg-danger-bg px-2 py-1.5 text-danger" role="alert">
+            {error}
+          </p>
+        )}
+
+        {loading ? (
+          <div className="flex justify-center py-4 text-muted">
+            <Spinner />
+          </div>
+        ) : (
+          <>
+            {grupos.map(([label, items]) => (
+              <section key={label}>
+                <h3 className="mb-1 text-[12px] font-semibold">
+                  {label} <span className="font-normal text-faint">({items.length})</span>
+                </h3>
+                <CambiosList items={items} />
+              </section>
+            ))}
+            {prev.revisar.length > 0 && (
+              <section>
+                <h3 className="mb-1 text-[12px] font-semibold text-warn">
+                  Revisar a mano <span className="font-normal text-faint">({prev.revisar.length})</span>
+                </h3>
+                <CambiosList items={prev.revisar} />
+              </section>
+            )}
+            {prev.estado === 'desactualizada' && (
+              <p className="text-[11.5px] text-faint">
+                Antes se guarda todo lo abierto. Cada archivo se copia al historial y, si la memoria es un repositorio git, se hace un commit
+                solo con estos archivos. Después se recompila el PDF y puedes deshacerlo.
+              </p>
+            )}
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+function CambiosList({ items }: { items: { archivo: string; motivo: string }[] | CambioPlantilla[] }) {
+  return (
+    <ul className="divide-y divide-line rounded-md border border-line">
+      {items.map((c) => (
+        <li key={c.archivo + c.motivo} className="flex flex-col gap-0.5 px-2 py-1.5 sm:flex-row sm:gap-3">
+          <span className="shrink-0 font-mono text-[11.5px] sm:w-56 sm:truncate" title={c.archivo}>
+            {c.archivo}
+          </span>
+          <span className="min-w-0 text-muted">{c.motivo}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
 

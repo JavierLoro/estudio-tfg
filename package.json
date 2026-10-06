@@ -9,6 +9,7 @@
     "build": "npm run build --prefix web && npm run build --prefix server",
     "start": "npm start --prefix server",
     "worker": "docker compose up -d --build worker",
-    "test": "npm test --prefix server"
+    "test": "npm test --prefix server",
+    "template:manifest": "node scripts/template-manifest.mjs"
   }
 }

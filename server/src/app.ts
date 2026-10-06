@@ -20,6 +20,7 @@ import eventsRoutes from './routes/events.ts';
 import filesRoutes from './routes/files.ts';
 import memoriaRoutes from './routes/memoria.ts';
 import notesRoutes from './routes/notes.ts';
+import plantillaRoutes from './routes/plantilla.ts';
 import resourcesRoutes from './routes/resources.ts';
 import searchRoutes from './routes/search.ts';
 import settingsRoutes from './routes/settings.ts';
@@ -107,7 +108,7 @@ export async function buildApp(cfg: Config, opts: BuildOptions = {}): Promise<{ 
     reply.code(status).send({ error: message });
   });
 
-  for (const plugin of [statusRoutes, filesRoutes, notesRoutes, resourcesRoutes, searchRoutes, compileRoutes, synctexRoutes, memoriaRoutes, datosRoutes, eventsRoutes, settingsRoutes]) {
+  for (const plugin of [statusRoutes, filesRoutes, notesRoutes, resourcesRoutes, searchRoutes, compileRoutes, synctexRoutes, memoriaRoutes, datosRoutes, plantillaRoutes, eventsRoutes, settingsRoutes]) {
     await app.register(plugin, { ctx });
   }
 

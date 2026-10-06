@@ -211,6 +211,39 @@ export interface Perfil {
   descripcion: string;
 }
 
+// ---- Actualizar plantilla (v0.6) ----
+
+export type AccionPlantilla = 'crear' | 'sustituir' | 'editar' | 'retirar';
+
+export interface CambioPlantilla {
+  archivo: string;
+  accion: AccionPlantilla;
+  motivo: string;
+  /** Revisión del archivo en la vista previa (null = no existe). */
+  rev: string | null;
+}
+
+export interface RevisarPlantilla {
+  archivo: string;
+  motivo: string;
+}
+
+export interface PlantillaPreview {
+  estado: 'actual' | 'desactualizada' | 'desconocida';
+  versionMemoria: string | null;
+  versionPlantilla: string;
+  perfil: string;
+  cambios: CambioPlantilla[];
+  revisar: RevisarPlantilla[];
+}
+
+export interface PlantillaResultado {
+  aplicados: CambioPlantilla[];
+  revisar: RevisarPlantilla[];
+  commit: string | null;
+  deshacer: string;
+}
+
 export class ApiError extends Error {
   status: number;
   body: unknown;
@@ -239,6 +272,15 @@ export class DatosConflictError extends ApiError {
   constructor(current: DatosResponse, body: unknown) {
     super(409, 'conflict', body);
     this.current = current;
+  }
+}
+
+/** 409 de `POST /api/memoria/plantilla/actualizar`: la vista previa ya no vale; trae la nueva. */
+export class PlantillaConflictError extends ApiError {
+  actual: PlantillaPreview;
+  constructor(message: string, actual: PlantillaPreview, body: unknown) {
+    super(409, message, body);
+    this.actual = actual;
   }
 }
 
@@ -458,6 +500,32 @@ export const api = {
       throw e;
     }
   },
+
+  // ---- Actualizar plantilla (v0.6) ----
+
+  /** null si el servidor aún no lo ofrece (404). */
+  plantilla: async (perfil?: string): Promise<PlantillaPreview | null> => {
+    try {
+      return await json<PlantillaPreview>(`/api/memoria/plantilla?${qs({ perfil })}`);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) return null;
+      throw e;
+    }
+  },
+
+  /** Lanza PlantillaConflictError (409 con la vista previa actual) o ApiError. */
+  actualizarPlantilla: async (perfil: string, cambios: CambioPlantilla[]) => {
+    try {
+      return await json<PlantillaResultado>('/api/memoria/plantilla/actualizar', jsonBody('POST', { perfil, cambios }));
+    } catch (e) {
+      const b = e instanceof ApiError ? (e.body as { actual?: PlantillaPreview } | null) : null;
+      if (e instanceof ApiError && e.status === 409 && b?.actual) throw new PlantillaConflictError(e.message, b.actual, e.body);
+      throw e;
+    }
+  },
+
+  deshacerPlantilla: (id: string) =>
+    json<{ restaurados: string[]; commit: string | null }>('/api/memoria/plantilla/deshacer', jsonBody('POST', { id })),
 
   logUrl: (buildId: string) => `/api/compile/log/${encodeURIComponent(buildId)}`,
 

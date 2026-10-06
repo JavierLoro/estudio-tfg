@@ -28,7 +28,7 @@ Este repositorio es **solo la herramienta**: código, la plantilla de la memoria
 
 - `npm run init` copia la plantilla a `MEMORIA_DIR` solo si está vacío y le crea su propio git. Nunca sobrescribe. La plantilla es `templates/base/` más un perfil de institución de `templates/perfiles/` copiado encima: `esi-uclm` (por defecto) o `generico` (`npm run init -- --perfil generico`). Desde Ajustes → «Crear memoria desde plantilla» también se elige el perfil.
 - El servidor **se niega a arrancar** si `NOTES_DIR` o `MEMORIA_DIR` apuntan a una carpeta versionada del repo; dentro del repo solo se permite `workspace/`, que está ignorada.
-- Las mejoras a la plantilla se hacen en `templates/base/` (clase `estilo/memoria.cls` y archivos comunes) o en el perfil que toque; no se propagan solas a una memoria ya creada.
+- Las mejoras a la plantilla se hacen en `templates/base/` (clase `estilo/memoria.cls` y archivos comunes) o en el perfil que toque; no se propagan solas a una memoria ya creada. Tras cambiarla, `npm run template:manifest` regenera su manifiesto (`templates/manifiestos/`; un test falla si no). Para llevar una memoria a la plantilla actual: panel «Datos del trabajo» → «Actualizar…» (solo sustituye lo que sigue como lo dejó la plantilla, hace un commit con esos archivos y se puede deshacer).
 
 ## Atajos
 

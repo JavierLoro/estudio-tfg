@@ -1,0 +1,43 @@
+{
+  "version": "v0.3",
+  "clase": "estilo/esi-tfg v2.0",
+  "comandosDatos": [
+    "titulo",
+    "autor",
+    "email",
+    "tutor",
+    "cotutor",
+    "departamento",
+    "intensificacion",
+    "fecha",
+    "ciudad",
+    "palabrasClave",
+    "idioma",
+    "formato",
+    "estiloBibliografia"
+  ],
+  "archivos": {
+    ".gitignore": "ac9faa40be0c8f178fe08793d9cac53d71551e15288eeade7529e30dca3d6a62",
+    "0-inicio/abstract.tex": "6548e9dc0f0fc15039116c3e43e1cb81cfea6681e844e6ad0a3f1d4510f06b46",
+    "0-inicio/acronimos.tex": "974c2f22e15fa2f8f327089102f965fa87e96c9cb84b158934df30ae5af8da48",
+    "0-inicio/agradecimientos.tex": "7fb7a6e04e84f1a13b60957c51de76058612498f6992cd8f429613119879327e",
+    "0-inicio/resumen.tex": "61237ec6c546ac2c2a45f45b80b0462d79520cc478d3efcb22f9be53e0e1dd9b",
+    "2-anexos/a-anexo.tex": "334303db46a683b18a6106c25986a80d19ca203b3f8b2577be92c350d98fc469",
+    "LEEME.md": "bec03faceb5a7a5501ce50ac1678e57c1938bc8813681d36dca14822b6a0603f",
+    "bibliografia.bib": "6ecf3ac89a7744d4e401ccf06a4af821ef29cc19b2fb95e78879a8bacedb5ee7",
+    "datos.tex": "6b489302b7d5a7f4024641236db961bda5249faaea03a697bb877d9f9d22238a",
+    "esi-uclm:1-capitulos/01-introduccion.tex": "9b3fb062889af17d855decfeecaf3c0be91f1d0dee0248cfcfc04a9b840816ad",
+    "esi-uclm:1-capitulos/02-objetivos.tex": "9e35b992af2b73e3d8eb72d3444f4be2f30b13175b07bca0ad2d936e61ac6aca",
+    "esi-uclm:1-capitulos/03-antecedentes.tex": "e66d836b0e8d547ef86d21074f275ee82b52591d5295e477af16e8224ba9be5d",
+    "esi-uclm:1-capitulos/04-metodologia.tex": "4e5b8a60c23580294c0cc71d9d76f214353766fd1bb588f8d19c391bbb01e146",
+    "esi-uclm:1-capitulos/05-resultados.tex": "944d74c25cd7b4eb289dce0019910adb637b367812585bae74581e107b7127cf",
+    "esi-uclm:1-capitulos/06-conclusiones.tex": "2b44bdcf71071ab03c19692b0703dea3fce54cec782b68c0ac2afb16b47080b4",
+    "estilo/esi-tfg.cls": [
+      "d6583e5843abd8ce1d4762b066ba9fa9a0ced53cde81dea2340757f5e582a1aa",
+      "f56acaa2f00c629cb51c35b5d9376b1956a0dbc3d14d5ad9650b1d6b8bd65a5c"
+    ],
+    "estilo/esi_logo.pdf": "d11d16523fa40ef6eff39d27fb31dc06c5a9f42d49387a567f9011abd1676730",
+    "figuras/ejemplo.pdf": "19f40c92a58e47d79b7176a6245736e31cbdb9324cb4daaebfddc39949f3b0a8",
+    "tfg.tex": "c58d277caf45f9ae6512532615fae8529d02ffa143896e3f62d5e7784213df6c"
+  }
+}
