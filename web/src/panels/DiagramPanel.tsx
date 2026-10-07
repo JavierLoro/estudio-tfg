@@ -1,16 +1,25 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import type { EditorView } from '@codemirror/view';
+import { redo, undo } from '@codemirror/commands';
 import type { IDockviewPanelProps } from 'dockview-react';
-import { AlertCircle, FileOutput, ImageDown, Maximize2, Minimize2, Save, SquarePlus } from 'lucide-react';
+import { AlertCircle, Code2, FileOutput, ImageDown, Save, SquarePlus } from 'lucide-react';
 import { CodeEditor, type LineDiagnostic } from '../components/CodeEditor';
 import { DocBanners, SaveIndicator } from '../components/DocBanners';
 import { Banner, Button, IconButton, MOD, Spinner, cx } from '../components/ui';
 import type { EstadoDiagrama } from '../api';
 import type { RenderError, RenderOk } from '../lib/diagram';
+import { EDITABLE_KINDS, diagramKind } from '../lib/diagramEdit';
 import { basename, docKey, formatDate } from '../lib/paths';
+import { load, save as saveLocal } from '../lib/storage';
 import { diagramName, exportDiagram, openInsertFigure, refreshDiagramasSoon, useDiagramaItem, useDiagramas } from '../state/diagramas';
-import { ensureDoc, isDirty, requestReveal, saveDoc, useDocs } from '../state/docs';
+import { editContent, ensureDoc, isDirty, requestReveal, saveDoc, useDocs } from '../state/docs';
 import { toast } from '../state/ui';
 import type { FileParams } from '../state/workspace';
+
+// Lienzo editable (Visimer + Mermaid): en diferido, no entra en el bundle inicial.
+const DiagramCanvas = lazy(() => import('./DiagramCanvas'));
+
+const CODE_KEY = 'et:diagram:code';
 
 const ESTADO_LABEL: Record<EstadoDiagrama, string> = {
   'sin-exportar': 'Sin exportar',
@@ -84,12 +93,23 @@ export function DiagramPanel({ params, api }: IDockviewPanelProps<FileParams>) {
   const item = useDiagramaItem(path);
   const { result, good, rendering } = usePreview(content, name ?? 'diagrama');
   const [busy, setBusy] = useState<null | 'export' | 'png'>(null);
-  const [fit, setFit] = useState(true);
-  const host = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (host.current) host.current.innerHTML = good?.svg ?? '';
-  }, [good]);
+  // El código está oculto por defecto; si el tipo de diagrama no se puede editar visualmente, se muestra siempre.
+  const [codeOn, setCodeOn] = useState<boolean>(() => load<boolean>(CODE_KEY, false));
+  const kind = diagramKind(content ?? '');
+  const showCode = codeOn || (content !== undefined && !EDITABLE_KINDS.has(kind));
+  const toggleCode = () => {
+    setCodeOn(!showCode);
+    saveLocal(CODE_KEY, !showCode);
+  };
+  // El historial (⌘Z) es el del editor de código, que sigue montado (oculto) aunque no se vea.
+  const cm = useRef<EditorView | null>(null);
+  const onView = useCallback((v: EditorView | null) => {
+    cm.current = v;
+  }, []);
+  const onCanvasCode = useCallback((next: string) => void editContent(key, next), [key]);
+  const doUndo = useCallback(() => void (cm.current && undo(cm.current)), []);
+  const doRedo = useCallback(() => void (cm.current && redo(cm.current)), []);
+  const doSave = useCallback(() => void saveDoc(key), [key]);
 
   const error = result && !result.ok ? result : null;
   const diags: LineDiagnostic[] = error ? [{ line: error.line, severity: 'error', message: error.message }] : [];
@@ -118,8 +138,19 @@ export function DiagramPanel({ params, api }: IDockviewPanelProps<FileParams>) {
     }
   };
 
+  // ⌘Z / ⇧⌘Z en todo el panel (p. ej. con el foco en la barra), no solo en el lienzo;
+  // el editor de código y los campos de texto llevan su propio deshacer.
+  const onPanelKeyDown = (e: React.KeyboardEvent) => {
+    if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z') return;
+    const t = e.target as HTMLElement;
+    if (t.closest('.cm-editor') || t.isContentEditable || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') return;
+    e.preventDefault();
+    if (e.shiftKey) doRedo();
+    else doUndo();
+  };
+
   return (
-    <div className="flex h-full flex-col bg-bg">
+    <div className="flex h-full flex-col bg-bg" onKeyDown={onPanelKeyDown}>
       <div className="flex h-7 shrink-0 items-center gap-2 border-b border-line px-2 text-[11.5px] text-muted">
         <span className="min-w-0 flex-1 truncate font-mono" title={path}>
           {path}
@@ -135,6 +166,16 @@ export function DiagramPanel({ params, api }: IDockviewPanelProps<FileParams>) {
             }
           />
         )}
+        <Button
+          variant={showCode ? 'primary' : 'default'}
+          onClick={toggleCode}
+          disabled={content !== undefined && !EDITABLE_KINDS.has(kind)}
+          title={showCode ? 'Ocultar el código del diagrama' : 'Mostrar el código del diagrama (Mermaid)'}
+          aria-pressed={showCode}
+        >
+          <Code2 size={12} />
+          Código
+        </Button>
         <IconButton label={`Guardar (${MOD}S)`} onClick={() => saveDoc(key)} disabled={status !== 'ready'}>
           <Save size={14} />
         </IconButton>
@@ -164,13 +205,14 @@ export function DiagramPanel({ params, api }: IDockviewPanelProps<FileParams>) {
         <Banner kind="info">Este .mmd no está en la carpeta diagramas/: se puede editar, pero no exportar ni insertar.</Banner>
       )}
       <div className="flex min-h-0 flex-1">
-        <div className="relative min-w-0 flex-1 border-r border-line">
+        {/* El editor de código no se desmonta al ocultarlo: conserva su historial de deshacer. */}
+        <div className={cx('relative min-w-0 flex-1 border-r border-line', !showCode && 'hidden')}>
           {status === 'loading' && (
             <div className="absolute inset-0 flex items-center justify-center text-muted">
               <Spinner />
             </div>
           )}
-          <CodeEditor docKey={key} lang="mermaid" onSave={() => saveDoc(key)} onSaveCompile={doExport} diagnostics={diags} />
+          <CodeEditor docKey={key} lang="mermaid" onSave={() => saveDoc(key)} onSaveCompile={doExport} diagnostics={diags} onView={onView} />
         </div>
         <div className="flex min-w-0 flex-1 flex-col bg-soft">
           <div className="flex h-7 shrink-0 items-center gap-2 border-b border-line px-2 text-[11.5px] text-muted">
@@ -181,17 +223,20 @@ export function DiagramPanel({ params, api }: IDockviewPanelProps<FileParams>) {
                 {good.width} × {good.height} px
               </span>
             )}
-            <IconButton label={fit ? 'Tamaño real' : 'Ajustar al panel'} onClick={() => setFit((v) => !v)}>
-              {fit ? <Maximize2 size={13} /> : <Minimize2 size={13} />}
-            </IconButton>
           </div>
           {error && (
             <button
               type="button"
               role="alert"
               className="flex shrink-0 items-start gap-1.5 border-b border-danger/30 bg-danger-bg px-2 py-1.5 text-left text-[12px] text-danger"
-              onClick={() => error.line && requestReveal(key, error.line)}
-              title={error.line ? 'Ir a la línea' : undefined}
+              onClick={() => {
+                if (!showCode) {
+                  setCodeOn(true);
+                  saveLocal(CODE_KEY, true);
+                }
+                if (error.line) setTimeout(() => requestReveal(key, error.line as number), 50);
+              }}
+              title={showCode ? (error.line ? 'Ir a la línea' : undefined) : 'Mostrar el código y ir a la línea'}
             >
               <AlertCircle size={13} className="mt-0.5 shrink-0" />
               <span className="min-w-0 flex-1 font-mono text-[11.5px] break-words whitespace-pre-wrap">
@@ -200,21 +245,26 @@ export function DiagramPanel({ params, api }: IDockviewPanelProps<FileParams>) {
               </span>
             </button>
           )}
-          <div className="min-h-0 flex-1 overflow-auto p-3">
-            <div
-              ref={host}
-              aria-label="Vista previa del diagrama"
-              className={cx(
-                'et-diagram-preview mx-auto rounded-md border border-line bg-white p-3 shadow-sm',
-                fit ? '[&>svg]:h-auto [&>svg]:max-w-full' : 'w-max',
-                error && 'opacity-50',
-              )}
-              style={{ width: fit ? 'fit-content' : undefined, maxWidth: fit ? '100%' : undefined }}
-            />
-            {!good && !error && status === 'ready' && (
-              <div className="flex justify-center py-6 text-muted">
-                <Spinner />
-              </div>
+          <div className={cx('min-h-0 flex-1', error && 'opacity-60')}>
+            {content !== undefined && (
+              <Suspense
+                fallback={
+                  <div className="flex justify-center py-6 text-muted">
+                    <Spinner />
+                  </div>
+                }
+              >
+                <DiagramCanvas
+                  code={content}
+                  seed={name ?? 'diagrama'}
+                  broken={!!error}
+                  onCodeChange={onCanvasCode}
+                  onUndo={doUndo}
+                  onRedo={doRedo}
+                  onSave={doSave}
+                  onSaveCompile={doExport}
+                />
+              </Suspense>
             )}
           </div>
         </div>

@@ -328,3 +328,12 @@ body.et-resizing, body.et-resizing * {
     opacity: 0;
   }
 }
+
+/* Lienzo editable de diagramas (Visimer): el error de sintaxis lo muestra el panel, en español. */
+.et-canvas .mw-error-badge {
+  display: none !important;
+}
+.et-canvas .mw-canvas {
+  height: 100%;
+  width: 100%;
+}

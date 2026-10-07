@@ -71,6 +71,22 @@ export function printConfig(seed: string): MermaidConfig {
   };
 }
 
+/**
+ * «Mermaid» para el lienzo editable (Visimer): mismo dibujo que el de la exportación (tema de
+ * impresión, texto SVG puro, misma fuente) y pasando por la cola de lib/mermaid.ts, para no
+ * pisar la configuración global de las notas. Ignora el `initialize` de Visimer.
+ */
+export function canvasMermaid(seed: string) {
+  return {
+    initialize: () => undefined,
+    parse: (code: string) => withMermaid(printConfig(seed), (m) => m.parse(code)),
+    render: async (id: string, code: string) => {
+      await loadDiagramFont();
+      return withMermaid(printConfig(seed), (m) => m.render(id, code));
+    },
+  };
+}
+
 export interface RenderOk {
   ok: true;
   svg: string;

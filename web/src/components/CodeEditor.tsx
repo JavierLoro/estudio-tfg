@@ -24,6 +24,8 @@ interface Props {
   /** «Ver en PDF» (⌘⇧J) con la línea del cursor. */
   onShowInPdf?: (line: number) => void;
   diagnostics?: LineDiagnostic[];
+  /** Avisa de la vista de CodeMirror (null al destruirla), p. ej. para deshacer desde fuera. */
+  onView?: (view: EditorView | null) => void;
 }
 
 /** Marca de transacciones que vienen del store (no deben volver a escribirse en él). */
@@ -59,11 +61,11 @@ function toCmDiagnostics(state: EditorState, diags: LineDiagnostic[] | undefined
   return out;
 }
 
-export function CodeEditor({ docKey, lang, lineNumbers = true, className, onSave, onSaveCompile, onShowInPdf, diagnostics }: Props) {
+export function CodeEditor({ docKey, lang, lineNumbers = true, className, onSave, onSaveCompile, onShowInPdf, diagnostics, onView }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
-  const cb = useRef({ onSave, onSaveCompile, onShowInPdf });
-  cb.current = { onSave, onSaveCompile, onShowInPdf };
+  const cb = useRef({ onSave, onSaveCompile, onShowInPdf, onView });
+  cb.current = { onSave, onSaveCompile, onShowInPdf, onView };
   const diagRef = useRef(diagnostics);
   diagRef.current = diagnostics;
 
@@ -110,6 +112,7 @@ export function CodeEditor({ docKey, lang, lineNumbers = true, className, onSave
       }),
     });
     viewRef.current = view;
+    cb.current.onView?.(view);
     // Al remontar el editor (p. ej. tras mover el archivo) se vuelve a la línea del cursor.
     const savedLine = useCursor.getState().lines[docKey];
     if (savedLine && savedLine > 1) {
@@ -120,6 +123,7 @@ export function CodeEditor({ docKey, lang, lineNumbers = true, className, onSave
     return () => {
       view.destroy();
       viewRef.current = null;
+      cb.current.onView?.(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, docKey, lang, lineNumbers]);
