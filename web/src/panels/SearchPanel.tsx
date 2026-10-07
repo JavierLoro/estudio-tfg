@@ -10,7 +10,7 @@ export function SearchPanel({ params, api }: IDockviewPanelProps<SearchParams>) 
   const [scope, setScope] = useState<Root | 'all'>(params.scope ?? 'all');
   const input = useRef<HTMLInputElement>(null);
 
-  // Si se reabre con otra consulta (⌘K → «Buscar en todo»), actualizar.
+  // Si se reabre con otra consulta (Mod-K → «Buscar en todo»), actualizar.
   useEffect(() => {
     if (params.q != null) setQ(params.q);
     if (params.scope) setScope(params.scope);

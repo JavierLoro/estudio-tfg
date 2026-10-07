@@ -1,7 +1,8 @@
 import { BookMarked, FileCode2, Home, Inbox, Plus, Search, Settings, Workflow } from 'lucide-react';
 import { useUI, type Section } from '../state/ui';
 import { openHome, openSettings, useActivePanel } from '../state/workspace';
-import { MOD, cx } from './ui';
+import { kbd } from '../lib/kbd';
+import { cx } from './ui';
 
 const ITEMS: { id: Section; label: string; icon: React.ReactNode }[] = [
   { id: 'memoria', label: 'Memoria', icon: <FileCode2 size={19} /> },
@@ -68,7 +69,7 @@ export function Rail() {
         </RailButton>
       ))}
       <div className="flex-1" />
-      <RailButton label={`Capturar (${MOD}⇧C)`} onClick={() => useUI.getState().setCaptureOpen(true)}>
+      <RailButton label={`Capturar (${kbd('Mod-Shift-C')})`} onClick={() => useUI.getState().setCaptureOpen(true)}>
         <Plus size={19} />
       </RailButton>
       <RailButton label="Ajustes" active={settingsActive} onClick={() => openSettings()}>

@@ -158,8 +158,3 @@ export function Banner({
 export function Empty({ children }: { children: ReactNode }) {
   return <div className="px-3 py-6 text-center text-[12px] text-faint">{children}</div>;
 }
-
-/** Atajo legible según plataforma. */
-export const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
-export const MOD = isMac ? '⌘' : 'Ctrl+';
-export const ALT = isMac ? '⌥' : 'Alt+';

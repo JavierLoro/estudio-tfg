@@ -2,13 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CornerDownLeft, FilePlus2, FileCode2, FileText, Inbox, Search, Workflow } from 'lucide-react';
 import type { Root } from '../api';
+import { kbd } from '../lib/kbd';
 import { basename, stripExt } from '../lib/paths';
 import { createNoteAt } from '../state/files';
 import { openNewDiagram, sanitizeDiagramName, useNewDiagram } from '../state/diagramas';
 import { flattenTree, useUI } from '../state/ui';
 import { openFile, openResource, openSearch } from '../state/workspace';
 import { fold, highlight, useSearch } from './SearchView';
-import { ALT, cx } from './ui';
+import { cx } from './ui';
 
 type Item =
   | { kind: 'file'; root: Root; path: string; score: number }
@@ -233,10 +234,10 @@ export function QuickOpen() {
           })}
         </div>
         <div className="flex h-7 shrink-0 items-center gap-3 border-t border-line px-3 text-[10.5px] text-faint">
-          <span>↑↓ navegar</span>
-          <span>↵ abrir</span>
-          <span>{ALT}↵ abrir al lado</span>
-          <span>esc cerrar</span>
+          <span>{kbd('ArrowUp')}{kbd('ArrowDown')} navegar</span>
+          <span>{kbd('Enter')} abrir</span>
+          <span>{kbd('Alt-Enter')} abrir al lado</span>
+          <span>{kbd('Escape')} cerrar</span>
         </div>
       </div>
     </div>,

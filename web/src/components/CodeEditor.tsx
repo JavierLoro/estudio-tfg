@@ -21,7 +21,7 @@ interface Props {
   className?: string;
   onSave?: () => void;
   onSaveCompile?: () => void;
-  /** «Ver en PDF» (⌘⇧J) con la línea del cursor. */
+  /** «Ver en PDF» (Mod-Shift-J) con la línea del cursor. */
   onShowInPdf?: (line: number) => void;
   diagnostics?: LineDiagnostic[];
   /** Avisa de la vista de CodeMirror (null al destruirla), p. ej. para deshacer desde fuera. */

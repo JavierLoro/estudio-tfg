@@ -1,8 +1,9 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { AlertCircle, AlertTriangle, CheckCircle2, ExternalLink, FileText, Play, XCircle } from 'lucide-react';
 import { api } from '../api';
-import { Banner, Button, MOD, Spinner } from '../components/ui';
+import { Banner, Button, Spinner } from '../components/ui';
 import { countDiags, isPdfOutdated, useCompile } from '../state/compile';
+import { kbd } from '../lib/kbd';
 import { formatDate } from '../lib/paths';
 import { DiagnosticList, saveAndCompile, usePlacedDiagnostics } from './LatexPanel';
 
@@ -30,7 +31,7 @@ export function PdfPanel() {
   return (
     <div className="flex h-full flex-col bg-sunken">
       <div className="flex h-7 shrink-0 items-center gap-2 border-b border-line bg-bg px-2 text-[11.5px] text-muted">
-        <Button variant="primary" onClick={() => saveAndCompile()} disabled={compiling} title={`Compilar (${MOD}↵ en el editor)`}>
+        <Button variant="primary" onClick={() => saveAndCompile()} disabled={compiling} title={`Compilar (${kbd('Mod-Enter')} en el editor)`}>
           {compiling ? <Spinner size={11} /> : <Play size={12} />}
           {compiling ? 'Compilando…' : 'Compilar'}
         </Button>

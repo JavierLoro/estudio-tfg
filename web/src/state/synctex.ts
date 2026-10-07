@@ -49,7 +49,7 @@ export async function showInPdf(file: string, line: number) {
   }
 }
 
-/** ⌘clic en el PDF: abre el `.tex` en la línea que generó ese punto. */
+/** Mod-clic en el PDF: abre el `.tex` en la línea que generó ese punto. */
 export async function openFromPdf(page: number, x: number, y: number, side = false) {
   try {
     const r = await api.synctexInverse(page, x, y, shownBuild());

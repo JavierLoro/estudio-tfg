@@ -5,7 +5,8 @@ import { api, type Backlink } from '../api';
 import { CodeEditor } from '../components/CodeEditor';
 import { DocBanners, SaveIndicator } from '../components/DocBanners';
 import { MarkdownView } from '../components/Markdown';
-import { IconButton, MOD, Spinner } from '../components/ui';
+import { IconButton, Spinner } from '../components/ui';
+import { kbd } from '../lib/kbd';
 import { langFor } from '../lib/editor';
 import { docKey, ext, stripExt, basename } from '../lib/paths';
 import { ensureDoc, saveDoc, useDocs } from '../state/docs';
@@ -33,7 +34,7 @@ export function NotePanel({ params, api: panelApi }: IDockviewPanelProps<FilePar
   const status = useDocs((s) => s.docs[key]?.status);
   const content = useDocs((s) => s.docs[key]?.content ?? '');
 
-  // ⌘E alterna lectura/edición; ⌘S guarda también en modo lectura.
+  // Mod-E alterna lectura/edición; Mod-S guarda también en modo lectura.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!panelApi.isActive) return;
@@ -53,15 +54,15 @@ export function NotePanel({ params, api: panelApi }: IDockviewPanelProps<FilePar
           {path}
         </span>
         <SaveIndicator docKey={key} />
-        <IconButton label={`Guardar (${MOD}S)`} onClick={() => saveDoc(key)} disabled={status !== 'ready'}>
+        <IconButton label={`Guardar (${kbd('Mod-S')})`} onClick={() => saveDoc(key)} disabled={status !== 'ready'}>
           <Save size={14} />
         </IconButton>
         {isMd && (
           <div className="flex rounded-md border border-line p-px" role="group" aria-label="Modo">
-            <IconButton label={`Leer (${MOD}E)`} active={mode === 'read'} onClick={() => setMode('read')} aria-pressed={mode === 'read'}>
+            <IconButton label={`Leer (${kbd('Mod-E')})`} active={mode === 'read'} onClick={() => setMode('read')} aria-pressed={mode === 'read'}>
               <BookOpen size={13} />
             </IconButton>
-            <IconButton label={`Editar (${MOD}E)`} active={mode === 'edit'} onClick={() => setMode('edit')} aria-pressed={mode === 'edit'}>
+            <IconButton label={`Editar (${kbd('Mod-E')})`} active={mode === 'edit'} onClick={() => setMode('edit')} aria-pressed={mode === 'edit'}>
               <Pencil size={13} />
             </IconButton>
           </div>

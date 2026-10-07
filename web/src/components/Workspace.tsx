@@ -9,6 +9,7 @@ import {
   type DockviewTheme,
 } from 'dockview-react';
 import { ClipboardList, FileCode2, FileText, Home, Inbox, Search, Settings, Workflow, X, FileType2 } from 'lucide-react';
+import { kbd } from '../lib/kbd';
 import { docKey } from '../lib/paths';
 import { indicatorOf, useDocs } from '../state/docs';
 import { useUI } from '../state/ui';
@@ -32,7 +33,7 @@ import { SettingsPanel } from '../panels/SettingsPanel';
 import { DatosPanel } from '../panels/DatosPanel';
 import { DiagramPanel } from '../panels/DiagramPanel';
 import { indicatorColor } from './DocBanners';
-import { MOD, cx } from './ui';
+import { cx } from './ui';
 
 const components = {
   latex: LatexPanel,
@@ -120,7 +121,7 @@ function Watermark(_: IWatermarkPanelProps) {
     <div className="flex h-full flex-col items-center justify-center gap-1 text-[12px] text-faint">
       <p>Abre un archivo desde el panel lateral</p>
       <p>
-        o pulsa <kbd className="rounded border border-line px-1 font-mono">{MOD}K</kbd>
+        o pulsa <kbd className="rounded border border-line px-1 font-mono">{kbd('Mod-K')}</kbd>
       </p>
     </div>
   );

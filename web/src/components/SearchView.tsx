@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { FileText, FileCode2, ListTree } from 'lucide-react';
 import { api, errorMessage, type Root, type SearchItem } from '../api';
 import { basename } from '../lib/paths';
+import { kbd } from '../lib/kbd';
 import { useUI } from '../state/ui';
 import { findOutlineItem, outlineLabel, outlineOrder, useOutline } from '../state/outline';
 import { openFile } from '../state/workspace';
@@ -100,7 +101,7 @@ export function SearchResults({ q, scope, dense }: { q: string; scope: Root | 'a
   return (
     <div className={cx('pb-2', loading && 'opacity-60')}>
       <div className="px-3 py-1 text-[11px] text-faint">
-        {items.length >= 200 ? 'Más de 200' : items.length} coincidencias en {files} {files === 1 ? 'archivo' : 'archivos'} · {'⌥'}clic abre al lado
+        {items.length >= 200 ? 'Más de 200' : items.length} coincidencias en {files} {files === 1 ? 'archivo' : 'archivos'} · {kbd('Alt-clic')} abre al lado
       </div>
       {groups.map((g) =>
         g.kind === 'outline' ? (

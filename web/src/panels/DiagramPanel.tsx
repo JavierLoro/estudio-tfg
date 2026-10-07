@@ -5,8 +5,9 @@ import type { IDockviewPanelProps } from 'dockview-react';
 import { AlertCircle, Code2, FileOutput, ImageDown, Save, SquarePlus, Undo2, Workflow } from 'lucide-react';
 import { CodeEditor, type LineDiagnostic } from '../components/CodeEditor';
 import { DocBanners, SaveIndicator } from '../components/DocBanners';
-import { Banner, Button, IconButton, MOD, Spinner, cx } from '../components/ui';
+import { Banner, Button, IconButton, Spinner, cx } from '../components/ui';
 import type { EstadoDiagrama } from '../api';
+import { kbd } from '../lib/kbd';
 import type { RenderError, RenderOk } from '../lib/diagram';
 import { EDITABLE_KINDS, diagramKind } from '../lib/diagramEdit';
 import { basename, docKey, formatDate } from '../lib/paths';
@@ -101,7 +102,7 @@ export function DiagramPanel({ params, api }: IDockviewPanelProps<FileParams>) {
     setCodeOn(!showCode);
     saveLocal(CODE_KEY, !showCode);
   };
-  // El historial (⌘Z) es el del editor de código, que sigue montado (oculto) aunque no se vea.
+  // El historial (Mod-Z) es el del editor de código, que sigue montado (oculto) aunque no se vea.
   const cm = useRef<EditorView | null>(null);
   const onView = useCallback((v: EditorView | null) => {
     cm.current = v;
@@ -138,7 +139,7 @@ export function DiagramPanel({ params, api }: IDockviewPanelProps<FileParams>) {
     }
   };
 
-  // ⌘Z / ⇧⌘Z en todo el panel (p. ej. con el foco en la barra), no solo en el lienzo;
+  // Mod-Z / Mod-Shift-Z en todo el panel (p. ej. con el foco en la barra), no solo en el lienzo;
   // el editor de código y los campos de texto llevan su propio deshacer.
   const onPanelKeyDown = (e: React.KeyboardEvent) => {
     if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z') return;
@@ -179,10 +180,10 @@ export function DiagramPanel({ params, api }: IDockviewPanelProps<FileParams>) {
           <Code2 size={12} />
           Código
         </Button>
-        <IconButton label={`Deshacer (${MOD}Z)`} onClick={doUndo} disabled={status !== 'ready'}>
+        <IconButton label={`Deshacer (${kbd('Mod-Z')})`} onClick={doUndo} disabled={status !== 'ready'}>
           <Undo2 size={14} />
         </IconButton>
-        <IconButton label={`Guardar (${MOD}S)`} onClick={() => saveDoc(key)} disabled={status !== 'ready'}>
+        <IconButton label={`Guardar (${kbd('Mod-S')})`} onClick={() => saveDoc(key)} disabled={status !== 'ready'}>
           <Save size={14} />
         </IconButton>
         <IconButton label="Descargar PNG (2×)" onClick={doPng} disabled={!good || !!busy}>

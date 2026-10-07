@@ -78,7 +78,7 @@ function useGlobalKeys() {
         e.preventDefault();
         useUI.getState().setCaptureOpen(true);
       } else if (k === 's' && !e.defaultPrevented) {
-        // ⌘S fuera del editor (p. ej. nota en modo lectura): guardar el archivo activo.
+        // Mod-S fuera del editor (p. ej. nota en modo lectura): guardar el archivo activo.
         e.preventDefault();
         const f = activeFile();
         if (f) void saveDoc(docKey(f.root, f.path));
