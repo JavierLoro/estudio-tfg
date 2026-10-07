@@ -299,7 +299,7 @@ export class Settings {
   }
 
   /** Create a memoria from templates/base + templates/perfiles/<perfil> in `dir` (missing or empty) and select it. */
-  initMemoria(body: unknown): Promise<SettingsView> {
+  initMemoria(body: unknown): Promise<SettingsView & { warning?: string }> {
     return this.serial(async () => {
       const { dir: raw, perfil: rawPerfil } = (body as { dir?: unknown; perfil?: unknown } | null) ?? {};
       const perfil = rawPerfil === undefined || rawPerfil === null || rawPerfil === '' ? DEFAULT_PERFIL : rawPerfil;
@@ -309,8 +309,9 @@ export class Settings {
       const dir = normalizeDir(this.cfg, 'dir', raw, false);
       if (fss.existsSync(dir) && !isDirSync(dir)) throw fieldError('dir', `No es una carpeta: ${dir}`);
       if (!isEmptyDir(dir)) throw new HttpError(409, `La carpeta no está vacía: ${dir}`, { field: 'dir' });
+      let warning: string | undefined;
       try {
-        createMemoriaFromTemplate(dir, { perfil });
+        ({ warning } = createMemoriaFromTemplate(dir, { perfil }));
       } catch (e: any) {
         if (e?.code === 'ENOTEMPTY') throw new HttpError(409, `La carpeta no está vacía: ${dir}`, { field: 'dir' });
         throw new HttpError(500, `No se pudo crear la memoria: ${e?.message ?? e}`);
@@ -318,7 +319,8 @@ export class Settings {
       // Re-validate after creation (realpath now resolvable).
       const memoriaDir = normalizeDir(this.cfg, 'dir', dir, true);
       await this.persist({ ...this.stored, memoriaDir });
-      return this.apply();
+      const view = await this.apply();
+      return warning ? { ...view, warning } : view;
     });
   }
 

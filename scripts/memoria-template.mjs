@@ -75,21 +75,33 @@ export function copyTemplate(dir, { perfil = DEFAULT_PERFIL } = {}) {
 }
 
 export const GIT_IDENTITY = ['-c', 'user.name=Estudio TFG', '-c', 'user.email=estudio-tfg@localhost'];
+export const NO_GIT_WARNING = 'La memoria se ha creado sin control de versiones: instala Git para tener historial y actualizaciones de plantilla';
+
+export function hasGit() {
+  try {
+    execFileSync('git', ['--version'], { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Crea `dir` (si hace falta), copia la plantilla con el perfil indicado y, si
  * no tiene `.git`, crea su propio repositorio con un commit inicial. Nunca
  * sobrescribe: si `dir` no está vacía lanza un error con `code = 'ENOTEMPTY'`;
  * si el perfil no existe, con `code = 'EPERFIL'` (antes de crear nada).
- * @returns {{ dir: string, git: boolean, perfil: string }} git = se creó el repositorio.
+ * @returns {{ dir: string, git: boolean, perfil: string, warning?: string }} git = se creó el repositorio.
  */
 export function createMemoriaFromTemplate(dir, { perfil = DEFAULT_PERFIL } = {}) {
   perfilDir(perfil);
   if (!isEmptyDir(dir)) {
     throw Object.assign(new Error(`La carpeta no está vacía: ${dir}`), { code: 'ENOTEMPTY' });
   }
+  const available = hasGit(); // Comprobar antes de copiar para no fallar por Git ausente a mitad.
   fs.mkdirSync(dir, { recursive: true });
   copyTemplate(dir, { perfil });
+  if (!available) return { dir, git: false, perfil, warning: NO_GIT_WARNING };
   if (fs.existsSync(path.join(dir, '.git'))) return { dir, git: false, perfil };
   const git = (...a) => execFileSync('git', a, { cwd: dir, stdio: 'ignore' });
   git('init', '-q', '-b', 'main');

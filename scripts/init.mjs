@@ -47,8 +47,9 @@ const memoria = resolve(env.MEMORIA_DIR || './workspace/memoria');
 const notes = resolve(env.NOTES_DIR || './workspace/notes');
 
 if (isEmptyDir(memoria)) {
-  createMemoriaFromTemplate(memoria, { perfil });
-  console.log(`Memoria creada desde la plantilla (perfil ${perfil}) en ${memoria} (repositorio git propio)`);
+  const result = createMemoriaFromTemplate(memoria, { perfil });
+  console.log(`Memoria creada desde la plantilla (perfil ${perfil}) en ${memoria}${result.git ? ' (repositorio git propio)' : ''}`);
+  if (result.warning) console.warn(result.warning);
 } else {
   console.log(`Memoria ya existe en ${memoria}: no se toca`);
 }

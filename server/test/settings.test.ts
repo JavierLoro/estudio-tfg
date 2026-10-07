@@ -5,12 +5,14 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { expandUserPath } from '../src/settings.ts';
 import { REPO_ROOT } from '../src/config.ts';
+import { NO_GIT_WARNING } from '../../scripts/memoria-template.mjs';
 import { flatPaths, setup, type TestEnv } from './helpers.ts';
 
 let t: TestEnv | null = null;
 const extra: string[] = [];
 afterEach(async () => {
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
   await t?.close();
   t = null;
   for (const d of extra.splice(0)) await fs.rm(d, { recursive: true, force: true });
@@ -296,6 +298,7 @@ describe('POST /api/settings/init-memoria', () => {
     const r = await t.app.inject({ method: 'POST', url: '/api/settings/init-memoria', payload: { dir } });
     expect(r.statusCode).toBe(200);
     expect(r.json().values.memoriaDir).toBe(dir);
+    expect(r.json()).not.toHaveProperty('warning');
     expect(r.json().sources.memoriaDir).toBe('settings');
     expect((await fs.stat(path.join(dir, 'tfg.tex'))).isFile()).toBe(true);
     expect((await fs.stat(path.join(dir, '.git'))).isDirectory()).toBe(true);
@@ -305,6 +308,25 @@ describe('POST /api/settings/init-memoria', () => {
     const tree = (await t.app.inject({ url: '/api/tree?root=memoria' })).json();
     expect(flatPaths(tree.entries)).toContain('tfg.tex');
     expect(JSON.parse(await fs.readFile(t.cfg.settingsFile, 'utf8')).memoriaDir).toBe(dir);
+  });
+
+  it('sin Git crea una memoria completa, la selecciona y devuelve un aviso', async () => {
+    t = await setup();
+    vi.stubEnv('PATH', '');
+    const dir = path.join(t.dir, 'memoria-sin-git');
+    const r = await t.app.inject({ method: 'POST', url: '/api/settings/init-memoria', payload: { dir, perfil: 'generico' } });
+    expect(r.statusCode).toBe(200);
+    expect(r.json().warning).toBe(NO_GIT_WARNING);
+    expect(r.json().values.memoriaDir).toBe(dir);
+    expect(r.json().sources.memoriaDir).toBe('settings');
+    for (const rel of ['tfg.tex', 'datos.tex', 'bibliografia.bib', 'estilo/memoria.cls', 'estilo/institucion.tex', '1-capitulos/04-desarrollo.tex']) {
+      expect((await fs.stat(path.join(dir, rel))).isFile()).toBe(true);
+    }
+    await expect(fs.stat(path.join(dir, '.git'))).rejects.toMatchObject({ code: 'ENOENT' });
+    expect(JSON.parse(await fs.readFile(t.cfg.settingsFile, 'utf8')).memoriaDir).toBe(dir);
+    const retry = await t.app.inject({ method: 'POST', url: '/api/settings/init-memoria', payload: { dir } });
+    expect(retry.statusCode).toBe(409);
+    expect((await t.app.inject({ url: '/api/settings' })).json()).not.toHaveProperty('warning');
   });
 
   it('empty existing dir → ok; non-empty → 409 and nothing changes', async () => {
