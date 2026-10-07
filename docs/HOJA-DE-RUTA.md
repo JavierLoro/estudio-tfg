@@ -36,9 +36,11 @@ Las tareas de una misma fase sin dependencia entre sí pueden ir en paralelo si 
 2. **Nunca escribas en la memoria ni en el vault reales del usuario** (las carpetas configuradas en `.env`/`data/settings.json`). Para probar en el navegador, levanta **otra instancia** con copias en el scratchpad:
    - copia una memoria de plantilla con `copyTemplate` de `scripts/memoria-template.mjs` y las notas de `test/fixtures/notes`;
    - API en otro puerto: `cd server && PORT=<p> NOTES_DIR=… MEMORIA_DIR=… BUILD_DIR=<scratch>/data/builds ALLOWED_ROOTS=<scratch> npx tsx src/index.ts`;
+   - `data/settings.json` (que manda sobre `.env`) vive junto a `BUILD_DIR`, así que con `BUILD_DIR` en el scratchpad la instancia no lee los ajustes reales;
+   - no uses los puertos 8787/5173: suele haber un servidor del usuario abierto en ellos;
    - web en otro puerto: `cd web && VITE_API_TARGET=http://localhost:<p> npx vite --port <q> --strictPort`;
    - al terminar, para tus servidores y cierra las pestañas que abriste (muchas pestañas abiertas agotan las conexiones SSE).
-3. **Git**: nada de `git stash`, `git checkout -- …` ni `git reset` (puede haber otros agentes con cambios sin commit). Commit solo si el usuario lo pide; si trabajas desde la issue con permiso, rama `hoja/<id>` (p. ej. `hoja/a2`) y PR que la cierre (`Closes #<n>`).
+3. **Git**: nada de `git stash`, `git checkout -- …` ni `git reset` (puede haber otros agentes con cambios sin commit). **Encargarte una tarea de esta hoja de ruta («haz la issue #N») te autoriza a crear la rama `hoja/<id>` (p. ej. `hoja/a2`), hacer commits en ella, subirla y abrir un PR que cierre la issue (`Closes #<n>`)**. Nunca hagas commit ni push directamente en `main` ni fusiones el PR: eso lo decide el usuario.
 4. **Antes de dar la tarea por terminada**: `npm test`, `npm run typecheck --prefix server`, `npm run build --prefix web` y `node --test worker/*.test.mjs` en verde. Si tocas la plantilla: compila todos los perfiles con el worker con **0 avisos**. Si tocas la interfaz: pruébala en el navegador (en tu instancia aparte).
 5. **Contrato**: si cambia la API, los eventos o un comportamiento visible, actualiza `docs/CONTRACT.md` en una sección versionada (la siguiente libre) o en «Precisiones».
 6. **No implementes Windows a ciegas**: lo que solo se puede comprobar en Windows, cúbrelo con tests (`path.win32` inyectable, errores simulados con `vi.spyOn`) y márcalo «a verificar en Windows» en el informe.
@@ -80,8 +82,12 @@ Resultado: en Windows con Node 24, Git para Windows y Docker Desktop (worker), `
 - **Contexto**: PLATAFORMAS.md S1, S4. `package.json` (raíz, script `dev`), `server/package.json` (`dev`: `tsx watch src/index.ts`), `web/package.json` (`dev`: `vite`), `.claude/launch.json`.
 - **Alcance**:
   - `scripts/dev.mjs` sin dependencias: lanza `server` y `web` con `process.execPath` + el binario JS de cada herramienta (`node_modules/tsx/dist/cli.mjs`, `node_modules/vite/bin/vite.js`), sin `shell: true`; prefija cada línea con `[api]`/`[web]`; si uno termina, cierra el otro (en win32 `taskkill /pid <pid> /T /F`; en POSIX, señal al grupo); comprueba antes que existen `server/node_modules` y `web/node_modules` y si no, dice qué ejecutar.
-  - `"dev": "node scripts/dev.mjs"` en `package.json`; actualizar `.claude/launch.json` si usa `npm`.
-- **Criterios de aceptación**: en macOS `npm run dev` arranca los dos con prefijos; Ctrl+C cierra ambos sin procesos huérfanos (`lsof -i :8787 -i :5173` vacío después); si un proceso falla, el otro se cierra y el código de salida es distinto de 0.
+  - Hereda el entorno (`PORT`, `VITE_API_TARGET`, `NOTES_DIR`…) y reenvía a Vite los argumentos tras `--` (`npm run dev -- --port 5180`), para poder probarlo en otros puertos con carpetas de prueba.
+  - `stdin` de los hijos en `'ignore'` (en POSIX, con `detached`, un hijo que lee la terminal se queda parado); `FORCE_COLOR=1` para conservar colores.
+  - Ctrl+C (SIGINT/SIGTERM) cierra ambos y sale con código 0. Si un hijo termina solo (no por Ctrl+C), cierra el otro y sale con su código (o 1).
+  - Un fallo del servidor dentro de `tsx watch` **no** cuenta como «terminar»: `tsx watch` sigue esperando cambios, que es lo esperado en desarrollo.
+  - `"dev": "node scripts/dev.mjs"` en `package.json`; en `.claude/launch.json`, sustituir las dos entradas que usan `npm` por una sola `dev` con `runtimeExecutable: "node"`, `runtimeArgs: ["scripts/dev.mjs"]` y `port: 5173`.
+- **Criterios de aceptación** (en macOS, en puertos y carpetas de prueba: `PORT=8790 VITE_API_TARGET=http://localhost:8790 NOTES_DIR=… MEMORIA_DIR=… BUILD_DIR=<scratch>/data/builds npm run dev -- --port 5180`): arranca los dos con prefijos `[api]`/`[web]`; Ctrl+C cierra ambos sin procesos huérfanos (`lsof -i :8790 -i :5180` y `pgrep -fl 'tsx|vite'` sin restos) y sale con 0; si Vite falla (puerto ocupado) o se mata el proceso de `tsx`, el otro se cierra y el código de salida es distinto de 0; si faltan dependencias, mensaje en español y código 1.
 - **Verificación**: lo anterior en macOS; revisar el código de win32 contra la documentación de Node (`child_process`, `taskkill`). Marcar «a verificar en Windows».
 - **Archivos**: `scripts/dev.mjs`, `package.json`, `.claude/launch.json`.
 - **Contrato**: no. **Depende de**: —. **Modelo**: Sonnet. **Esfuerzo**: S.

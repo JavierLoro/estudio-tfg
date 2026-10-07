@@ -66,6 +66,6 @@ Antes de dar un cambio por terminado: tests del servidor en verde, `tsc` del ser
 
 - Mensajes de commit en español, una línea descriptiva (p. ej. «Inicio como vista propia (no pestaña) y ancho del panel lateral ajustable»).
 - Autoría con el noreply de GitHub, como está configurado; no uses otros correos.
-- Haz commit o push solo cuando lo pida el usuario.
+- Haz commit o push solo cuando lo pida el usuario. Encargar una tarea de [docs/HOJA-DE-RUTA.md](docs/HOJA-DE-RUTA.md) autoriza a trabajar en la rama `hoja/<id>` y abrir un PR; nunca commit directo en `main` ni fusionar el PR.
 - No uses `git stash`, `git checkout -- …` ni `git reset` para comparar o probar: puede haber otros agentes con cambios sin commit en el mismo árbol. Para ver el estado anterior usa `git show HEAD:<ruta>` o un `git worktree` aparte.
 - Licencia AGPL-3.0. La plantilla deriva de ARCO (GPL-2.0+): conserva su aviso de copyright en `templates/base/estilo/memoria.cls`. No copies código de repositorios sin licencia; solo las ideas.
