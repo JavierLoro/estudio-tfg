@@ -485,3 +485,9 @@ Los diagramas viven en la memoria: fuente en `diagramas/<nombre>.mmd` (Mermaid) 
 - `WATCH_POLLING=auto|on|off`, por defecto `auto`. `auto` usa sondeo si existe `/.dockerenv` o alguna raíz vigilada es UNC (`\\servidor\recurso` o `//servidor/recurso`) o `/mnt/<letra>/…`. `on` lo fuerza y `off` usa eventos nativos. El sondeo comprueba archivos cada 1000 ms y espera 150 ms de estabilidad antes de notificar; se recalcula al cambiar carpetas.
 - `GET /api/status` añade `watcher: "ok" | "error"` y, con error, `watcherMessage` en español con el detalle resumido. Los errores se registran en el servidor y permanecen hasta reiniciar la vigilancia (al cambiar Ajustes o reiniciar el servidor). Sin carpetas configuradas, el estado es `ok`.
 - El evento SSE `watcher` lleva esos mismos campos cuando cambia el estado o termina un reinicio. La interfaz relee el estado y muestra «Cambios en disco sin vigilar» con el detalle en el tooltip, sin interrumpir la edición.
+
+### Git en la app Docker
+
+- La imagen de la app configura `safe.directory=*` a nivel de sistema **solo dentro del contenedor**, para poder crear commits en memorias montadas desde el host; no cambia la configuración Git del host.
+- Al actualizar plantilla, una memoria sin `.git` sigue devolviendo `commit: null`. Si existe `.git` y falla la comprobación o el commit, `revisar` incluye una entrada para `.git` con las primeras tres líneas útiles de `stderr` (máximo 500 caracteres), visible en Datos del trabajo. Los archivos aplicados y su registro para deshacer se conservan.
+- Si Git falla al deshacer una actualización con commit, la API devuelve 502 con ese detalle resumido antes de restaurar los archivos, para que se pueda corregir y reintentar.
