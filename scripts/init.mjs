@@ -42,7 +42,7 @@ const env = Object.fromEntries(
     .map((l) => { const i = l.indexOf('='); return [l.slice(0, i).trim(), l.slice(i + 1).replace(/\s+#.*$/, '').trim()]; }),
 );
 
-const resolve = (p) => path.resolve(repo, p.startsWith('~/') ? path.join(os.homedir(), p.slice(2)) : p);
+const resolve = (p) => path.resolve(repo, p === '~' ? os.homedir() : /^~[\\/]/.test(p) ? path.join(os.homedir(), p.slice(2)) : p);
 const memoria = resolve(env.MEMORIA_DIR || './workspace/memoria');
 const notes = resolve(env.NOTES_DIR || './workspace/notes');
 

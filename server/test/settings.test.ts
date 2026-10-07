@@ -2,13 +2,15 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { expandUserPath } from '../src/settings.ts';
 import { REPO_ROOT } from '../src/config.ts';
 import { flatPaths, setup, type TestEnv } from './helpers.ts';
 
 let t: TestEnv | null = null;
 const extra: string[] = [];
 afterEach(async () => {
+  vi.restoreAllMocks();
   await t?.close();
   t = null;
   for (const d of extra.splice(0)) await fs.rm(d, { recursive: true, force: true });
@@ -43,6 +45,7 @@ describe('GET /api/settings', () => {
     });
     expect(s.sources).toEqual({ notesDir: 'env', resourcesSubdir: 'env', memoriaDir: 'env', memoriaMain: 'default' });
     expect(s.allowedRoots).toEqual([t.dir]);
+    expect(s.pathSep).toBe(path.sep);
     expect(s.checks).toContainEqual({ key: 'memoriaMain', level: 'ok', message: 'Archivo principal: tfg.tex' });
     expect(s.checks.find((c: any) => c.key === 'notesDir' && c.level === 'warning').message).toMatch(/Obsidian/);
     expect(s.checks.every((c: any) => c.level !== 'error')).toBe(true);
@@ -468,5 +471,14 @@ describe('hot-apply restarts the watcher', () => {
     await sleep(500);
     expect(changes).toContainEqual({ root: 'notes', path: 'nueva.md', kind: 'add' });
     expect(changes.some((c) => c.path === 'vieja.md')).toBe(false);
+  });
+});
+
+
+describe('rutas de ajustes con home', () => {
+  it('expande ~, ~/ y ~\\ con la ruta del servidor', () => {
+    vi.spyOn(os, 'homedir').mockReturnValue(path.join(os.tmpdir(), 'home-ficticio'));
+    for (const p of ['~/notas', '~\\notas']) expect(expandUserPath(p)).toBe(path.join(os.homedir(), 'notas'));
+    expect(expandUserPath('~')).toBe(os.homedir());
   });
 });

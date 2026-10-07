@@ -29,6 +29,7 @@ export interface SettingsCheck {
 }
 
 export interface SettingsResponse {
+  pathSep: '/' | '\\';
   values: SettingsValues;
   sources: Record<SettingsKey, SettingsSource>;
   allowedRoots: string[];

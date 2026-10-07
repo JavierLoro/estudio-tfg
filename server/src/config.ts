@@ -35,7 +35,7 @@ export const REPO_ROOT = path.resolve(import.meta.dirname, '..', '..');
 export function expandPath(p: string, base: string, paths = path): string {
   let v = p.trim();
   if (v === '~') v = os.homedir();
-  else if (v.startsWith('~/')) v = paths.join(os.homedir(), v.slice(2));
+  else if (/^~[\\/]/.test(v)) v = paths.join(os.homedir(), v.slice(2));
   return paths.resolve(base, v);
 }
 

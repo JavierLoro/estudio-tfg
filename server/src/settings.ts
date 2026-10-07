@@ -28,6 +28,7 @@ export interface Check {
 }
 
 export interface SettingsView {
+  pathSep: '/' | '\\';
   values: SettingValues;
   sources: Record<SettingKey, Source>;
   allowedRoots: string[];
@@ -50,7 +51,7 @@ export function expandUserPath(v: string): string {
   const home = os.homedir();
   let p = v.trim();
   if (p === '~') p = home;
-  else if (p.startsWith('~/')) p = path.join(home, p.slice(2));
+  else if (/^~[\\/]/.test(p)) p = path.join(home, p.slice(2));
   return p;
 }
 
@@ -382,6 +383,7 @@ export class Settings {
 
   async view(): Promise<SettingsView> {
     return {
+      pathSep: path.sep as '/' | '\\',
       values: this.pick(this.cfg),
       sources: this.sources(),
       allowedRoots: [...this.cfg.allowedRoots],
