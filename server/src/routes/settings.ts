@@ -72,7 +72,7 @@ export default async function settingsRoutes(app: FastifyInstance, { ctx }: { ct
       dirs.push(describe(abs, ent.name));
     }
     dirs.sort((a, b) => collator.compare(a.name, b.name) || a.name.localeCompare(b.name));
-    const parent = roots.includes(real) ? null : path.dirname(real);
+    const parent = roots.some((r) => isInside(r, real) && isInside(real, r)) ? null : path.dirname(real);
     return { path: real, parent, dirs };
   });
 }

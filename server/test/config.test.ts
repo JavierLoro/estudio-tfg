@@ -33,7 +33,7 @@ describe('config: ALLOWED_ROOTS por sistema', () => {
     { name: 'punto y coma dentro de un nombre POSIX', paths: path.posix, base: '/repo', value: '/a;b:/c', expected: ['/a;b', '/c'] },
   ])('$name', ({ paths, base, value, expected }) => {
     // Las rutas simuladas no existen en el sistema que ejecuta la prueba.
-    vi.spyOn(fs, 'realpathSync').mockImplementation(() => {
+    vi.spyOn(fs.realpathSync, 'native').mockImplementation(() => {
       throw Object.assign(new Error('Carpeta inexistente'), { code: 'ENOENT' });
     });
     expect(parseAllowedRoots(value, base, paths)).toEqual(expected);

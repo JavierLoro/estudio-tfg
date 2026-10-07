@@ -81,9 +81,11 @@ export function isConfigured(cfg: Config): boolean {
   return isDirSync(cfg.notesDir) && isDirSync(cfg.memoriaDir);
 }
 
-/** Short hash of notesDir|memoriaDir (web uses it to key drafts). */
-export function instanceId(cfg: Config): string {
-  return crypto.createHash('sha256').update(`${cfg.notesDir}|${cfg.memoriaDir}`).digest('hex').slice(0, 12);
+/** Hash corto de rutas canónicas; la web lo usa para recuperar borradores. */
+export function instanceId(cfg: Config, paths = path): string {
+  const notes = realpathLoose(cfg.notesDir, paths);
+  const memoria = realpathLoose(cfg.memoriaDir, paths);
+  return crypto.createHash('sha256').update(`${notes}|${memoria}`).digest('hex').slice(0, 12);
 }
 
 /**

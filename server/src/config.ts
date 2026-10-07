@@ -52,7 +52,7 @@ export function realpathLoose(p: string, paths = path): string {
   let probe = paths.resolve(p);
   for (;;) {
     try {
-      const real = fs.realpathSync(probe);
+      const real = fs.realpathSync.native(probe);
       return missing.length ? paths.join(real, ...missing.reverse()) : real;
     } catch {
       const parent = paths.dirname(probe);
