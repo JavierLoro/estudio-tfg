@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ArrowUp, BookMarked, ChevronRight, FileCode2, Folder, GitBranch, HardDrive } from 'lucide-react';
-import { absCrumbs, isAbsPath, joinAbs, type PathSep } from '../lib/abspath';
+import { absCrumbs, isAbsPath, joinAbs, relUnder, type PathSep } from '../lib/abspath';
 import { api, errorMessage, type FsDirsResponse } from '../api';
 import { Button, Empty, IconButton, Modal, Spinner, cx } from './ui';
 
@@ -86,8 +86,10 @@ export function DirPicker({
     setError(null);
     setListing(null);
     const start = initialPath?.trim();
-    void go(start && isAbsPath(start) ? start : null, true);
-  }, [open, initialPath, defaultName, go]);
+    // El padre de una raíz permitida (p. ej. /data/memoria) no es navegable.
+    const allowed = start && isAbsPath(start) && allowedRoots.some((r) => relUnder(r, start) !== null);
+    void go(allowed ? start : null, true);
+  }, [open, initialPath, defaultName, allowedRoots, go]);
 
   const target = cur && mode === 'create' && name.trim() ? joinAbs(cur, name.trim(), pathSep) : cur;
   const invalidName = mode === 'create' && /[/\\]|^\.\.?$/.test(name.trim());

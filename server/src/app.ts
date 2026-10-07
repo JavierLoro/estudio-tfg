@@ -61,7 +61,7 @@ export async function buildApp(cfg: Config, opts: BuildOptions = {}): Promise<{ 
   });
   const bus = opts.bus ?? new EventBus();
   const compiler = new Compiler(cfg, (r) => bus.emit('compile', r));
-  const watcher = opts.watch ? new WatchManager(cfg, bus) : null;
+  const watcher = opts.watch ? new WatchManager(cfg, bus, (err) => app.log.error({ err }, 'Error al vigilar archivos')) : null;
   const settings = new Settings(cfg, bus, { onApply: () => watcher?.restart() });
   // settings.json > .env > defaults (invalid stored values fall back and are reported as checks).
   settings.load();

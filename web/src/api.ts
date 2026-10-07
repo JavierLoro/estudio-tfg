@@ -9,6 +9,8 @@ export interface Status {
   resourcesSubdir: string;
   syncConflicts: string[];
   worker: 'up' | 'down';
+  watcher: 'ok' | 'error';
+  watcherMessage?: string;
   /** v0.2: false si `notesDir` o `memoriaDir` no existen. */
   configured?: boolean;
   /** v0.2: hash corto de `notesDir|memoriaDir` (prefijo de borradores y layout). */

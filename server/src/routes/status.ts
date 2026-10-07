@@ -31,6 +31,7 @@ export default async function statusRoutes(app: FastifyInstance, { ctx }: { ctx:
       resourcesSubdir: cfg.resourcesSubdir,
       syncConflicts: (conflicts as string[][]).flat().sort(),
       worker,
+      ...(ctx.watcher?.status ?? { watcher: 'ok' }),
       configured: isConfigured(cfg),
       instanceId: instanceId(cfg),
     };

@@ -257,6 +257,43 @@ describe('GET /api/memoria/plantilla (vista previa)', () => {
 });
 
 describe('git y deshacer', () => {
+  it('un error de Git al deshacer se explica antes de restaurar archivos', async () => {
+    await boot(async (d) => { await writeV03(d); gitInit(); });
+    const p = await preview();
+    const r = (await actualizar({ perfil: p.perfil, cambios: p.cambios })).json();
+    expect(r.commit).toBeTruthy();
+    const applied = await snapshot();
+    await fs.appendFile(mem('.git/config'), '\n[configuración rota\n');
+    const u = await deshacer(r.deshacer);
+    expect(u.statusCode).toBe(502);
+    expect(u.json().error).toMatch(/No se pudo deshacer el commit.*bad config line/);
+    expect(await snapshot()).toEqual(applied);
+  });
+
+  it('un repositorio inaccesible devuelve el stderr de Git como aviso', async () => {
+    await boot(async (d) => { await writeV03(d); gitInit(); });
+    await fs.appendFile(mem('.git/config'), '\n[configuración rota\n');
+    const p = await preview();
+    const r = await actualizar({ perfil: p.perfil, cambios: p.cambios });
+    expect(r.statusCode).toBe(200);
+    expect(r.json().commit).toBeNull();
+    expect(r.json().revisar).toContainEqual({ archivo: '.git', motivo: expect.stringMatching(/no se pudo hacer el commit:.*bad config line/) });
+    expect(await exists('estilo/memoria.cls')).toBe(true);
+    expect(r.json().deshacer).toBeTruthy();
+  });
+
+  it('un commit rechazado muestra las líneas de stderr y permite deshacer', async () => {
+    await boot(async (d) => { await writeV03(d); gitInit(); });
+    const before = await snapshot();
+    await fs.writeFile(mem('.git/hooks/pre-commit'), '#!/bin/sh\necho "Fallo ficticio del hook" >&2\necho "Detalle del rechazo" >&2\nexit 1\n', { mode: 0o755 });
+    const p = await preview();
+    const r = (await actualizar({ perfil: p.perfil, cambios: p.cambios })).json();
+    expect(r.commit).toBeNull();
+    expect(r.revisar).toContainEqual({ archivo: '.git', motivo: 'no se pudo hacer el commit: Fallo ficticio del hook · Detalle del rechazo' });
+    expect((await deshacer(r.deshacer)).statusCode).toBe(200);
+    expect(await snapshot()).toEqual(before);
+  });
+
   it('(e) commit solo de los archivos afectados; los demás cambios del usuario siguen sin commit', async () => {
     await boot(async (d) => {
       await writeV03(d);

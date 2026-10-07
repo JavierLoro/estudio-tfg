@@ -479,3 +479,22 @@ Los diagramas viven en la memoria: fuente en `diagramas/<nombre>.mmd` (Mermaid) 
 - `~`, `~/…` y `~\\…` expanden el home del servidor, también en `npm run init`. Las subcarpetas de recursos siguen siendo relativas, con `/`.
 - `POST /api/settings/init-memoria` comprueba `git --version` antes de copiar. Sin Git crea y selecciona la memoria igualmente (HTTP 200), sin repositorio nuevo, y añade `warning: "La memoria se ha creado sin control de versiones: instala Git para tener historial y actualizaciones de plantilla"`. Con Git conserva el repositorio y commit inicial; `warning` se omite. `npm run init` usa la misma lógica y muestra el aviso. Ajustes conserva el aviso visible tras crearla; la actualización de plantilla sin repositorio sigue devolviendo `commit: null`.
 - Las comprobaciones de raíces usan rutas canónicas nativas. `instanceId` mantiene SHA-256 truncado a 12 caracteres de `notesDir|memoriaDir`, con ambas rutas canónicas (ancestro existente más sufijo si aún no existen). En las rutas actuales de macOS el identificador se conserva; los alias de una misma carpeta comparten identificador. Al sustituir una configuración histórica con alias que daban otro hash, los borradores se mantienen en sus claves anteriores de `localStorage`; se pueden recuperar volviendo a esa configuración con la versión previa y guardándolos antes de actualizar.
+
+## Vigilancia de archivos en Docker y unidades de red (v0.10)
+
+- `WATCH_POLLING=auto|on|off`, por defecto `auto`. `auto` usa sondeo si existe `/.dockerenv` o alguna raíz vigilada es UNC (`\\servidor\recurso` o `//servidor/recurso`) o `/mnt/<letra>/…`. `on` lo fuerza y `off` usa eventos nativos. El sondeo comprueba archivos cada 1000 ms y espera 150 ms de estabilidad antes de notificar; se recalcula al cambiar carpetas.
+- `GET /api/status` añade `watcher: "ok" | "error"` y, con error, `watcherMessage` en español con el detalle resumido. Los errores se registran en el servidor y permanecen hasta reiniciar la vigilancia (al cambiar Ajustes o reiniciar el servidor). Sin carpetas configuradas, el estado es `ok`.
+- El evento SSE `watcher` lleva esos mismos campos cuando cambia el estado o termina un reinicio. La interfaz relee el estado y muestra «Cambios en disco sin vigilar» con el detalle en el tooltip, sin interrumpir la edición.
+
+### Git en la app Docker
+
+- La imagen de la app configura `safe.directory=*` a nivel de sistema **solo dentro del contenedor**, para poder crear commits en memorias montadas desde el host; no cambia la configuración Git del host.
+- Al actualizar plantilla, una memoria sin `.git` sigue devolviendo `commit: null`. Si existe `.git` y falla la comprobación o el commit, `revisar` incluye una entrada para `.git` con las primeras tres líneas útiles de `stderr` (máximo 500 caracteres), visible en Datos del trabajo. Los archivos aplicados y su registro para deshacer se conservan.
+- Si Git falla al deshacer una actualización con commit, la API devuelve 502 con ese detalle resumido antes de restaurar los archivos, para que se pueda corregir y reintentar.
+
+### Carpetas y acceso en Docker
+
+- El perfil `app` monta `HOST_HOME` en `/data/home`; por defecto usa `Documents` bajo `HOME` o `USERPROFILE` del host. Las raíces elegibles son `/data/home`, `/data/notes` y `/data/memoria`; los datos internos de compilación e historial quedan fuera del selector.
+- Ajustes usa esas rutas POSIX del contenedor. Se puede elegir otro vault o crear una memoria bajo `/data/home` sin cambiar `.env`; la selección persiste en `data/settings.json`. App y worker comparten los artefactos del host `data/builds`.
+- Si la carpeta inicial del selector está fuera de las raíces permitidas (por ejemplo, el padre `/data` de `/data/memoria` al crear una memoria), empieza directamente en la lista de raíces.
+- El acceso a Ajustes mantiene la regla de loopback o `AUTH_TOKEN`: una conexión desde el navegador a un puerto publicado de Docker puede llegar con la IP del puente. El modo Docker se configura con un token propio y el navegador lo pide al entrar. Los puertos publicados siguen ligados a `127.0.0.1`.

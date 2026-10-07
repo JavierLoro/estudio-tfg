@@ -366,11 +366,19 @@ async function gitWithIdentity(cwd: string, args: string[], env?: NodeJS.Process
 /** La memoria es un repositorio git (su raíz es la de la memoria). */
 async function isGitRepo(dir: string): Promise<boolean> {
   try {
-    const top = (await git(dir, ['rev-parse', '--show-toplevel'])).trim();
-    return (await fs.realpath(top)) === (await fs.realpath(dir));
-  } catch {
-    return false;
+    await fs.stat(path.join(dir, '.git'));
+  } catch (e: any) {
+    if (e?.code === 'ENOENT') return false;
+    throw e;
   }
+  const top = (await git(dir, ['rev-parse', '--show-toplevel'])).trim();
+  return (await fs.realpath(top)) === (await fs.realpath(dir));
+}
+
+/** Conserva las primeras líneas útiles de stderr sin volcar un log entero. */
+function gitError(e: any): string {
+  return String(e?.stderr || e?.message || e).replace(/[\x00-\x1f\x7f]/g, (c) => c === '\n' ? '\n' : ' ')
+    .trim().split('\n').filter(Boolean).slice(0, 3).join(' · ').slice(0, 500);
 }
 
 async function gitHead(dir: string): Promise<string | null> {
@@ -553,12 +561,12 @@ export async function aplicarPlantilla(ctx: Ctx, body: unknown): Promise<Resulta
 
       const revisar = [...plan.revisar];
       let commit: string | null = null;
-      if (await isGitRepo(cfg.memoriaDir)) {
-        try {
+      try {
+        if (await isGitRepo(cfg.memoriaDir)) {
           commit = await commitPaths(cfg.memoriaDir, plan.cambios, `Actualizar plantilla a ${plan.versionPlantilla}`);
-        } catch (e: any) {
-          revisar.push({ archivo: '.git', motivo: `no se pudo hacer el commit: ${String(e?.stderr || e?.message || e).trim().split('\n')[0]}` });
         }
+      } catch (e: any) {
+        revisar.push({ archivo: '.git', motivo: `no se pudo hacer el commit: ${gitError(e)}` });
       }
       if (commit) await saveRegistro(cfg, { ...reg, commit });
       return { aplicados: plan.cambios, revisar, commit, deshacer: id };
@@ -589,8 +597,12 @@ export async function deshacerPlantilla(ctx: Ctx, body: unknown): Promise<Result
         actuales.set(a.archivo, cur);
       }
       let commit: string | null = null;
-      if (reg.commit && (await isGitRepo(cfg.memoriaDir)) && (await gitHead(cfg.memoriaDir)) === reg.commit) {
-        commit = await revertHead(cfg.memoriaDir, reg.commit, `Deshacer la actualización de la plantilla a ${reg.version}`, regDir(cfg));
+      try {
+        if (reg.commit && (await isGitRepo(cfg.memoriaDir)) && (await gitHead(cfg.memoriaDir)) === reg.commit) {
+          commit = await revertHead(cfg.memoriaDir, reg.commit, `Deshacer la actualización de la plantilla a ${reg.version}`, regDir(cfg));
+        }
+      } catch (e: any) {
+        throw new HttpError(502, `No se pudo deshacer el commit de la plantilla: ${gitError(e)}`);
       }
       for (const a of reg.archivos) {
         const r = await resolveSafe(cfg, 'memoria', a.archivo);

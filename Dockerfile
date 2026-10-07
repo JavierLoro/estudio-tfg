@@ -18,7 +18,9 @@ RUN npm ci --omit=dev --no-audit --no-fund
 # --- final ---
 FROM node:24-slim
 # git: necesario para «Crear memoria desde la plantilla» (repo propio de la memoria)
-RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
+ && git config --system --add safe.directory '*' \
+ && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=8787
