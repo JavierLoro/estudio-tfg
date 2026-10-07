@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import type { EditorView } from '@codemirror/view';
 import { redo, undo } from '@codemirror/commands';
 import type { IDockviewPanelProps } from 'dockview-react';
-import { AlertCircle, Code2, FileOutput, ImageDown, Save, SquarePlus } from 'lucide-react';
+import { AlertCircle, Code2, FileOutput, ImageDown, Save, SquarePlus, Undo2, Workflow } from 'lucide-react';
 import { CodeEditor, type LineDiagnostic } from '../components/CodeEditor';
 import { DocBanners, SaveIndicator } from '../components/DocBanners';
 import { Banner, Button, IconButton, MOD, Spinner, cx } from '../components/ui';
@@ -151,11 +151,11 @@ export function DiagramPanel({ params, api }: IDockviewPanelProps<FileParams>) {
 
   return (
     <div className="flex h-full flex-col bg-bg" onKeyDown={onPanelKeyDown}>
-      <div className="flex h-7 shrink-0 items-center gap-2 border-b border-line px-2 text-[11.5px] text-muted">
-        <span className="min-w-0 flex-1 truncate font-mono" title={path}>
-          {path}
+      <div className="flex min-h-9 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-line px-2.5 py-1 text-[12px]">
+        <Workflow size={16} className="shrink-0 text-muted" aria-hidden />
+        <span className="min-w-0 truncate font-medium" title={path}>
+          {basename(path).replace(/\.mmd$/i, '')}
         </span>
-        <SaveIndicator docKey={key} />
         {estado && (
           <EstadoBadge
             estado={estado}
@@ -166,6 +166,9 @@ export function DiagramPanel({ params, api }: IDockviewPanelProps<FileParams>) {
             }
           />
         )}
+        {rendering && <Spinner size={10} />}
+        <SaveIndicator docKey={key} />
+        <span className="min-w-0 flex-1" />
         <Button
           variant={showCode ? 'primary' : 'default'}
           onClick={toggleCode}
@@ -176,6 +179,9 @@ export function DiagramPanel({ params, api }: IDockviewPanelProps<FileParams>) {
           <Code2 size={12} />
           Código
         </Button>
+        <IconButton label={`Deshacer (${MOD}Z)`} onClick={doUndo} disabled={status !== 'ready'}>
+          <Undo2 size={14} />
+        </IconButton>
         <IconButton label={`Guardar (${MOD}S)`} onClick={() => saveDoc(key)} disabled={status !== 'ready'}>
           <Save size={14} />
         </IconButton>
@@ -214,16 +220,7 @@ export function DiagramPanel({ params, api }: IDockviewPanelProps<FileParams>) {
           )}
           <CodeEditor docKey={key} lang="mermaid" onSave={() => saveDoc(key)} onSaveCompile={doExport} diagnostics={diags} onView={onView} />
         </div>
-        <div className="flex min-w-0 flex-1 flex-col bg-soft">
-          <div className="flex h-7 shrink-0 items-center gap-2 border-b border-line px-2 text-[11.5px] text-muted">
-            <span className="flex-1">Vista previa (aspecto de impresión)</span>
-            {rendering && <Spinner size={10} />}
-            {good && (
-              <span className="tabular-nums text-faint">
-                {good.width} × {good.height} px
-              </span>
-            )}
-          </div>
+        <div className="flex min-w-0 flex-1 flex-col">
           {error && (
             <button
               type="button"
@@ -258,6 +255,7 @@ export function DiagramPanel({ params, api }: IDockviewPanelProps<FileParams>) {
                   code={content}
                   seed={name ?? 'diagrama'}
                   broken={!!error}
+                  dirty={dirty}
                   onCodeChange={onCanvasCode}
                   onUndo={doUndo}
                   onRedo={doRedo}

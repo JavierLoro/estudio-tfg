@@ -337,3 +337,26 @@ body.et-resizing, body.et-resizing * {
   height: 100%;
   width: 100%;
 }
+
+/* Barra flotante propia (DiagramCanvas): se oculta la de Visimer. */
+.et-canvas .mw-popover {
+  display: none !important;
+}
+/* Bloque bajo el que se suelta uno de la paleta. */
+.et-drop-target rect,
+.et-drop-target polygon,
+.et-drop-target path,
+.et-drop-target circle,
+.et-drop-target ellipse {
+  stroke: var(--et-accent) !important;
+  stroke-width: 3px !important;
+}
+/* Bloque seleccionado como en la maqueta: relleno azul claro y trazo azul (el lienzo es siempre claro). */
+.et-canvas .node.mw-selected {
+  filter: none !important;
+}
+.et-canvas .node.mw-selected :is(rect, polygon, path, circle, ellipse):not(.divider) {
+  fill: #e6f1fb !important;
+  stroke: #185fa5 !important;
+  stroke-width: 2px !important;
+}
