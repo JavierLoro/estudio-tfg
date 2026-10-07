@@ -38,6 +38,17 @@ API en :8787 y web en http://localhost:5173.
 
 Producción (imagen con API y web servidas juntas):
 
+Antes del primer arranque, crea `data/builds` y las carpetas de notas y memoria
+que hayas configurado: `mkdir -p data/builds` en macOS/Linux o
+`New-Item -ItemType Directory -Force data/builds` en PowerShell. Así Docker no
+crea la carpeta de compilaciones como root. App y worker comparten `data/builds`;
+los ajustes e historial persisten en `data/`.
+
+En Linux ambos contenedores escriben con uid/gid **1000:1000**. Si tu usuario
+tiene otro uid, da permiso de escritura a ese usuario en las carpetas montadas
+y ejecuta `sudo chown -R 1000:1000 data` para los datos de la herramienta.
+Docker Desktop en Mac y Windows gestiona estos permisos automáticamente.
+
 ```bash
 docker compose --profile app up -d --build
 ```

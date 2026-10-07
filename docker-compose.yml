@@ -59,6 +59,7 @@ services:
       - ${NOTES_DIR:-./workspace/notes}:/data/notes
       - ${MEMORIA_DIR:-./workspace/memoria}:/data/memoria
       - ./data:/data/app
+      - ./data/builds:/data/app/builds  # los mismos artefactos que /out del worker
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
