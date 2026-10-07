@@ -53,7 +53,7 @@ services:
       BUILD_DIR: /data/app/builds     # settings.json e history/ quedan en /data/app (persistentes)
       WORKER_URL: http://worker:8090
       WATCH_POLLING: ${WATCH_POLLING:-auto}
-      ALLOWED_ROOTS: /data             # carpetas elegibles desde Ajustes
+      ALLOWED_ROOTS: /data/notes:/data/memoria:/data/home
     ports:
       - "127.0.0.1:8787:8787"
     volumes:
@@ -61,6 +61,7 @@ services:
       - ${MEMORIA_DIR:-./workspace/memoria}:/data/memoria
       - ./data:/data/app
       - ./data/builds:/data/app/builds  # los mismos artefactos que /out del worker
+      - ${HOST_HOME:-${HOME:-${USERPROFILE:-.}}/Documents}:/data/home
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true

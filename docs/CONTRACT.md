@@ -491,3 +491,10 @@ Los diagramas viven en la memoria: fuente en `diagramas/<nombre>.mmd` (Mermaid) 
 - La imagen de la app configura `safe.directory=*` a nivel de sistema **solo dentro del contenedor**, para poder crear commits en memorias montadas desde el host; no cambia la configuración Git del host.
 - Al actualizar plantilla, una memoria sin `.git` sigue devolviendo `commit: null`. Si existe `.git` y falla la comprobación o el commit, `revisar` incluye una entrada para `.git` con las primeras tres líneas útiles de `stderr` (máximo 500 caracteres), visible en Datos del trabajo. Los archivos aplicados y su registro para deshacer se conservan.
 - Si Git falla al deshacer una actualización con commit, la API devuelve 502 con ese detalle resumido antes de restaurar los archivos, para que se pueda corregir y reintentar.
+
+### Carpetas y acceso en Docker
+
+- El perfil `app` monta `HOST_HOME` en `/data/home`; por defecto usa `Documents` bajo `HOME` o `USERPROFILE` del host. Las raíces elegibles son `/data/home`, `/data/notes` y `/data/memoria`; los datos internos de compilación e historial quedan fuera del selector.
+- Ajustes usa esas rutas POSIX del contenedor. Se puede elegir otro vault o crear una memoria bajo `/data/home` sin cambiar `.env`; la selección persiste en `data/settings.json`. App y worker comparten los artefactos del host `data/builds`.
+- Si la carpeta inicial del selector está fuera de las raíces permitidas (por ejemplo, el padre `/data` de `/data/memoria` al crear una memoria), empieza directamente en la lista de raíces.
+- El acceso a Ajustes mantiene la regla de loopback o `AUTH_TOKEN`: una conexión desde el navegador a un puerto publicado de Docker puede llegar con la IP del puente. El modo Docker se configura con un token propio y el navegador lo pide al entrar. Los puertos publicados siguen ligados a `127.0.0.1`.

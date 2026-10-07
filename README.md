@@ -2,90 +2,115 @@
 
 Entorno self-hosted para escribir la memoria del TFG en LaTeX con el PDF al lado, consultar tus notas de Obsidian y capturar recursos sin perderlos. Es una herramienta local: los archivos en disco son la fuente de verdad, no hay base de datos, y tu trabajo vive fuera de este repositorio.
 
-Se desarrolla y prueba en macOS. El soporte para Windows se está analizando: qué habría que cambiar y cómo usarlo hoy en [docs/PLATAFORMAS.md](docs/PLATAFORMAS.md).
+Se desarrolla y prueba en macOS. El modo Docker y el arranque nativo están preparados para Windows, Mac y Linux; las verificaciones pendientes por plataforma se recogen en [docs/PLATAFORMAS.md](docs/PLATAFORMAS.md) y [docs/HOJA-DE-RUTA.md](docs/HOJA-DE-RUTA.md).
 
 Especificación: [docs/CONTRACT.md](docs/CONTRACT.md) · Worker y requisitos de la plantilla: [worker/README.md](worker/README.md) · Guía para agentes de código: [AGENTS.md](AGENTS.md)
 
-## Requisitos
+## Usarlo con Docker (Windows, Mac, Linux)
 
-- Node ≥ 24 y npm.
-- Docker (el worker compila LaTeX con TeX Live en un contenedor; la imagen es grande).
-- git (la memoria se crea con su propio repositorio).
+Necesitas Docker con Compose v2 o posterior. En Windows y Mac, instala y arranca
+**Docker Desktop**; en Windows habilita la virtualización y el backend **WSL2**.
+Reserva unos **10 GB libres** para TeX Live. No necesitas Node ni LaTeX en el host.
+Descarga el repositorio o clónalo si tienes Git:
 
-## Arrancar
+```bash
+git clone https://github.com/JavierLoro/estudio-tfg.git
+cd estudio-tfg
+```
+
+1. Copia `.env.example` a `.env` (`cp .env.example .env` en macOS/Linux;
+   `Copy-Item .env.example .env` en PowerShell). Edita estas dos entradas:
+
+   ```dotenv
+   HOST_HOME=/ruta/absoluta/a/tu/carpeta-TFG
+   AUTH_TOKEN=elige-un-token-largo-y-propio
+   ```
+
+   `HOST_HOME` debe existir y contener tu vault y la carpeta donde crearás la
+   memoria. En Windows usa, por ejemplo, `C:/Users/Ana/Documents/TFG`, con `/`,
+   sin `~` ni variables de shell. Si lo omites, se monta `Documents` bajo `HOME`
+   (Mac/Linux) o `USERPROFILE` (Windows): comprueba que exista y no esté redirigida
+   a OneDrive. El token permite cambiar Ajustes desde el navegador aunque Docker
+   presente la conexión como procedente del puente de red.
+2. Crea las carpetas locales **antes del primer arranque**, para que Docker no
+   las cree como root. En macOS/Linux:
+
+   ```bash
+   mkdir -p data/builds workspace/notes workspace/memoria
+   ```
+
+   En PowerShell:
+
+   ```powershell
+   New-Item -ItemType Directory -Force data/builds, workspace/notes, workspace/memoria
+   ```
+
+   Si defines `NOTES_DIR` o `MEMORIA_DIR`, crea también esas carpetas antes de
+   arrancar. Dentro del repo solo pueden estar bajo `workspace/` (ignorada).
+3. Levanta app y worker con un comando:
+
+   ```bash
+   docker compose --profile app up -d --build
+   ```
+
+4. Abre http://localhost:8787 e introduce tu token. En **Ajustes**, abre el
+   selector de carpetas: `/data/home` es tu `HOST_HOME`. Elige el vault y crea la
+   memoria bajo esa raíz. No hace falta volver a editar `.env`; las selecciones
+   se guardan en `data/settings.json`. Las rutas de la interfaz son las del
+   contenedor (POSIX), también cuando el navegador está en Windows.
+
+App y worker comparten `data/builds`; ajustes e historial persisten en `data/`.
+El sondeo de cambios está activado automáticamente en Docker; puedes forzarlo
+con `WATCH_POLLING=on` o desactivarlo con `off`. Si la vigilancia falla, la
+cabecera muestra el aviso y su detalle.
+
+En **Linux**, ambos contenedores escriben con uid/gid **1000:1000**. Comprueba los
+permisos de las carpetas montadas: ese uid debe poder recorrerlas y escribir en
+las notas y memoria. Para los datos de la herramienta:
+`sudo chown -R 1000:1000 data workspace`. Si tu usuario tiene otro uid, dale
+acceso también al uid 1000 en las carpetas externas mediante permisos o ACL;
+conserva la propiedad de tus documentos. Docker Desktop gestiona los permisos
+compartidos en Mac y Windows.
+
+Para actualizar un clon: `git pull` y vuelve a ejecutar el comando de arranque.
+Si descargaste un ZIP, sustituye las fuentes conservando `.env`, `data/` y
+`workspace/`. Para parar: `docker compose --profile app down`; las carpetas
+montadas permanecen en el host. Puedes consultar los logs con
+`docker compose --profile app logs -f app worker`.
+
+## Desarrollar (server y web nativos)
+
+Necesitas **Node ≥ 24**, npm y Docker para el worker. Git es recomendable para
+el historial y las actualizaciones de plantilla; sin él se crea la memoria con
+un aviso. Clona el repositorio, entra en él y ejecuta:
 
 ```bash
 npm run init
-```
-
-Crea `.env` y tu memoria a partir de la plantilla, fuera de git. Para elegir la institución: `npm run init -- --perfil generico` (por defecto `esi-uclm`).
-
-```bash
 npm run install:all
 ```
 
+`init` crea `.env` y tu memoria, sin sobrescribir archivos. Puedes elegir
+institución con `npm run init -- --perfil generico` (por defecto `esi-uclm`).
+Antes de levantar el worker, crea `data/builds`: `mkdir -p data/builds` en
+macOS/Linux o `New-Item -ItemType Directory -Force data/builds` en PowerShell;
+en Linux revisa los permisos del uid 1000 indicados arriba.
+
 ```bash
 npm run worker
-```
-
-TeX Live en Docker, en 127.0.0.1:8090.
-
-```bash
 npm run dev
 ```
 
-API en :8787 y web en http://localhost:5173.
+API en :8787, web en http://localhost:5173 y worker en 127.0.0.1:8090. Un solo
+`npm run dev` levanta API y web también en Windows; Ctrl+C cierra ambas.
+`npm start --prefix server` arranca solo la API (sirve la web si existe
+`web/dist`, que genera `npm run build --prefix web`).
 
-Producción (imagen con API y web servidas juntas):
-
-Antes del primer arranque, crea `data/builds` y las carpetas de notas y memoria
-que hayas configurado: `mkdir -p data/builds` en macOS/Linux o
-`New-Item -ItemType Directory -Force data/builds` en PowerShell. Así Docker no
-crea la carpeta de compilaciones como root. App y worker comparten `data/builds`;
-los ajustes e historial persisten en `data/`.
-
-En Linux ambos contenedores escriben con uid/gid **1000:1000**. Si tu usuario
-tiene otro uid, da permiso de escritura a ese usuario en las carpetas montadas
-y ejecuta `sudo chown -R 1000:1000 data` para los datos de la herramienta.
-Docker Desktop en Mac y Windows gestiona estos permisos automáticamente.
-
-```bash
-docker compose --profile app up -d --build
-```
-
-Queda en http://127.0.0.1:8787.
-
-## Windows (hoy)
-
-El soporte nativo está en desarrollo; consulta las limitaciones y alternativas en [docs/PLATAFORMAS.md](docs/PLATAFORMAS.md). Para usar la API y la web en Windows con el worker en Docker:
-
-1. Instala **Node ≥ 24**, **Git para Windows** y **Docker Desktop** con backend **WSL2** y virtualización habilitada. Reserva unos **10 GB libres** para la imagen de TeX Live y arranca Docker Desktop.
-2. Clona el repositorio y prepara el entorno desde PowerShell:
-
-   ```powershell
-   git clone -c core.autocrlf=false https://github.com/JavierLoro/estudio-tfg.git
-   cd estudio-tfg
-   npm run init
-   npm run install:all
-   npm run worker
-   ```
-
-   `.gitattributes` mantiene los textos del repositorio en LF, incluso si Git tiene `core.autocrlf=true`.
-3. Mantén el vault y la memoria fuera del repositorio, dentro de `C:\Users\<usuario>`, y **no definas `ALLOWED_ROOTS`** mientras no se adapte su separador a Windows. Usa carpetas fuera de OneDrive, Dropbox o Google Drive: `Documentos` puede estar redirigida a OneDrive. Si usas OneDrive, marca los archivos como «Mantener siempre en este dispositivo».
-4. Configura `NOTES_DIR` y `MEMORIA_DIR` en `.env` o escribe sus rutas completas en los campos de Ajustes (por ejemplo, `C:\Users\Ana\Vault`); el selector de carpetas todavía tiene limitaciones con rutas de Windows.
-5. Abre **dos terminales** en la raíz del repositorio, hasta que `npm run dev` sea multiplataforma:
-
-   ```powershell
-   npm run dev --prefix server
-   ```
-
-   ```powershell
-   npm run dev --prefix web
-   ```
-
-   Abre http://localhost:5173. `npm start --prefix server` también arranca la API, pero no la web de desarrollo.
-
-Los atajos usan **Ctrl** en lugar de ⌘ (`Ctrl+K`, `Ctrl+S`, `Ctrl+Intro`). Algunos pueden coincidir con los del navegador; usa los botones de la interfaz si ocurre.
+Elige las carpetas en Ajustes o `.env`. En Windows se admiten unidades y UNC;
+`ALLOWED_ROOTS` separa varias raíces con `;` (con `:` en Mac/Linux). Mantén vault
+y memoria fuera de OneDrive, Dropbox o Google Drive; si usas OneDrive, marca
+«Mantener siempre en este dispositivo». Los atajos usan Ctrl en Windows/Linux;
+si chocan con el navegador, usa los botones. Más detalles en
+[docs/PLATAFORMAS.md](docs/PLATAFORMAS.md).
 
 ## Primeros pasos
 

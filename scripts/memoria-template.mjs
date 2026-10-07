@@ -66,7 +66,8 @@ export function perfilDir(perfil) {
  */
 export function copyTemplate(dir, { perfil = DEFAULT_PERFIL } = {}) {
   const src = perfilDir(perfil);
-  fs.cpSync(BASE_DIR, dir, { recursive: true, force: false, errorOnExist: false });
+  // La copia nativa de directorios de Node 24 falla con EACCES en Docker Desktop.
+  fs.cpSync(BASE_DIR, dir, { recursive: true, force: false, errorOnExist: false, filter: () => true });
   fs.cpSync(src, dir, {
     recursive: true,
     force: true,
