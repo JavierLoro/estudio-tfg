@@ -28,28 +28,60 @@ A ──┼─ C1…C7 ──┐
            └─ F1 ───────┘                       └─ G7
 ```
 
-Las tareas de una misma fase sin dependencia entre sí pueden ir en paralelo si tocan archivos distintos (lo dice cada tarea en «Archivos»). Ver [Cómo seguir la hoja de ruta](#cómo-seguir-la-hoja-de-ruta).
+Las issues siguen siendo la unidad de seguimiento; la unidad de trabajo y revisión es un **bloque de tareas relacionadas**, con una rama y un PR para el bloque y un commit por tarea. Dos bloques pueden trabajarse en paralelo si no comparten archivos (ver «Archivos» de cada tarea). Ver [Cómo seguir la hoja de ruta](#cómo-seguir-la-hoja-de-ruta).
 
 ## Cómo seguir la hoja de ruta
 
-Un agente puede recibir una tarea concreta («haz la issue #4») o simplemente **«sigue la hoja de ruta»**. En ese caso:
+Un agente puede recibir una tarea concreta («haz la issue #4»), un bloque («haz el bloque de configuración») o simplemente **«sigue la hoja de ruta»**. Una tarea concreta mantiene ese alcance; el encargo general autoriza a completar **un bloque**, siguiendo estos pasos:
 
-1. **Elige la siguiente tarea disponible**: la de fase más temprana y número más bajo que cumpla las tres condiciones:
-   - su issue está abierta y **sin** la etiqueta `en-curso`;
-   - todas sus dependencias («Depende de») tienen la issue **cerrada** (PR fusionado);
-   - no comparte archivos («Archivos») con otra tarea `en-curso`.
+1. **Elige el siguiente bloque disponible** de la tabla de abajo: el de fase más temprana y número de tarea más bajo que cumpla estas condiciones:
+   - sus tareas pendientes tienen la issue abierta, **sin** `en-curso` y sin un PR abierto que ya las cubra;
+   - todas las dependencias **externas al bloque** («Depende de») tienen la issue **cerrada** por un PR fusionado en `main`;
+   - la unión de los archivos de sus tareas pendientes («Archivos») no se solapa con los de tareas abiertas `en-curso` ajenas al bloque.
 
-   Para verlo: `gh issue list --repo JavierLoro/estudio-tfg --label hoja-de-ruta --state all --limit 60 --json number,title,state,labels`.
-2. **Resérvala**: añade la etiqueta `en-curso` (`gh issue edit <n> --add-label en-curso`) y comenta «Empiezo con esta tarea». Si al ir a reservarla ya la tiene, elige otra.
-3. **Hazla** siguiendo las reglas comunes de abajo, en la rama `hoja/<id>`, y abre el PR con `Closes #<n>`.
-4. **Al terminar**: deja el informe final como comentario del PR y quita la etiqueta `en-curso` solo si abandonas la tarea sin PR (explicando por qué). Una tarea por agente: no encadenes otra sin que te lo pidan.
+   Las tareas ya cerradas se omiten. Si una tarea pendiente del bloque tiene reserva o PR abierto, ese bloque aún no está disponible. Las dependencias **internas** se implementan y verifican en orden dentro de la misma rama; sus issues se cierran juntas al fusionar el PR. No hace falta un PR intermedio para cada dependencia interna.
 
-Si ninguna tarea está disponible (todo lo pendiente depende de PR sin fusionar), dilo y para.
+   Para comprobarlo:
+
+   ```bash
+   gh issue list --repo JavierLoro/estudio-tfg --label hoja-de-ruta --state all --limit 60 --json number,title,state,labels
+   gh pr list --repo JavierLoro/estudio-tfg --state open --json number,title,headRefName,body
+   ```
+
+2. **Reserva todas las issues pendientes del bloque**: comprueba de nuevo que siguen libres, añade `en-curso` a cada una (`gh issue edit <n> --add-label en-curso`) y comenta «Empiezo con esta tarea dentro del bloque <id>; se entregará en un PR conjunto». Si aparece una reserva o un PR antes de completar la reserva, libera solo las reservas que acabas de hacer, explica el motivo y elige otro bloque.
+3. **Implementa el bloque** en `hoja/<id-del-bloque>` (p. ej. `hoja/a-configuracion`), creada desde `main` actualizado. Haz **un commit por tarea**, en orden de dependencias, con un mensaje español que incluya su ID (p. ej. «A4: Rutas de Windows en Ajustes»). Verifica cada tarea con sus pruebas específicas y ejecuta las comprobaciones comunes sobre el conjunto antes de entregarlo.
+4. **Abre un único PR** con el resultado del bloque, las tareas incluidas y un `Closes #<n>` por cada issue completada. Una tarea incompleta no lleva `Closes`. El informe final va como comentario del PR: criterios de aceptación y pendientes separados por tarea, archivos tocados y resultados de las pruebas del conjunto.
+5. **Al terminar, para**: un bloque por encargo; no encadenes otro sin que te lo pidan. Conserva `en-curso` mientras el PR esté abierto. Si abandonas tareas sin PR, libera esas issues y explica por qué. Tras la fusión, las issues completadas se cierran por `Closes` y se les quita `en-curso`; fusionar sigue siendo decisión del usuario. Para conservar la separación por tarea, la fusión debe mantener los commits del bloque (merge o rebase).
+
+Si ningún bloque está disponible porque sus dependencias, reservas o PR siguen pendientes, dilo y para.
+
+### Bloques de entrega
+
+Agrupación prevista de 2–4 tareas relacionadas; una tarea autónoma o con una dependencia que exige otra entrega puede tener su propio bloque. Las dependencias vinculantes son las de cada tarea, no el orden de las filas.
+
+| Bloque / rama `hoja/…` | Resultado que se revisa | Tareas | Issues |
+|---|---|---|---|
+| `a-arranque` | Arranque multiplataforma y configuración de raíces permitidas | A1, A2, A3 | #3, #4, #5 |
+| `a-configuracion` | Ajustes con rutas de Windows y creación de memoria | A4, A5, A7 | #6, #7, #9 |
+| `a-atajos` | Textos de atajos según plataforma | A6 | #8 |
+| `b-docker` | Uso completo con la app y el worker en Docker | B1, B2, B3, B4 | #10–#13 |
+| `c-archivos` | Escrituras, movimientos y nombres seguros | C1, C2, C3 | #14, #15, #16 |
+| `c-compatibilidad` | CRLF, archivos de sistema y detalles de portabilidad | C4, C5, C7 | #17, #18, #20 |
+| `c-atajos` | Atajos y apertura al lado en distintos navegadores | C6 | #19 |
+| `d-ci` | CI y pruebas de Windows desde otros sistemas | D1, D2 | #21, #22 |
+| `e-motores` | Interfaz de motores y compilación con TeX del sistema | E1, E2 | #23, #24 |
+| `e-validacion` | Requisitos de TeX y evaluación de Tectonic | E3, E4 | #25, #26 |
+| `f-diagramas` | Exportación de diagramas sin Docker | F1 | #27 |
+| `g-base` | Servidor empaquetable y app Electron funcional | G1, G2, G3 | #28, #29, #30 |
+| `g-entrega` | Primer arranque, instaladores, licencia y guía | G4, G5, G7 | #31, #32, #34 |
+| `g-firma` | Firma y notarización de los instaladores | G6 | #33 |
+
+**Transición:** los PR ya abiertos por tarea (#35–#38: A1, A2, A3 y A6) se conservan y se revisan por separado. No se duplican ni se reagrupan en otro PR. Tras fusionar A3, podrá empezar `a-configuracion` si no hay reservas o solapamientos con otro trabajo en curso. La agrupación se aplica a los próximos encargos.
 
 **Mensaje para lanzar un agente**:
 
 ```text
-Sigue la hoja de ruta de JavierLoro/estudio-tfg (docs/HOJA-DE-RUTA.md, sección «Cómo seguir la hoja de ruta»): elige la siguiente tarea disponible, resérvala, hazla en su rama, abre el PR y termina con el informe final.
+Sigue la hoja de ruta de JavierLoro/estudio-tfg (docs/HOJA-DE-RUTA.md, sección «Cómo seguir la hoja de ruta»): elige el siguiente bloque disponible, reserva sus issues, hazlo en una rama con un commit por tarea, abre un único PR y termina con el informe final por tarea.
 ```
 
 ## Reglas comunes para el agente
@@ -62,11 +94,11 @@ Sigue la hoja de ruta de JavierLoro/estudio-tfg (docs/HOJA-DE-RUTA.md, sección 
    - no uses los puertos 8787/5173: suele haber un servidor del usuario abierto en ellos;
    - web en otro puerto: `cd web && VITE_API_TARGET=http://localhost:<p> npx vite --port <q> --strictPort`;
    - al terminar, para tus servidores y cierra las pestañas que abriste (muchas pestañas abiertas agotan las conexiones SSE).
-3. **Git**: nada de `git stash`, `git checkout -- …` ni `git reset` (puede haber otros agentes con cambios sin commit). **Encargarte una tarea de esta hoja de ruta («haz la issue #N») te autoriza a crear la rama `hoja/<id>` (p. ej. `hoja/a2`), hacer commits en ella, subirla y abrir un PR que cierre la issue (`Closes #<n>`)**. Nunca hagas commit ni push directamente en `main` ni fusiones el PR: eso lo decide el usuario.
-4. **Antes de dar la tarea por terminada**: `npm test`, `npm run typecheck --prefix server`, `npm run build --prefix web` y `node --test worker/*.test.mjs` en verde. Si tocas la plantilla: compila todos los perfiles con el worker con **0 avisos**. Si tocas la interfaz: pruébala en el navegador (en tu instancia aparte).
+3. **Git**: nada de `git stash`, `git checkout -- …` ni `git reset` (puede haber otros agentes con cambios sin commit). **Encargarte trabajo de esta hoja de ruta autoriza a crear una rama `hoja/<id>`: el ID del bloque en un encargo general (p. ej. `hoja/a-configuracion`) o el de la tarea si se pide una issue concreta (p. ej. `hoja/a2`). También autoriza sus commits, subir la rama y abrir un único PR que cierre las issues completadas (`Closes #<n>`, uno por issue)**. Nunca hagas commit ni push directamente en `main` ni fusiones el PR: eso lo decide el usuario.
+4. **Antes de dar el bloque por terminado** (o la tarea, si se encargó sola): `npm test`, `npm run typecheck --prefix server`, `npm run build --prefix web` y `node --test worker/*.test.mjs` en verde sobre todos sus cambios. Además, cumple las verificaciones específicas de cada tarea. Si tocas la plantilla: compila todos los perfiles con el worker con **0 avisos**. Si tocas la interfaz: pruébala en el navegador (en tu instancia aparte).
 5. **Contrato**: si cambia la API, los eventos o un comportamiento visible, actualiza `docs/CONTRACT.md` en una sección versionada (la siguiente libre) o en «Precisiones».
 6. **No implementes Windows a ciegas**: lo que solo se puede comprobar en Windows, cúbrelo con tests (`path.win32` inyectable, errores simulados con `vi.spyOn`) y márcalo «a verificar en Windows» en el informe.
-7. **Informe final**: qué hiciste, criterios de aceptación uno a uno (cumplido / no y por qué), archivos tocados, resultados de tests, qué quedó sin verificar.
+7. **Informe final**: resultado del bloque; por cada tarea, criterios de aceptación uno a uno (cumplido / no y por qué) y qué quedó sin verificar; archivos tocados y resultados de los tests del conjunto.
 
 **Modelo recomendado** en cada tarea: **Opus** cuando hay riesgo de perder datos del usuario o razonamiento delicado (sistema de archivos, procesos, motores); **Sonnet** cuando la tarea está bien acotada; **Haiku** para cambios mecánicos.
 

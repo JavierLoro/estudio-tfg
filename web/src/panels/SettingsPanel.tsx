@@ -12,8 +12,9 @@ import {
   type SettingsSource,
   type SettingsValues,
 } from '../api';
-import { DirPicker, joinAbs } from '../components/DirPicker';
+import { DirPicker } from '../components/DirPicker';
 import { Banner, Button, Spinner, cx } from '../components/ui';
+import { isAbsPath, joinAbs, parentAbs, relUnder } from '../lib/abspath';
 import { kbd } from '../lib/kbd';
 import { notifySettingsChanged, useSettings } from '../state/settings';
 import { toast, useUI } from '../state/ui';
@@ -59,9 +60,6 @@ function levelText(level: SettingsCheck['level']) {
 
 type Picker = { kind: 'dir'; key: 'notesDir' | 'memoriaDir' | 'resourcesSubdir' } | { kind: 'create' } | null;
 
-const isAbs = (p: string) => p.startsWith('/') || p.startsWith('~');
-const trimSlash = (p: string) => (p.length > 1 ? p.replace(/\/+$/, '') : p);
-
 export function SettingsPanel() {
   const data = useSettings((s) => s.data);
   const loadError = useSettings((s) => s.error);
@@ -77,6 +75,7 @@ export function SettingsPanel() {
   const [resetting, setResetting] = useState<SettingsKey | null>(null);
   const [picker, setPicker] = useState<Picker>(null);
   const [creating, setCreating] = useState(false);
+  const [creationWarning, setCreationWarning] = useState<string | null>(null);
   const [perfiles, setPerfiles] = useState<Perfil[] | null>(null);
   const [perfil, setPerfil] = useState('');
   const baseline = useRef<SettingsValues | null>(null);
@@ -181,8 +180,10 @@ export function SettingsPanel() {
 
   const createMemoria = async (dir: string) => {
     setCreating(true);
+    setCreationWarning(null);
     try {
       const r = await api.initMemoria(dir, perfiles ? perfil : undefined);
+      setCreationWarning(r.warning ?? null);
       setPicker(null);
       setFieldErrors((e) => ({ ...e, memoriaDir: undefined, memoriaMain: undefined }));
       // La memoria nueva sustituye a lo que hubiera en esos campos.
@@ -217,10 +218,14 @@ export function SettingsPanel() {
   const allowedRoots = data?.allowedRoots ?? [];
 
   // ---- Selector de carpetas ----
-  const notesBase = form ? trimSlash(form.notesDir.trim()) : '';
+  const pathSep = data?.pathSep ?? '/';
+  const notesBase = form?.notesDir.trim() ?? '';
   const relToNotes = (p: string): string | null => {
     for (const base of [notesReal, notesBase]) {
-      if (base && p.startsWith(base + '/')) return p.slice(base.length + 1);
+      if (base) {
+        const rel = relUnder(base, p);
+        if (rel) return rel;
+      }
     }
     return null;
   };
@@ -240,9 +245,9 @@ export function SettingsPanel() {
       return {
         title: 'Crear memoria desde la plantilla',
         mode: 'create' as const,
-        initialPath: isAbs(form.memoriaDir) ? form.memoriaDir.replace(/\/[^/]+\/?$/, '') || undefined : undefined,
+        initialPath: isAbsPath(form.memoriaDir) ? parentAbs(form.memoriaDir, pathSep) || undefined : undefined,
         defaultName: 'tfg-memoria',
-        hint: 'Elige la carpeta donde crearla y escribe el nombre de la carpeta nueva (o déjalo vacío para usar una carpeta vacía existente). Se copiará la plantilla y se iniciará un repositorio git.',
+        hint: 'Elige la carpeta donde crearla y escribe el nombre de la carpeta nueva (o déjalo vacío para usar una carpeta vacía existente). Se copiará la plantilla y, si Git está instalado, se iniciará un repositorio git.',
         busy: creating,
         onSelect: (p: string) => createMemoria(p),
       };
@@ -252,7 +257,7 @@ export function SettingsPanel() {
       return {
         title: LABELS.resourcesSubdir,
         mode: 'select' as const,
-        initialPath: notesBase && form.resourcesSubdir.trim() ? joinAbs(notesReal ?? notesBase, form.resourcesSubdir.trim()) : notesReal ?? (notesBase || undefined),
+        initialPath: notesBase && form.resourcesSubdir.trim() ? joinAbs(notesReal ?? notesBase, form.resourcesSubdir.trim(), pathSep) : notesReal ?? (notesBase || undefined),
         hint: `Debe estar dentro de la carpeta de notas (${notesBase || 'sin definir'}).`,
         validate: (p: string) => (relToNotes(p) ? null : 'Elige una subcarpeta de la carpeta de notas'),
         onSelect: (p: string) => {
@@ -303,6 +308,7 @@ export function SettingsPanel() {
         </Banner>
       )}
       {generalError && <Banner kind="danger">{generalError}</Banner>}
+      {creationWarning && <Banner kind="warn">{creationWarning}</Banner>}
       {loadError && !data && (
         <Banner kind="danger" actions={<Button onClick={() => void useSettings.getState().load()}>Reintentar</Button>}>
           No se pudieron leer los ajustes: {loadError}
@@ -382,7 +388,7 @@ export function SettingsPanel() {
                             onChange={(e) => setField(k, e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && void save()}
                             spellCheck={false}
-                            placeholder={k === 'memoriaMain' ? 'tfg.tex' : k === 'resourcesSubdir' ? 'Recursos' : '/ruta/absoluta o ~/…'}
+                            placeholder={k === 'memoriaMain' ? 'tfg.tex' : k === 'resourcesSubdir' ? 'Recursos' : pathSep === '\\' ? 'C:\\ruta o ~\\…' : '/ruta/absoluta o ~/…'}
                             className={cx(inputCls, err ? 'border-danger' : 'border-line-strong')}
                             aria-invalid={!!err}
                           />
@@ -390,8 +396,8 @@ export function SettingsPanel() {
                         {k !== 'memoriaMain' && (
                           <Button
                             onClick={() => (k === 'resourcesSubdir' ? void openResourcesPicker() : setPicker({ kind: 'dir', key: k }))}
-                            disabled={k === 'resourcesSubdir' && !isAbs(notesBase)}
-                            title={k === 'resourcesSubdir' && !isAbs(notesBase) ? 'Define antes la carpeta de notas' : 'Elegir carpeta'}
+                            disabled={k === 'resourcesSubdir' && !isAbsPath(notesBase)}
+                            title={k === 'resourcesSubdir' && !isAbsPath(notesBase) ? 'Define antes la carpeta de notas' : 'Elegir carpeta'}
                           >
                             <FolderOpen size={12} /> Elegir…
                           </Button>
@@ -426,7 +432,7 @@ export function SettingsPanel() {
               </header>
               <div className="flex flex-wrap items-center gap-3 px-3 py-2.5 text-[12px] text-muted">
                 <p className="min-w-0 flex-[1_1_16rem]">
-                  Crea una carpeta con la plantilla de la memoria, inicia un repositorio git y la usa como carpeta de la memoria.
+                  Crea una carpeta con la plantilla de la memoria y la usa como carpeta de la memoria. Si Git está instalado, inicia un repositorio git.
                 </p>
                 {perfiles && (
                   <label className="flex min-w-0 flex-col gap-0.5 text-[11px]">
@@ -485,6 +491,7 @@ export function SettingsPanel() {
           open
           onClose={() => !creating && setPicker(null)}
           allowedRoots={allowedRoots}
+          pathSep={pathSep}
           {...pickerProps}
         />
       )}

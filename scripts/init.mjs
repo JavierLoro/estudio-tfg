@@ -42,13 +42,14 @@ const env = Object.fromEntries(
     .map((l) => { const i = l.indexOf('='); return [l.slice(0, i).trim(), l.slice(i + 1).replace(/\s+#.*$/, '').trim()]; }),
 );
 
-const resolve = (p) => path.resolve(repo, p.startsWith('~/') ? path.join(os.homedir(), p.slice(2)) : p);
+const resolve = (p) => path.resolve(repo, p === '~' ? os.homedir() : /^~[\\/]/.test(p) ? path.join(os.homedir(), p.slice(2)) : p);
 const memoria = resolve(env.MEMORIA_DIR || './workspace/memoria');
 const notes = resolve(env.NOTES_DIR || './workspace/notes');
 
 if (isEmptyDir(memoria)) {
-  createMemoriaFromTemplate(memoria, { perfil });
-  console.log(`Memoria creada desde la plantilla (perfil ${perfil}) en ${memoria} (repositorio git propio)`);
+  const result = createMemoriaFromTemplate(memoria, { perfil });
+  console.log(`Memoria creada desde la plantilla (perfil ${perfil}) en ${memoria}${result.git ? ' (repositorio git propio)' : ''}`);
+  if (result.warning) console.warn(result.warning);
 } else {
   console.log(`Memoria ya existe en ${memoria}: no se toca`);
 }

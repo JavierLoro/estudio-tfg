@@ -12,7 +12,9 @@ export declare function isEmptyDir(dir: string): boolean;
 export declare function listPerfiles(): Perfil[];
 export declare function perfilDir(perfil: string): string;
 export declare function copyTemplate(dir: string, opts?: { perfil?: string }): void;
-export declare function createMemoriaFromTemplate(dir: string, opts?: { perfil?: string }): { dir: string; git: boolean; perfil: string };
+export declare const NO_GIT_WARNING: string;
+export declare function hasGit(): boolean;
+export declare function createMemoriaFromTemplate(dir: string, opts?: { perfil?: string }): { dir: string; git: boolean; perfil: string; warning?: string };
 export interface Manifiesto {
   version: string;
   clase: string | null;

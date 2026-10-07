@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { REPO_ROOT, loadConfig, parseAllowedRoots } from '../src/config.ts';
+import { REPO_ROOT, expandPath, loadConfig, parseAllowedRoots } from '../src/config.ts';
 
 
 describe('config: contenido personal fuera del repo', () => {
@@ -33,7 +33,7 @@ describe('config: ALLOWED_ROOTS por sistema', () => {
     { name: 'punto y coma dentro de un nombre POSIX', paths: path.posix, base: '/repo', value: '/a;b:/c', expected: ['/a;b', '/c'] },
   ])('$name', ({ paths, base, value, expected }) => {
     // Las rutas simuladas no existen en el sistema que ejecuta la prueba.
-    vi.spyOn(fs, 'realpathSync').mockImplementation(() => {
+    vi.spyOn(fs.realpathSync, 'native').mockImplementation(() => {
       throw Object.assign(new Error('Carpeta inexistente'), { code: 'ENOENT' });
     });
     expect(parseAllowedRoots(value, base, paths)).toEqual(expected);
@@ -52,5 +52,16 @@ describe('config: ALLOWED_ROOTS por sistema', () => {
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+
+describe('expansión del home', () => {
+  afterEach(() => vi.restoreAllMocks());
+  it.each(['~', '~/notas', '~\\notas'])('acepta %s en ambos sistemas', (p) => {
+    vi.spyOn(os, 'homedir').mockReturnValue('C:\\Users\\yo');
+    expect(expandPath(p, 'C:\\repo', path.win32)).toBe(p === '~' ? 'C:\\Users\\yo' : 'C:\\Users\\yo\\notas');
+    vi.spyOn(os, 'homedir').mockReturnValue('/home/yo');
+    expect(expandPath(p, '/repo', path.posix)).toBe(p === '~' ? '/home/yo' : '/home/yo/notas');
   });
 });

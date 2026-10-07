@@ -28,6 +28,7 @@ export interface Check {
 }
 
 export interface SettingsView {
+  pathSep: '/' | '\\';
   values: SettingValues;
   sources: Record<SettingKey, Source>;
   allowedRoots: string[];
@@ -50,7 +51,7 @@ export function expandUserPath(v: string): string {
   const home = os.homedir();
   let p = v.trim();
   if (p === '~') p = home;
-  else if (p.startsWith('~/')) p = path.join(home, p.slice(2));
+  else if (/^~[\\/]/.test(p)) p = path.join(home, p.slice(2));
   return p;
 }
 
@@ -80,9 +81,11 @@ export function isConfigured(cfg: Config): boolean {
   return isDirSync(cfg.notesDir) && isDirSync(cfg.memoriaDir);
 }
 
-/** Short hash of notesDir|memoriaDir (web uses it to key drafts). */
-export function instanceId(cfg: Config): string {
-  return crypto.createHash('sha256').update(`${cfg.notesDir}|${cfg.memoriaDir}`).digest('hex').slice(0, 12);
+/** Hash corto de rutas canónicas; la web lo usa para recuperar borradores. */
+export function instanceId(cfg: Config, paths = path): string {
+  const notes = realpathLoose(cfg.notesDir, paths);
+  const memoria = realpathLoose(cfg.memoriaDir, paths);
+  return crypto.createHash('sha256').update(`${notes}|${memoria}`).digest('hex').slice(0, 12);
 }
 
 /**
@@ -298,7 +301,7 @@ export class Settings {
   }
 
   /** Create a memoria from templates/base + templates/perfiles/<perfil> in `dir` (missing or empty) and select it. */
-  initMemoria(body: unknown): Promise<SettingsView> {
+  initMemoria(body: unknown): Promise<SettingsView & { warning?: string }> {
     return this.serial(async () => {
       const { dir: raw, perfil: rawPerfil } = (body as { dir?: unknown; perfil?: unknown } | null) ?? {};
       const perfil = rawPerfil === undefined || rawPerfil === null || rawPerfil === '' ? DEFAULT_PERFIL : rawPerfil;
@@ -308,8 +311,9 @@ export class Settings {
       const dir = normalizeDir(this.cfg, 'dir', raw, false);
       if (fss.existsSync(dir) && !isDirSync(dir)) throw fieldError('dir', `No es una carpeta: ${dir}`);
       if (!isEmptyDir(dir)) throw new HttpError(409, `La carpeta no está vacía: ${dir}`, { field: 'dir' });
+      let warning: string | undefined;
       try {
-        createMemoriaFromTemplate(dir, { perfil });
+        ({ warning } = createMemoriaFromTemplate(dir, { perfil }));
       } catch (e: any) {
         if (e?.code === 'ENOTEMPTY') throw new HttpError(409, `La carpeta no está vacía: ${dir}`, { field: 'dir' });
         throw new HttpError(500, `No se pudo crear la memoria: ${e?.message ?? e}`);
@@ -317,7 +321,8 @@ export class Settings {
       // Re-validate after creation (realpath now resolvable).
       const memoriaDir = normalizeDir(this.cfg, 'dir', dir, true);
       await this.persist({ ...this.stored, memoriaDir });
-      return this.apply();
+      const view = await this.apply();
+      return warning ? { ...view, warning } : view;
     });
   }
 
@@ -382,6 +387,7 @@ export class Settings {
 
   async view(): Promise<SettingsView> {
     return {
+      pathSep: path.sep as '/' | '\\',
       values: this.pick(this.cfg),
       sources: this.sources(),
       allowedRoots: [...this.cfg.allowedRoots],

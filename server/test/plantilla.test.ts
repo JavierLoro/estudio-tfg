@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../src/app.ts';
 import { REPO_ROOT, loadConfig, type Config } from '../src/config.ts';
 import { GIT_IDENTITY, copyTemplate, manifestProblems, sha256 } from '../../scripts/memoria-template.mjs';
@@ -84,6 +84,7 @@ async function snapshot(): Promise<Record<string, string>> {
 }
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
   if (app) await app.close();
   if (dir) await fs.rm(dir, { recursive: true, force: true });
   dir = '';
@@ -311,9 +312,11 @@ describe('git y deshacer', () => {
 
   it('deshacer sin git; 409 si un archivo cambió después de actualizar o no es la última', async () => {
     await boot(writeV03);
+    vi.stubEnv('PATH', '');
     const before = await snapshot();
     const p = await preview();
     const r1 = (await actualizar({ perfil: p.perfil, cambios: p.cambios })).json();
+    expect(r1.commit).toBeNull();
     await fs.appendFile(mem('datos.tex'), '% editado\n');
     expect((await deshacer(r1.deshacer)).statusCode).toBe(409);
     await fs.writeFile(mem('datos.tex'), (await read('datos.tex')).replace('% editado\n', ''));

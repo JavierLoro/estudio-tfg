@@ -26,7 +26,7 @@ export class EventBus extends EventEmitter {
 
 function realOr(p: string) {
   try {
-    return fs.realpathSync(p);
+    return fs.realpathSync.native(p);
   } catch {
     return p;
   }

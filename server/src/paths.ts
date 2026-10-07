@@ -31,9 +31,9 @@ export function normalizeRel(p: unknown, allowEmpty = false): string {
   return rel;
 }
 
-export function isInside(parent: string, child: string): boolean {
-  const r = path.relative(parent, child);
-  return r === '' || (!r.startsWith('..' + path.sep) && r !== '..' && !path.isAbsolute(r));
+export function isInside(parent: string, child: string, paths = path): boolean {
+  const r = paths.relative(parent, child);
+  return r === '' || (!r.startsWith('..' + paths.sep) && r !== '..' && !paths.isAbsolute(r));
 }
 
 async function realRoot(dir: string): Promise<string> {

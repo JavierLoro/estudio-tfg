@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ArrowUp, BookMarked, ChevronRight, FileCode2, Folder, GitBranch, HardDrive } from 'lucide-react';
+import { absCrumbs, isAbsPath, joinAbs, type PathSep } from '../lib/abspath';
 import { api, errorMessage, type FsDirsResponse } from '../api';
 import { Button, Empty, IconButton, Modal, Spinner, cx } from './ui';
 
@@ -12,27 +13,6 @@ function Badge({ children, title, icon }: { children: React.ReactNode; title: st
   );
 }
 
-/** Une una carpeta absoluta y un nombre (rutas POSIX). */
-export function joinAbs(dir: string, name: string) {
-  return dir.endsWith('/') ? dir + name : `${dir}/${name}`;
-}
-
-/** Migas: raíz permitida que contiene `path` + segmentos restantes. */
-function crumbsFor(path: string, roots: string[]): { label: string; path: string }[] {
-  const root = roots
-    .filter((r) => path === r || path.startsWith(r.endsWith('/') ? r : r + '/'))
-    .sort((a, b) => b.length - a.length)[0];
-  const out: { label: string; path: string }[] = [];
-  let acc = root ?? '';
-  if (root) out.push({ label: root, path: root });
-  const rest = root ? path.slice(root.length) : path;
-  for (const seg of rest.split('/').filter(Boolean)) {
-    acc = acc ? joinAbs(acc, seg) : '/' + seg;
-    out.push({ label: seg, path: acc });
-  }
-  return out;
-}
-
 export interface DirPickerProps {
   open: boolean;
   onClose: () => void;
@@ -40,6 +20,7 @@ export interface DirPickerProps {
   /** Carpeta inicial (absoluta). Si no existe o no se puede listar, se empieza en las raíces. */
   initialPath?: string;
   allowedRoots: string[];
+  pathSep: PathSep;
   /** 'select' = elegir carpeta; 'create' = elegir carpeta padre + nombre de carpeta nueva. */
   mode?: 'select' | 'create';
   selectLabel?: string;
@@ -58,6 +39,7 @@ export function DirPicker({
   title,
   initialPath,
   allowedRoots,
+  pathSep,
   mode = 'select',
   selectLabel,
   validate,
@@ -104,13 +86,13 @@ export function DirPicker({
     setError(null);
     setListing(null);
     const start = initialPath?.trim();
-    void go(start && (start.startsWith('/') || start.startsWith('~')) ? start : null, true);
+    void go(start && isAbsPath(start) ? start : null, true);
   }, [open, initialPath, defaultName, go]);
 
-  const target = cur && mode === 'create' && name.trim() ? joinAbs(cur, name.trim()) : cur;
+  const target = cur && mode === 'create' && name.trim() ? joinAbs(cur, name.trim(), pathSep) : cur;
   const invalidName = mode === 'create' && /[/\\]|^\.\.?$/.test(name.trim());
   const validation = target && validate ? validate(target) : null;
-  const crumbs = cur ? crumbsFor(cur, allowedRoots) : [];
+  const crumbs = cur ? absCrumbs(cur, allowedRoots, pathSep) : [];
 
   const up = () => {
     if (!cur) return;

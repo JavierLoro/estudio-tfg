@@ -29,6 +29,7 @@ export interface SettingsCheck {
 }
 
 export interface SettingsResponse {
+  pathSep: '/' | '\\';
   values: SettingsValues;
   sources: Record<SettingsKey, SettingsSource>;
   allowedRoots: string[];
@@ -613,7 +614,7 @@ export const api = {
   /** 409 si la carpeta existe y no está vacía. */
   initMemoria: async (dir: string, perfil?: string) => {
     try {
-      return await guarded(json<Partial<SettingsResponse>>('/api/settings/init-memoria', jsonBody('POST', perfil ? { dir, perfil } : { dir })));
+      return await guarded(json<Partial<SettingsResponse> & { warning?: string }>('/api/settings/init-memoria', jsonBody('POST', perfil ? { dir, perfil } : { dir })));
     } catch (e) {
       if (e instanceof ApiError && e.status === 409 && !(e instanceof ConflictError)) {
         throw new ApiError(409, e.message && e.message !== 'HTTP 409' ? e.message : 'La carpeta no está vacía', e.body);
