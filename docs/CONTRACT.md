@@ -134,7 +134,8 @@ Si `AUTH_TOKEN` está definido: cabecera `Authorization: Bearer <token>` o cooki
 ### Precedencia y almacenamiento
 - Ajustes editables: `notesDir`, `resourcesSubdir`, `memoriaDir`, `memoriaMain`.
 - Se guardan en `data/settings.json` (ignorado por git). Precedencia: `settings.json` > `.env` > valores por defecto. `.env` queda como valores iniciales.
-- Nueva variable `ALLOWED_ROOTS` (lista separada por `:`; por defecto el home del usuario; en Docker `/data`). Ninguna carpeta configurable ni navegable puede salir de ellas (comprobado con realpath).
+- Nueva variable `ALLOWED_ROOTS` (lista separada por el delimitador del sistema del servidor: `:` en macOS/Linux y `;` en Windows; por defecto el home del usuario; en Docker `/data`). Ninguna carpeta configurable ni navegable puede salir de ellas (comprobado con realpath).
+- Precisión de portabilidad (A3): `ALLOWED_ROOTS=C:\Users\yo;D:\TFG` permite dos raíces en Windows sin dividir las letras de unidad. En Docker se usa el separador del contenedor (`:`), aunque el navegador esté en Windows. Se ignoran entradas vacías y espacios exteriores; se mantienen la resolución de rutas relativas, la expansión de `~`, la canonicalización con realpath y la eliminación de raíces duplicadas.
 - Se mantiene el bloqueo: `notesDir`/`memoriaDir` no pueden estar en carpetas versionadas del repo (solo `workspace/`).
 
 ### Seguridad
