@@ -8,15 +8,15 @@
 
 ## Índice
 
-| Fase | Qué consigue | Tareas | Depende de |
-|---|---|---|---|
-| [A](#fase-a) | Arrancar en Windows nativo (lo mínimo) | A1–A7 | — |
-| [B](#fase-b) | Modo Docker para usarlo en cualquier sistema y como servidor | B1–B4 | A1 |
-| [C](#fase-c) | Robustez en Windows (archivos en uso, nombres, saltos de línea…) | C1–C7 | A |
-| [D](#fase-d) | CI en Linux, macOS y Windows | D1–D2 | A |
-| [E](#fase-e) | Motores de compilación intercambiables (Docker / TeX del sistema / Tectonic) | E1–E4 | A |
-| [F](#fase-f) | Exportar diagramas sin Docker | F1 | E1 |
-| [G](#fase-g) | App de escritorio con Electron | G1–G7 | B1, C, D1, E1–E2, F1 |
+| Fase | Qué consigue | Tareas | Issues | Depende de |
+|---|---|---|---|---|
+| [A](#fase-a) | Arrancar en Windows nativo (lo mínimo) | A1–A7 | #3–#9 | — |
+| [B](#fase-b) | Modo Docker para usarlo en cualquier sistema y como servidor | B1–B4 | #10–#13 | A1 |
+| [C](#fase-c) | Robustez en Windows (archivos en uso, nombres, saltos de línea…) | C1–C7 | #14–#20 | A |
+| [D](#fase-d) | CI en Linux, macOS y Windows | D1–D2 | #21–#22 | A |
+| [E](#fase-e) | Motores de compilación intercambiables (Docker / TeX del sistema / Tectonic) | E1–E4 | #23–#26 | A |
+| [F](#fase-f) | Exportar diagramas sin Docker | F1 | #27 | E1 |
+| [G](#fase-g) | App de escritorio con Electron | G1–G7 | #28–#34 | B1, C, D1, E1–E2, F1 |
 
 ```
 A1 ─┬─ B1 ── B2 ── B3 ── B4
@@ -56,6 +56,8 @@ Resultado: en Windows con Node 24, Git para Windows y Docker Desktop (worker), `
 <a id="a1"></a>
 ### A1 · Saltos de línea, script de arranque de producción y README para Windows
 
+**Issue**: [#3](https://github.com/JavierLoro/estudio-tfg/issues/3)
+
 - **Objetivo**: que un clon en Windows no convierta los archivos a CRLF, que `npm start` no use sintaxis de shell y que el README diga cómo usarlo hoy en Windows.
 - **Contexto**: PLATAFORMAS.md E1 (versión mínima), S2, D1, L2 y su sección 1 «qué puede hacer hoy un usuario de Windows». `server/package.json` (`start`), `README.md`.
 - **Alcance**:
@@ -72,6 +74,8 @@ Resultado: en Windows con Node 24, Git para Windows y Docker Desktop (worker), `
 <a id="a2"></a>
 ### A2 · `npm run dev` multiplataforma
 
+**Issue**: [#4](https://github.com/JavierLoro/estudio-tfg/issues/4)
+
 - **Objetivo**: que `npm run dev` arranque API y web en Windows (hoy usa `&`, que en `cmd.exe` las ejecuta una tras otra y la web nunca arranca).
 - **Contexto**: PLATAFORMAS.md S1, S4. `package.json` (raíz, script `dev`), `server/package.json` (`dev`: `tsx watch src/index.ts`), `web/package.json` (`dev`: `vite`), `.claude/launch.json`.
 - **Alcance**:
@@ -85,6 +89,8 @@ Resultado: en Windows con Node 24, Git para Windows y Docker Desktop (worker), `
 <a id="a3"></a>
 ### A3 · `ALLOWED_ROOTS` con el separador de cada sistema
 
+**Issue**: [#5](https://github.com/JavierLoro/estudio-tfg/issues/5)
+
 - **Objetivo**: que `ALLOWED_ROOTS=C:\Users\x;D:\TFG` funcione (hoy se separa por `:` y rompe las letras de unidad).
 - **Contexto**: PLATAFORMAS.md P1, T1. `parseAllowedRoots` en `server/src/config.ts` (~línea 91), `.env.example`, `server/test/helpers.ts` (pasa `ALLOWED_ROOTS: dir`), `docs/CONTRACT.md` (sección «Configuración desde la interfaz (v0.2)», donde se describe `ALLOWED_ROOTS`).
 - **Alcance**: separar con `path.delimiter` (`;` en Windows, `:` en POSIX); que la función acepte el módulo `path` como parámetro opcional para poder probar con `path.win32`; actualizar comentario, `.env.example` y contrato.
@@ -95,6 +101,8 @@ Resultado: en Windows con Node 24, Git para Windows y Docker Desktop (worker), `
 
 <a id="a4"></a>
 ### A4 · Rutas absolutas de Windows en Ajustes
+
+**Issue**: [#6](https://github.com/JavierLoro/estudio-tfg/issues/6)
 
 - **Objetivo**: que el panel Ajustes y el selector de carpetas funcionen con `C:\…`, `\\servidor\recurso` y `~\`.
 - **Contexto**: PLATAFORMAS.md P2, P6. `web/src/panels/SettingsPanel.tsx` (`isAbs`, `joinAbs`, `relToNotes`), `web/src/components/DirPicker.tsx` (migas de pan), `server/src/routes/settings.ts` (`GET /api/settings`, `/api/fs/dirs`), `expandPath` en `server/src/config.ts` y `server/src/settings.ts`, `scripts/init.mjs`.
@@ -110,6 +118,8 @@ Resultado: en Windows con Node 24, Git para Windows y Docker Desktop (worker), `
 <a id="a5"></a>
 ### A5 · Crear la memoria sin git instalado
 
+**Issue**: [#7](https://github.com/JavierLoro/estudio-tfg/issues/7)
+
 - **Objetivo**: que crear la memoria no deje una carpeta a medias con error 500 cuando `git` no está en el PATH.
 - **Contexto**: PLATAFORMAS.md G1. `createMemoriaFromTemplate` en `scripts/memoria-template.mjs` (copia y luego `git init` con `execFileSync`), `POST /api/settings/init-memoria` en `server/src/routes/settings.ts` y `server/src/settings.ts`, `scripts/init.mjs`, aviso en `web/src/panels/SettingsPanel.tsx`.
 - **Alcance**: comprobar `git --version` antes de copiar; si no hay git, crear la memoria sin repositorio y devolver un aviso («La memoria se ha creado sin control de versiones: instala Git para tener historial y actualizaciones de plantilla»); `npm run init` igual. Las funciones que usan git (`server/src/plantilla.ts`) deben seguir funcionando sin repo (ya contemplan `commit: null`: confirmarlo).
@@ -121,6 +131,8 @@ Resultado: en Windows con Node 24, Git para Windows y Docker Desktop (worker), `
 <a id="a6"></a>
 ### A6 · Atajos de teclado con el texto correcto en cada sistema
 
+**Issue**: [#8](https://github.com/JavierLoro/estudio-tfg/issues/8)
+
 - **Objetivo**: que los atajos se muestren como «⌘⇧C» en Mac y «Ctrl+Mayús+C» en Windows/Linux (hoy hay `⌘ ⌥ ⇧ ↵` escritos a mano y `MOD` produce «Ctrl+⇧C»).
 - **Contexto**: PLATAFORMAS.md U1. `MOD` y `ALT` en `web/src/components/ui.tsx`; textos fijos en `SearchView.tsx`, `Markdown.tsx`, `HomePanel.tsx`, `SettingsPanel.tsx`, `CaptureModal.tsx`, `PdfViewer.tsx`, `DiagramPanel.tsx`/`DiagramCanvas.tsx` y otros (busca `⌘`, `⌥`, `⇧`, `↵`, `MOD}` con `grep -rn`).
 - **Alcance**: helper `kbd('Mod-Shift-C')` (sintaxis de CodeMirror: `Mod`, `Alt`, `Shift`, `Enter`, `Backspace`…) en `web/src/lib/kbd.ts`; sustituir todos los textos de atajos visibles (tooltips, menús, ayuda de Inicio). No cambia qué teclas hacen qué (eso es C6).
@@ -131,6 +143,8 @@ Resultado: en Windows con Node 24, Git para Windows y Docker Desktop (worker), `
 
 <a id="a7"></a>
 ### A7 · Rutas canónicas: `realpath` nativo e identificador de instancia
+
+**Issue**: [#9](https://github.com/JavierLoro/estudio-tfg/issues/9)
 
 - **Objetivo**: que las comprobaciones «esta carpeta está dentro de esta otra» y el identificador de instancia no fallen por mayúsculas de unidad (`c:` vs `C:`), unidades `subst` o mapeadas.
 - **Contexto**: PLATAFORMAS.md P5, P7. `realpathSync`/`realpathLoose` en `server/src/config.ts`, comparaciones con `includes` en `server/src/routes/settings.ts`, `isInside`/`resolveSafe` en `server/src/paths.ts`, `instanceId` en `server/src/settings.ts`.
@@ -150,6 +164,8 @@ Resultado: con solo Docker instalado, `docker compose --profile app up -d` deja 
 <a id="b1"></a>
 ### B1 · Carpeta de compilaciones compartida entre la app y el worker
 
+**Issue**: [#10](https://github.com/JavierLoro/estudio-tfg/issues/10)
+
 - **Objetivo**: arreglar el perfil `app`: hoy la app busca los PDF en `/data/app/builds` (host `./data/app/builds`) y el worker los escribe en `./data/builds`, así que nunca los encuentra.
 - **Contexto**: `docker-compose.yml` (servicios `worker` y `app`), `Dockerfile` (app), `server/src/compile.ts` (`pdfExists`, `buildFile`: el server lee los artefactos de `cfg.buildDir/<id>/`), `worker/Dockerfile` (uid 1000). PLATAFORMAS.md D3.
 - **Alcance**: que `BUILD_DIR` de la app y `/out` del worker sean el mismo volumen de host (p. ej. `./data/builds` montado en ambos, y el resto de `data/` de la app en otro punto); asegurar que `data/builds` existe antes de levantar (documentado o creado por `npm run init`/script) y documentar el uid en Linux.
@@ -160,6 +176,8 @@ Resultado: con solo Docker instalado, `docker compose --profile app up -d` deja 
 
 <a id="b2"></a>
 ### B2 · Vigilar archivos por sondeo cuando hace falta
+
+**Issue**: [#11](https://github.com/JavierLoro/estudio-tfg/issues/11)
 
 - **Objetivo**: que en Docker con carpetas de Windows montadas (y en WSL `/mnt/c`, unidades de red) se vean en vivo los cambios hechos con Obsidian.
 - **Contexto**: PLATAFORMAS.md F4, F5, D2. `WatchManager` y chokidar en `server/src/events.ts` (el `on('error', () => {})` silencia errores), `GET /api/status` en `server/src/routes/status.ts`, tipo `Status` en `web/src/api.ts`.
@@ -172,6 +190,8 @@ Resultado: con solo Docker instalado, `docker compose --profile app up -d` deja 
 <a id="b3"></a>
 ### B3 · git dentro del contenedor de la app
 
+**Issue**: [#12](https://github.com/JavierLoro/estudio-tfg/issues/12)
+
 - **Objetivo**: que «Actualizar plantilla» y la creación de memorias hagan commit cuando la memoria está montada desde el host (git la rechaza por «dubious ownership»).
 - **Contexto**: PLATAFORMAS.md G2. `Dockerfile` (instala git), `isGitRepo` y commits en `server/src/plantilla.ts`, avisos en `web/src/panels/DatosPanel.tsx`.
 - **Alcance**: `git config --system --add safe.directory '*'` en la imagen de la app (el contenedor solo ve esa memoria); cuando git falle, incluir su `stderr` resumido en el aviso al usuario en vez de tratarlo como «no es un repositorio».
@@ -182,6 +202,8 @@ Resultado: con solo Docker instalado, `docker compose --profile app up -d` deja 
 
 <a id="b4"></a>
 ### B4 · Elegir carpetas desde Ajustes en Docker y documentar los dos modos
+
+**Issue**: [#13](https://github.com/JavierLoro/estudio-tfg/issues/13)
 
 - **Objetivo**: que en Docker se pueda elegir el vault y la memoria desde Ajustes sin editar `.env`, y que el README explique las dos formas de levantar el entorno.
 - **Contexto**: servicio `app` de `docker-compose.yml` (`ALLOWED_ROOTS=/data`, montajes `NOTES_DIR`/`MEMORIA_DIR`), Ajustes (`server/src/routes/settings.ts`, `/api/fs/dirs`), `README.md`.
@@ -201,6 +223,8 @@ Resultado: en Windows no se pierden ni duplican archivos aunque Obsidian, OneDri
 <a id="c1"></a>
 ### C1 · Archivos en uso: reintentos y movimientos seguros
 
+**Issue**: [#14](https://github.com/JavierLoro/estudio-tfg/issues/14)
+
 - **Objetivo**: que guardar y mover no fallen ni dupliquen archivos cuando otro programa los tiene abiertos.
 - **Contexto**: PLATAFORMAS.md F1, F2, F9. `atomicWrite` en `server/src/fsutil.ts` (temporal + `rename`), `moveEntry` en `server/src/fileops.ts` (`link` + `unlink`; si falla el `unlink` queda duplicado), errores en `server/src/errors.ts`.
 - **Alcance**: en win32, reintentos con espera exponencial (~2 s en total) ante `EPERM`/`EACCES`/`EBUSY` en `rename`/`unlink`; en `moveEntry`, si el `unlink` del origen falla tras reintentar, borrar el destino recién enlazado y devolver error; nuevo error 423 «El archivo está en uso por otro programa; ciérralo y vuelve a intentarlo»; `EPERM` con destino existente al renombrar carpetas → 409. La interfaz muestra ese mensaje.
@@ -211,6 +235,8 @@ Resultado: en Windows no se pierden ni duplican archivos aunque Obsidian, OneDri
 
 <a id="c2"></a>
 ### C2 · Sistemas de archivos sin enlaces duros
+
+**Issue**: [#15](https://github.com/JavierLoro/estudio-tfg/issues/15)
 
 - **Objetivo**: que crear archivos, capturar, crear apartados y copias de historial funcionen en exFAT, FAT, unidades de red y Google Drive.
 - **Contexto**: PLATAFORMAS.md F3. `createExclusive`/`linkExclusive` en `server/src/fsutil.ts`, `NO_LINK` en `server/src/fileops.ts`.
@@ -223,6 +249,8 @@ Resultado: en Windows no se pierden ni duplican archivos aunque Obsidian, OneDri
 <a id="c3"></a>
 ### C3 · Nombres de archivo válidos en todos los sistemas
 
+**Issue**: [#16](https://github.com/JavierLoro/estudio-tfg/issues/16)
+
 - **Objetivo**: no crear nombres que Windows, el Explorador, git u Obsidian no pueden manejar.
 - **Contexto**: PLATAFORMAS.md P3, P4. `normalizeRel` en `server/src/paths.ts`, creación y movimiento en `server/src/fileops.ts` y `server/src/routes/files.ts`, `sanitizeTitle` en `server/src/capture.ts`, `sanitizeDiagramName` en `web/src/state/diagramas.ts`.
 - **Alcance**: `validSegment()` aplicado a nombres **nuevos** (crear, renombrar, mover, capturar) en todos los sistemas: rechazar `:`, `<>"|?*`, caracteres de control, punto o espacio final y nombres reservados (`CON`, `PRN`, `AUX`, `NUL`, `COM1-9`, `LPT1-9`, con o sin extensión: `aux.tex`, `con.md`), con mensaje en español (400 con `field`); `sanitizeTitle` añade un sufijo a los reservados. Los nombres existentes se siguen leyendo.
@@ -233,6 +261,8 @@ Resultado: en Windows no se pierden ni duplican archivos aunque Obsidian, OneDri
 
 <a id="c4"></a>
 ### C4 · Saltos de línea CRLF
+
+**Issue**: [#17](https://github.com/JavierLoro/estudio-tfg/issues/17)
 
 - **Objetivo**: que los archivos con CRLF (editados en Windows) no se conviertan enteros al guardar, no parezcan «modificados» para la plantilla y no rompan los analizadores.
 - **Contexto**: PLATAFORMAS.md E1 (versión robusta), E2, E3. Hash de manifiestos en `scripts/memoria-template.mjs` y `server/src/plantilla.ts`; `templates/manifiestos/*.json`; CodeMirror en `web/src/components/CodeEditor.tsx`; `server/src/datos.ts`; `eolOf` existente en `server/src/sections.ts`.
@@ -245,6 +275,8 @@ Resultado: en Windows no se pierden ni duplican archivos aunque Obsidian, OneDri
 <a id="c5"></a>
 ### C5 · Carpetas y archivos de sistema de Windows
 
+**Issue**: [#18](https://github.com/JavierLoro/estudio-tfg/issues/18)
+
 - **Objetivo**: que el selector de carpetas no muestre `AppData`, `$Recycle.Bin`, etc., y que `desktop.ini`/`Thumbs.db` no aparezcan en el árbol, la búsqueda ni la compilación.
 - **Contexto**: PLATAFORMAS.md L1, F7. `/api/fs/dirs` en `server/src/routes/settings.ts`, `server/src/ignore.ts`, `isEmptyDir` en `scripts/memoria-template.mjs`, `templates/base/.gitignore`.
 - **Alcance**: lista de exclusión en win32 para el listado de carpetas y saltar las que dan `EPERM`; ignorar `desktop.ini`, `Thumbs.db`, `*.tmp` en `ignore.ts` e `isEmptyDir`; añadirlos al `.gitignore` de la plantilla (regenerar manifiesto).
@@ -256,6 +288,8 @@ Resultado: en Windows no se pierden ni duplican archivos aunque Obsidian, OneDri
 <a id="c6"></a>
 ### C6 · Atajos que chocan con el navegador fuera de Mac
 
+**Issue**: [#19](https://github.com/JavierLoro/estudio-tfg/issues/19)
+
 - **Objetivo**: que en Windows y Linux los atajos no abran las herramientas de desarrollo ni la barra de búsqueda del navegador, y que «abrir al lado» no dependa de Alt+clic.
 - **Contexto**: PLATAFORMAS.md U2, U3. `Mod-Shift-j` en `web/src/components/CodeEditor.tsx`, atajos globales en `web/src/App.tsx` (Ctrl+K, Ctrl+Shift+C, Ctrl+B), `web/src/panels/NotePanel.tsx` (Ctrl+E), usos de `e.altKey` en `FileTree`, `SearchView`, `Markdown`, `OutlineTree`, `QuickOpen`, `PdfViewer`. Helper de A6.
 - **Alcance**: comprobar con `preventDefault` cuáles gana la página en Chrome, Edge y Firefox (documentar en la tarea o en «a verificar»); para los que no se puedan capturar, atajo alternativo fuera de Mac (p. ej. Ctrl+Alt+J), evitando combinaciones de AltGr; además de Alt+clic, aceptar Ctrl+Mayús+clic y clic central, y que «Abrir al lado» esté en el menú contextual. Actualizar textos con `kbd()`.
@@ -266,6 +300,8 @@ Resultado: en Windows no se pierden ni duplican archivos aunque Obsidian, OneDri
 
 <a id="c7"></a>
 ### C7 · Detalles menores de portabilidad
+
+**Issue**: [#20](https://github.com/JavierLoro/estudio-tfg/issues/20)
 
 - **Objetivo**: cerrar los hallazgos menores de PLATAFORMAS.md.
 - **Contexto**: P8 (normalizar Unicode a NFC al comparar nombres: `notes.ts`, `links.ts`, `search.ts`, `QuickOpen.tsx`), P10 (`path.posix` en `server/src/outline.ts` para rutas del worker), F6 (no propagar modo de solo lectura en win32: `fsutil.ts`), F8 (`fs.stat` con `bigint` en `fileops.ts`), G3/P9 (`-c core.longpaths=true` en llamadas a git en win32: `plantilla.ts`, `memoria-template.mjs`), T2 (`canSymlink()` y `it.skipIf` en tests con enlaces simbólicos), T4 (`fs.rm` con `maxRetries` en `server/test/helpers.ts`).
@@ -283,6 +319,8 @@ Resultado: en Windows no se pierden ni duplican archivos aunque Obsidian, OneDri
 <a id="d1"></a>
 ### D1 · Integración continua con GitHub Actions
 
+**Issue**: [#21](https://github.com/JavierLoro/estudio-tfg/issues/21)
+
 - **Objetivo**: que cada push y PR se pruebe en Linux, macOS y Windows, y que la plantilla se compile con 0 avisos.
 - **Contexto**: PLATAFORMAS.md T6 y §4 fase 3. No existe `.github/`. Tests: `npm test` (vitest, usa `WORKER_URL=http://127.0.0.1:1` y un worker falso en `server/test/compile.test.ts`), `node --test worker/*.test.mjs`, `node scripts/template-manifest.mjs --check`.
 - **Alcance**: `.github/workflows/ci.yml` con matriz `[ubuntu-latest, macos-latest, windows-latest]`, `fail-fast: false`, Node 24: `npm ci` en server y web, typecheck, tests del server, build web, tests del worker, comprobación del manifiesto. Windows con `continue-on-error: true` hasta cerrar la fase C. Job aparte solo en ubuntu: construir la imagen del worker y compilar cada perfil (`esi-uclm`, `generico`) comprobando 0 avisos (script reutilizable, p. ej. `scripts/compile-template.mjs`).
@@ -293,6 +331,8 @@ Resultado: en Windows no se pierden ni duplican archivos aunque Obsidian, OneDri
 
 <a id="d2"></a>
 ### D2 · Tests de Windows sin Windows
+
+**Issue**: [#22](https://github.com/JavierLoro/estudio-tfg/issues/22)
 
 - **Objetivo**: cubrir con tests lo que no podemos probar a mano en Windows.
 - **Contexto**: PLATAFORMAS.md §5 «Sin máquina Windows».
@@ -312,6 +352,8 @@ Resultado: el servidor compila con el motor que elija el usuario: **Docker** (el
 <a id="e1"></a>
 ### E1 · Contrato e interfaz de motor de compilación
 
+**Issue**: [#23](https://github.com/JavierLoro/estudio-tfg/issues/23)
+
 - **Objetivo**: que el servidor no dependa de «un worker HTTP» sino de una interfaz de motor, con el worker actual como primera implementación.
 - **Contexto**: hoy todo pasa por `cfg.workerUrl`: `fetch(.../compile)` en `server/src/compile.ts` (tar de fuentes + cabecera `x-main`; respuesta `{ ok, buildId, durationMs, pdf, log, diagnostics }`; artefactos en `buildDir/<id>/main.{pdf,log,synctex.gz}` porque el worker escribe en la carpeta compartida), `fetch(.../svg2pdf)` en `server/src/diagramas.ts`, `/health` en `server/src/routes/status.ts`. Worker: `worker/server.mjs`. Worker falso de tests en `server/test/compile.test.ts`.
 - **Alcance**:
@@ -326,6 +368,8 @@ Resultado: el servidor compila con el motor que elija el usuario: **Docker** (el
 
 <a id="e2"></a>
 ### E2 · Motor «TeX del sistema»
+
+**Issue**: [#24](https://github.com/JavierLoro/estudio-tfg/issues/24)
 
 - **Objetivo**: compilar con el `latexmk` instalado en el equipo, sin Docker.
 - **Contexto**: `worker/server.mjs` (función `compile`: `latexmk -pdf -interaction=nonstopmode -file-line-error -synctex=1 -no-shell-escape`, variables `max_print_line` etc., `copySynctex`, `parse-log.mjs`, cola de una compilación; `run()` mata el grupo de procesos con `process.kill(-pid)`, que no existe en Windows), `worker/untar.mjs`, `worker/svg.mjs` (`rsvg-convert`). Interfaz de E1.
@@ -343,6 +387,8 @@ Resultado: el servidor compila con el motor que elija el usuario: **Docker** (el
 <a id="e3"></a>
 ### E3 · Validar la plantilla con TeX del sistema
 
+**Issue**: [#25](https://github.com/JavierLoro/estudio-tfg/issues/25)
+
 - **Objetivo**: garantizar que la plantilla compila con 0 avisos con las distribuciones habituales, y documentar qué instalar.
 - **Contexto**: plantilla en `templates/base/` y `templates/perfiles/`; necesita pdfLaTeX, biber y los paquetes de `templates/base/estilo/memoria.cls`. Motor local de E2.
 - **Alcance**: compilar ambos perfiles con MacTeX/TeX Live (y MiKTeX si hay acceso: instalación de paquetes al vuelo) con el motor local; corregir lo que dependa de TeX Live completo; documentar requisitos (distribución mínima, paquetes) en el README y en la ayuda de Ajustes.
@@ -353,6 +399,8 @@ Resultado: el servidor compila con el motor que elija el usuario: **Docker** (el
 
 <a id="e4"></a>
 ### E4 · Exploración: Tectonic como motor autocontenido
+
+**Issue**: [#26](https://github.com/JavierLoro/estudio-tfg/issues/26)
 
 - **Objetivo**: decidir si Tectonic (motor XeTeX de ~30 MB que descarga paquetes según los necesita) puede ser el motor por defecto de la app de escritorio.
 - **Contexto**: la clase `templates/base/estilo/memoria.cls` está pensada para pdfLaTeX (`fontenc` T1, newtx, microtype, biber). Tectonic usa XeTeX y gestiona biber aparte.
@@ -369,6 +417,8 @@ Resultado: el servidor compila con el motor que elija el usuario: **Docker** (el
 
 <a id="f1"></a>
 ### F1 · Exportar diagramas a PDF sin `rsvg-convert`
+
+**Issue**: [#27](https://github.com/JavierLoro/estudio-tfg/issues/27)
 
 - **Objetivo**: que exportar un diagrama a PDF vectorial funcione con el motor local (sin el worker de Docker).
 - **Contexto**: hoy el navegador dibuja el SVG (`web/src/lib/diagram.ts`, fuente Source Sans 3 cargada para medir) y el worker lo convierte con `rsvg-convert` (`worker/svg.mjs`, `fontconfig-diagramas.conf`); `server/src/diagramas.ts` guarda PDF y SVG. Precisiones v0.8 en `docs/CONTRACT.md` (`xml:space="preserve"`, sin sombras, etiquetas opacas).
@@ -388,6 +438,8 @@ Resultado: instaladores y versión portable para Windows y Mac (y AppImage para 
 <a id="g1"></a>
 ### G1 · Desacoplar el servidor del checkout del repo
 
+**Issue**: [#28](https://github.com/JavierLoro/estudio-tfg/issues/28)
+
 - **Objetivo**: que el servidor pueda arrancar desde una app empaquetada, sin `.env` ni carpetas del repo.
 - **Contexto**: `REPO_ROOT` en `server/src/config.ts` (de él salen `.env`, rutas relativas, `webDist = web/dist`, `data/`), `assertOutsideRepo`/`repoGuardError`, `server/src/index.ts` (carga `.env` de la raíz), `scripts/memoria-template.mjs` (`TEMPLATES_DIR`), carpeta de datos (`data/builds`, `data/history`, `data/settings.json`, `data/trash`).
 - **Alcance**: variables `DATA_DIR`, `TEMPLATES_DIR`, `WEB_DIST` (por defecto, lo de hoy); `.env` opcional; guardia del repo solo si se ejecuta desde un checkout; función que da la carpeta de datos por sistema (`~/Library/Application Support/Estudio TFG`, `%APPDATA%\Estudio TFG`, `~/.local/share/estudio-tfg`) para usarla desde la app.
@@ -398,6 +450,8 @@ Resultado: instaladores y versión portable para Windows y Mac (y AppImage para 
 
 <a id="g2"></a>
 ### G2 · Servidor compilado a JavaScript
+
+**Issue**: [#29](https://github.com/JavierLoro/estudio-tfg/issues/29)
 
 - **Objetivo**: no depender de `tsx` en ejecución dentro de la app empaquetada.
 - **Contexto**: `server/package.json` (`start`: `tsx src/index.ts`), `Dockerfile` (usa `tsx`), imports de `scripts/*.mjs` desde el servidor.
@@ -410,6 +464,8 @@ Resultado: instaladores y versión portable para Windows y Mac (y AppImage para 
 <a id="g3"></a>
 ### G3 · Esqueleto de la app Electron
 
+**Issue**: [#30](https://github.com/JavierLoro/estudio-tfg/issues/30)
+
 - **Objetivo**: una app que arranca el servidor y muestra la interfaz en su ventana.
 - **Contexto**: la web usa URLs relativas `/api/...`, `EventSource('/api/events')` y la cookie `et_token` (`web/src/api.ts`, `web/src/state/events.ts`, `server/src/auth.ts`), así que debe cargarse desde el servidor HTTP, **no** con `file://`. Servidor de G1/G2.
 - **Alcance**: carpeta `desktop/` con `package.json` propio; el proceso principal arranca el servidor (en el mismo proceso o con `utilityProcess`) en `127.0.0.1` con puerto libre y `AUTH_TOKEN` aleatorio, fija la cookie `et_token` en la sesión y abre la ventana en esa URL; una sola instancia; cierre limpio del servidor; carpeta de datos por sistema (G1).
@@ -420,6 +476,8 @@ Resultado: instaladores y versión portable para Windows y Mac (y AppImage para 
 
 <a id="g4"></a>
 ### G4 · Asistente de primer arranque
+
+**Issue**: [#31](https://github.com/JavierLoro/estudio-tfg/issues/31)
 
 - **Objetivo**: que alguien sin conocimientos técnicos deje la app lista en pocos pasos.
 - **Contexto**: Ajustes (carpetas, crear memoria desde perfil: `web/src/panels/SettingsPanel.tsx`), detección de motor (E2), perfiles (`GET /api/templates/perfiles`).
@@ -432,6 +490,8 @@ Resultado: instaladores y versión portable para Windows y Mac (y AppImage para 
 <a id="g5"></a>
 ### G5 · Empaquetado y publicación
 
+**Issue**: [#32](https://github.com/JavierLoro/estudio-tfg/issues/32)
+
 - **Objetivo**: generar instaladores y versión portable automáticamente al publicar una versión.
 - **Contexto**: app de G3.
 - **Alcance**: `electron-builder` con: macOS `.dmg` (arm64 y x64), Windows instalador NSIS y `.exe` portable (x64), Linux AppImage; incluir `templates/`, `scripts/` necesarios, `web/dist` y el servidor de G2; workflow `.github/workflows/release.yml` que, al crear un tag `v*`, construye en `macos-latest` y `windows-latest` (y ubuntu) y sube a GitHub Releases; actualización automática con `electron-updater` desde Releases; **sin firmar** al principio, con instrucciones en el README para abrirla (macOS: clic derecho → Abrir; Windows: «Más información → Ejecutar de todas formas»).
@@ -443,6 +503,8 @@ Resultado: instaladores y versión portable para Windows y Mac (y AppImage para 
 <a id="g6"></a>
 ### G6 · Firma y notarización
 
+**Issue**: [#33](https://github.com/JavierLoro/estudio-tfg/issues/33)
+
 - **Objetivo**: que macOS y Windows no avisen de «app no verificada».
 - **Contexto**: requiere una cuenta de Apple Developer (99 $/año) y un certificado de firma de código para Windows. **Las credenciales y el pago los gestiona el usuario**; nunca se guardan en el repo.
 - **Alcance**: el agente prepara el workflow de G5 para firmar y notarizar usando secretos de GitHub (`APPLE_ID`, `APPLE_TEAM_ID`, certificado en base64, contraseña…) y documenta qué secretos crear y cómo; si los secretos no existen, el build sigue sin firmar.
@@ -453,6 +515,8 @@ Resultado: instaladores y versión portable para Windows y Mac (y AppImage para 
 
 <a id="g7"></a>
 ### G7 · «Acerca de», licencia y guía de instalación
+
+**Issue**: [#34](https://github.com/JavierLoro/estudio-tfg/issues/34)
 
 - **Objetivo**: cumplir la AGPL al distribuir binarios y explicar la instalación.
 - **Contexto**: licencia en `LICENSE` y README (AGPL-3.0, plantilla derivada de ARCO GPL-2.0+, fuentes y componentes de terceros).
