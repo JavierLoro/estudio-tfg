@@ -7,7 +7,7 @@ Guía para agentes de código (Claude Code, Codex, Cursor…) que trabajen en es
 Estudio TFG: entorno self-hosted para escribir la memoria del TFG en LaTeX con el PDF al lado, consultar notas de Obsidian y capturar recursos. **El repo es solo la herramienta**; la memoria y las notas del usuario viven fuera (ver «Contenido personal»).
 
 - Especificación vinculante: [docs/CONTRACT.md](docs/CONTRACT.md). Cualquier cambio de API, eventos o comportamiento visible se refleja ahí, en una sección versionada (v0.1, v0.2, v0.3…).
-- Trabajo pendiente: issues de GitHub (`gh issue list --repo JavierLoro/estudio-tfg`).
+- Trabajo pendiente: [docs/HOJA-DE-RUTA.md](docs/HOJA-DE-RUTA.md) (fases y tareas listas para un agente) y sus issues de GitHub (`gh issue list --repo JavierLoro/estudio-tfg --label hoja-de-ruta`).
 
 ## Estructura
 
