@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest';
-import { REPO_ROOT, loadConfig } from '../src/config.ts';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { REPO_ROOT, loadConfig, parseAllowedRoots } from '../src/config.ts';
 
 
 describe('config: contenido personal fuera del repo', () => {
@@ -13,5 +16,41 @@ describe('config: contenido personal fuera del repo', () => {
     expect(() => loadConfig({ NOTES_DIR: './docs' }, REPO_ROOT)).toThrow(/dentro del repositorio/);
     expect(() => loadConfig({ NOTES_DIR: '.' }, REPO_ROOT)).toThrow(/dentro del repositorio/);
     expect(() => loadConfig({ NOTES_DIR: './workspace-x' }, REPO_ROOT)).toThrow(/dentro del repositorio/);
+  });
+});
+
+describe('config: ALLOWED_ROOTS por sistema', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it.each([
+    { name: 'dos unidades Windows', paths: path.win32, base: 'C:\\repo', value: 'C:\\a;D:\\b', expected: ['C:\\a', 'D:\\b'] },
+    { name: 'una ruta Windows como la de los tests', paths: path.win32, base: 'C:\\repo', value: 'C:\\Users\\yo\\Temp', expected: ['C:\\Users\\yo\\Temp'] },
+    { name: 'espacios, vacíos y duplicados Windows', paths: path.win32, base: 'C:\\repo', value: ' ; C:\\a ; ; D:\\b ; C:\\a ; ', expected: ['C:\\a', 'D:\\b'] },
+    { name: 'rutas relativas Windows', paths: path.win32, base: 'C:\\repo', value: '.;..\\notas', expected: ['C:\\repo', 'C:\\notas'] },
+    { name: 'dos raíces POSIX', paths: path.posix, base: '/repo', value: '/a:/b', expected: ['/a', '/b'] },
+    { name: 'espacios, vacíos y duplicados POSIX', paths: path.posix, base: '/repo', value: ' : /a : : /b : /a : ', expected: ['/a', '/b'] },
+    { name: 'rutas relativas POSIX', paths: path.posix, base: '/repo', value: '.:../notas', expected: ['/repo', '/notas'] },
+    { name: 'punto y coma dentro de un nombre POSIX', paths: path.posix, base: '/repo', value: '/a;b:/c', expected: ['/a;b', '/c'] },
+  ])('$name', ({ paths, base, value, expected }) => {
+    // Las rutas simuladas no existen en el sistema que ejecuta la prueba.
+    vi.spyOn(fs, 'realpathSync').mockImplementation(() => {
+      throw Object.assign(new Error('Carpeta inexistente'), { code: 'ENOENT' });
+    });
+    expect(parseAllowedRoots(value, base, paths)).toEqual(expected);
+  });
+
+  it('mantiene el home por defecto y las rutas canónicas con el módulo nativo', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'estudio-tfg-roots-'));
+    try {
+      vi.spyOn(os, 'homedir').mockReturnValue(dir);
+      const canonical = fs.realpathSync(dir);
+      for (const value of [undefined, '', ` ${path.delimiter} `]) {
+        expect(parseAllowedRoots(value, REPO_ROOT)).toEqual([canonical]);
+      }
+      expect(parseAllowedRoots(`~${path.delimiter}${dir}`, REPO_ROOT)).toEqual([canonical]);
+      expect(parseAllowedRoots('./nueva', dir)).toEqual([path.join(canonical, 'nueva')]);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

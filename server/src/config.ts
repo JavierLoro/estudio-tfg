@@ -32,11 +32,11 @@ export type SettingValues = Record<SettingKey, string>;
 /** Repo root = parent of server/. */
 export const REPO_ROOT = path.resolve(import.meta.dirname, '..', '..');
 
-export function expandPath(p: string, base: string): string {
+export function expandPath(p: string, base: string, paths = path): string {
   let v = p.trim();
   if (v === '~') v = os.homedir();
-  else if (v.startsWith('~/')) v = path.join(os.homedir(), v.slice(2));
-  return path.resolve(base, v);
+  else if (v.startsWith('~/')) v = paths.join(os.homedir(), v.slice(2));
+  return paths.resolve(base, v);
 }
 
 const src = (v: string | undefined): 'env' | 'default' => ((v ?? '').trim() ? 'env' : 'default');
@@ -47,17 +47,17 @@ function str(v: string | undefined, def: string): string {
 }
 
 /** realpath of the deepest existing ancestor + the missing tail (never throws). */
-export function realpathLoose(p: string): string {
+export function realpathLoose(p: string, paths = path): string {
   const missing: string[] = [];
-  let probe = path.resolve(p);
+  let probe = paths.resolve(p);
   for (;;) {
     try {
       const real = fs.realpathSync(probe);
-      return missing.length ? path.join(real, ...missing.reverse()) : real;
+      return missing.length ? paths.join(real, ...missing.reverse()) : real;
     } catch {
-      const parent = path.dirname(probe);
-      if (parent === probe) return path.resolve(p);
-      missing.push(path.basename(probe));
+      const parent = paths.dirname(probe);
+      if (parent === probe) return paths.resolve(p);
+      missing.push(paths.basename(probe));
       probe = parent;
     }
   }
@@ -87,10 +87,10 @@ function assertOutsideRepo(name: string, dir: string): void {
   if (err) throw new Error(err);
 }
 
-/** ALLOWED_ROOTS: `:`-separated list (default: the user's home). */
-export function parseAllowedRoots(v: string | undefined, base: string): string[] {
-  const list = (v ?? '').split(':').map((s) => s.trim()).filter(Boolean);
-  const roots = (list.length ? list : [os.homedir()]).map((r) => realpathLoose(expandPath(r, base)));
+/** ALLOWED_ROOTS: `;` en Windows, `:` en POSIX; por defecto, el home del usuario. */
+export function parseAllowedRoots(v: string | undefined, base: string, paths = path): string[] {
+  const list = (v ?? '').split(paths.delimiter).map((s) => s.trim()).filter(Boolean);
+  const roots = (list.length ? list : [os.homedir()]).map((r) => realpathLoose(expandPath(r, base, paths), paths));
   return [...new Set(roots)];
 }
 
