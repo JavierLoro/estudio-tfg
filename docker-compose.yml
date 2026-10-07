@@ -52,6 +52,7 @@ services:
       MEMORIA_DIR: /data/memoria
       BUILD_DIR: /data/app/builds     # settings.json e history/ quedan en /data/app (persistentes)
       WORKER_URL: http://worker:8090
+      WATCH_POLLING: ${WATCH_POLLING:-auto}
       ALLOWED_ROOTS: /data             # carpetas elegibles desde Ajustes
     ports:
       - "127.0.0.1:8787:8787"

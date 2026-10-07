@@ -85,6 +85,11 @@ export function Header() {
       )}
 
       <SyncConflicts list={status?.syncConflicts ?? []} />
+      {status?.watcher === 'error' && (
+        <span role="status" className="flex items-center gap-1 text-[12px] text-warn" title={status.watcherMessage}>
+          <AlertTriangle size={13} /> Cambios en disco sin vigilar
+        </span>
+      )}
 
       <Button variant="primary" onClick={() => setCaptureOpen(true)} title={`Capturar (${kbd('Mod-Shift-C')})`} className="h-7!">
         <Plus size={13} /> Capturar

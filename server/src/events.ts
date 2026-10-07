@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 import path from 'node:path';
 import fs from 'node:fs';
 import chokidar, { type FSWatcher } from 'chokidar';
-import type { Config } from './config.ts';
+import type { Config, WatchPolling } from './config.ts';
 import { isIgnoredRel } from './ignore.ts';
 import { ROOTS, rootDir, toPosix, type RootName } from './paths.ts';
 
@@ -46,7 +46,20 @@ export function locate(cfg: Config, abs: string): { root: RootName; rel: string 
   return null;
 }
 
-export function startWatcher(cfg: Config, bus: EventBus): FSWatcher {
+/** Decisión pura; basta una raíz con eventos poco fiables para usar sondeo. */
+export function useWatchPolling(mode: WatchPolling, roots: string[], inDocker: boolean): boolean {
+  if (mode !== 'auto') return mode === 'on';
+  return inDocker || roots.some((r) => /^\\\\|^\/\/[^/]|^\/mnt\/[a-z](?:\/|$)/i.test(r));
+}
+
+export interface WatcherStatus {
+  watcher: 'ok' | 'error';
+  watcherMessage?: string;
+}
+
+const logWatchError = (err: unknown) => console.error('Error al vigilar archivos:', err);
+
+export function startWatcher(cfg: Config, bus: EventBus, onError: (err: unknown) => void = logWatchError): FSWatcher {
   // Missing roots (not configured yet) are simply not watched; restart() after settings change.
   const dirs = ROOTS.map((r) => rootDir(cfg, r)).filter((d) => {
     try {
@@ -56,6 +69,10 @@ export function startWatcher(cfg: Config, bus: EventBus): FSWatcher {
     }
   });
   const watcher = chokidar.watch(dirs, {
+    usePolling: useWatchPolling(cfg.watchPolling, dirs, fs.existsSync('/.dockerenv')),
+    interval: 1000,
+    binaryInterval: 1000,
+    atomic: 100,
     ignoreInitial: true,
     followSymlinks: false,
     ignored: (p: string, stats?: fs.Stats) => {
@@ -75,7 +92,8 @@ export function startWatcher(cfg: Config, bus: EventBus): FSWatcher {
   watcher.on('change', emit('change'));
   watcher.on('unlink', emit('unlink'));
   watcher.on('unlinkDir', emit('unlink'));
-  watcher.on('error', () => {});
+  watcher.on('error', onError);
+  if (!dirs.length) queueMicrotask(() => watcher.emit('ready'));
   return watcher;
 }
 
@@ -83,11 +101,24 @@ export function startWatcher(cfg: Config, bus: EventBus): FSWatcher {
 export class WatchManager {
   private watcher: FSWatcher | null = null;
   private chain: Promise<unknown> = Promise.resolve();
+  private state: WatcherStatus = { watcher: 'ok' };
 
   constructor(
     private cfg: Config,
     private bus: EventBus,
+    private logError: (err: unknown) => void = logWatchError,
   ) {}
+
+  get status(): WatcherStatus {
+    return { ...this.state };
+  }
+
+  private reportError = (err: unknown) => {
+    this.logError(err);
+    const detail = err instanceof Error ? err.message : String(err);
+    this.state = { watcher: 'error', watcherMessage: `No se pueden vigilar los cambios en disco: ${detail.slice(0, 500)}` };
+    this.bus.emit('watcher', this.status);
+  };
 
   /** Resolves when the (new) watcher is ready. */
   restart(): Promise<void> {
@@ -95,15 +126,20 @@ export class WatchManager {
       const old = this.watcher;
       this.watcher = null;
       await old?.close().catch(() => {});
-      const w = startWatcher(this.cfg, this.bus);
+      this.state = { watcher: 'ok' };
+      const w = startWatcher(this.cfg, this.bus, this.reportError);
       this.watcher = w;
       await new Promise<void>((r) => {
-        const t = setTimeout(r, 10_000);
+        const t = setTimeout(() => {
+          this.reportError(new Error('La vigilancia de archivos no está lista tras 10 segundos'));
+          r();
+        }, 10_000);
         w.once('ready', () => {
           clearTimeout(t);
           r();
         });
       });
+      this.bus.emit('watcher', this.status);
     });
     this.chain = next.catch(() => undefined);
     return next;

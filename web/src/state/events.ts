@@ -55,6 +55,7 @@ export function connectEvents() {
     }
   };
   es.onerror = () => useConnection.setState({ connected: false });
+  es.addEventListener('watcher', () => void useUI.getState().refreshStatus());
   es.addEventListener('change', (msg) => {
     let ev: ChangeEvent;
     try {

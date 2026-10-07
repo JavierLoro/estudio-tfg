@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+export type WatchPolling = 'auto' | 'on' | 'off';
+
 export interface Config {
   port: number;
   host: string;
@@ -14,6 +16,7 @@ export interface Config {
   /** BUILD_DIR/../history */
   historyDir: string;
   workerUrl: string;
+  watchPolling: WatchPolling;
   authToken: string;
   webDist: string;
   /** ALLOWED_ROOTS (realpath when they exist). No configurable/browsable folder may leave them. */
@@ -95,6 +98,8 @@ export function parseAllowedRoots(v: string | undefined, base: string, paths = p
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env, repoRoot = REPO_ROOT): Config {
+  const watchPolling = str(env.WATCH_POLLING, 'auto');
+  if (!['auto', 'on', 'off'].includes(watchPolling)) throw new Error('WATCH_POLLING debe ser auto, on u off');
   const buildDir = expandPath(str(env.BUILD_DIR, './data/builds'), repoRoot);
   const resourcesSubdir = str(env.RESOURCES_SUBDIR, 'Recursos').replace(/^\/+|\/+$/g, '');
   if (resourcesSubdir.split('/').some((s) => s === '..' || s === '.')) {
@@ -115,6 +120,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, repoRoot = REPO
     buildDir,
     historyDir: path.join(path.dirname(buildDir), 'history'),
     workerUrl: str(env.WORKER_URL, 'http://localhost:8090').replace(/\/+$/, ''),
+    watchPolling: watchPolling as WatchPolling,
     authToken: (env.AUTH_TOKEN ?? '').trim(),
     webDist: path.join(repoRoot, 'web', 'dist'),
     allowedRoots: parseAllowedRoots(env.ALLOWED_ROOTS, repoRoot),
