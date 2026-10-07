@@ -44,6 +44,38 @@ docker compose --profile app up -d --build
 
 Queda en http://127.0.0.1:8787.
 
+## Windows (hoy)
+
+El soporte nativo está en desarrollo; consulta las limitaciones y alternativas en [docs/PLATAFORMAS.md](docs/PLATAFORMAS.md). Para usar la API y la web en Windows con el worker en Docker:
+
+1. Instala **Node ≥ 24**, **Git para Windows** y **Docker Desktop** con backend **WSL2** y virtualización habilitada. Reserva unos **10 GB libres** para la imagen de TeX Live y arranca Docker Desktop.
+2. Clona el repositorio y prepara el entorno desde PowerShell:
+
+   ```powershell
+   git clone -c core.autocrlf=false https://github.com/JavierLoro/estudio-tfg.git
+   cd estudio-tfg
+   npm run init
+   npm run install:all
+   npm run worker
+   ```
+
+   `.gitattributes` mantiene los textos del repositorio en LF, incluso si Git tiene `core.autocrlf=true`.
+3. Mantén el vault y la memoria fuera del repositorio, dentro de `C:\Users\<usuario>`, y **no definas `ALLOWED_ROOTS`** mientras no se adapte su separador a Windows. Usa carpetas fuera de OneDrive, Dropbox o Google Drive: `Documentos` puede estar redirigida a OneDrive. Si usas OneDrive, marca los archivos como «Mantener siempre en este dispositivo».
+4. Configura `NOTES_DIR` y `MEMORIA_DIR` en `.env` o escribe sus rutas completas en los campos de Ajustes (por ejemplo, `C:\Users\Ana\Vault`); el selector de carpetas todavía tiene limitaciones con rutas de Windows.
+5. Abre **dos terminales** en la raíz del repositorio, hasta que `npm run dev` sea multiplataforma:
+
+   ```powershell
+   npm run dev --prefix server
+   ```
+
+   ```powershell
+   npm run dev --prefix web
+   ```
+
+   Abre http://localhost:5173. `npm start --prefix server` también arranca la API, pero no la web de desarrollo.
+
+Los atajos usan **Ctrl** en lugar de ⌘ (`Ctrl+K`, `Ctrl+S`, `Ctrl+Intro`). Algunos pueden coincidir con los del navegador; usa los botones de la interfaz si ocurre.
+
 ## Primeros pasos
 
 1. **Carpetas.** Define `NOTES_DIR` (tu vault de Obsidian) y `MEMORIA_DIR` en `.env` (hay un ejemplo en `.env.example`) o desde **Ajustes** en la interfaz, que las aplica en caliente.
