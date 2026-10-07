@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Archive, Check, ExternalLink, FilePlus2, FolderPlus, Inbox, Paperclip, Play, RefreshCw, Search as SearchIcon, Workflow, X } from 'lucide-react';
 import type { Root } from '../api';
+import { kbd } from '../lib/kbd';
 import { formatDate, hostOf } from '../lib/paths';
 import { useCompile } from '../state/compile';
 import { STATUS_LABEL, setResourceStatus } from '../state/resources';
@@ -15,7 +16,7 @@ import { DiagramasSection } from './DiagramasSection';
 import { useOutline } from '../state/outline';
 import { load, save } from '../lib/storage';
 import { ScopeSelect, SearchResults } from './SearchView';
-import { ALT, Empty, IconButton, Spinner, cx } from './ui';
+import { Empty, IconButton, Spinner, cx } from './ui';
 
 const TITLES: Record<Section, string> = {
   memoria: 'Memoria',
@@ -285,7 +286,7 @@ function ResourcesSection() {
                 type="button"
                 className="block w-full px-3 py-1 pr-16 text-left hover:bg-hover"
                 onClick={(e) => openResource(r.path, { side: e.altKey })}
-                title={`${r.title}\n${ALT}clic: abrir al lado`}
+                title={`${r.title}\n${kbd('Alt-clic')}: abrir al lado`}
               >
                 <div className="truncate text-[12.5px] font-medium">{r.title}</div>
                 <div className="flex items-center gap-1 truncate text-[10.5px] text-faint">

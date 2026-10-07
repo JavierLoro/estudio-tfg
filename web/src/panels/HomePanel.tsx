@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { AlertCircle, AlertTriangle, CheckCircle2, Clock, FileCode2, FileText, Inbox, Play, Plus, XCircle } from 'lucide-react';
-import { Button, Empty, MOD, Spinner } from '../components/ui';
+import { Button, Empty, Spinner } from '../components/ui';
+import { kbd } from '../lib/kbd';
 import { basename, formatDate, hostOf } from '../lib/paths';
 import { countDiags, isPdfOutdated, useCompile } from '../state/compile';
 import { useCaptureQueue } from '../state/captureQueue';
@@ -91,7 +92,7 @@ export function HomePanel() {
           title={`Recursos en bandeja${resources ? ` (${inbox.length})` : ''}`}
           icon={<Inbox size={14} className="text-muted" />}
           action={
-            <Button onClick={() => useUI.getState().setCaptureOpen(true)} title={`Capturar (${MOD}⇧C)`}>
+            <Button onClick={() => useUI.getState().setCaptureOpen(true)} title={`Capturar (${kbd('Mod-Shift-C')})`}>
               <Plus size={12} /> Capturar
             </Button>
           }
@@ -149,21 +150,21 @@ export function HomePanel() {
 
         <Card title="Atajos" icon={<FileText size={14} className="text-muted" />}>
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 px-3 py-2 text-[12px]">
-            <dt className="font-mono text-muted">{MOD}K</dt>
+            <dt className="font-mono text-muted">{kbd('Mod-K')}</dt>
             <dd>Abrir archivo o buscar</dd>
-            <dt className="font-mono text-muted">{MOD}⇧C</dt>
+            <dt className="font-mono text-muted">{kbd('Mod-Shift-C')}</dt>
             <dd>Capturar recurso (URL, nota, adjunto)</dd>
-            <dt className="font-mono text-muted">{MOD}S</dt>
+            <dt className="font-mono text-muted">{kbd('Mod-S')}</dt>
             <dd>Guardar</dd>
-            <dt className="font-mono text-muted">{MOD}↵</dt>
+            <dt className="font-mono text-muted">{kbd('Mod-Enter')}</dt>
             <dd>Guardar y compilar (LaTeX)</dd>
-            <dt className="font-mono text-muted">{MOD}E</dt>
+            <dt className="font-mono text-muted">{kbd('Mod-E')}</dt>
             <dd>Leer / editar nota</dd>
-            <dt className="font-mono text-muted">{MOD}F</dt>
+            <dt className="font-mono text-muted">{kbd('Mod-F')}</dt>
             <dd>Buscar en el editor</dd>
-            <dt className="font-mono text-muted">⌥clic</dt>
+            <dt className="font-mono text-muted">{kbd('Alt-clic')}</dt>
             <dd>Abrir al lado</dd>
-            <dt className="font-mono text-muted">{MOD}B</dt>
+            <dt className="font-mono text-muted">{kbd('Mod-B')}</dt>
             <dd>Mostrar / ocultar el panel lateral (arrastra su borde para cambiar el ancho)</dd>
           </dl>
         </Card>

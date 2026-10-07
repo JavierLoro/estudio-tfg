@@ -21,7 +21,7 @@ export interface SearchParams {
 }
 
 export interface OpenOptions {
-  /** Abrir dividiendo a la derecha (⌥clic / «Abrir al lado»). */
+  /** Abrir dividiendo a la derecha (Alt-clic / «Abrir al lado»). */
   side?: boolean;
   line?: number;
   /** No robar el foco. */

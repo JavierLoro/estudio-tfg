@@ -14,6 +14,7 @@ import {
 } from '../api';
 import { DirPicker, joinAbs } from '../components/DirPicker';
 import { Banner, Button, Spinner, cx } from '../components/ui';
+import { kbd } from '../lib/kbd';
 import { notifySettingsChanged, useSettings } from '../state/settings';
 import { toast, useUI } from '../state/ui';
 
@@ -287,7 +288,7 @@ export function SettingsPanel() {
         <Button variant="ghost" onClick={discard} disabled={!dirty || saving}>
           Descartar
         </Button>
-        <Button variant="primary" onClick={() => void save()} disabled={!dirty || saving} title="Guardar y aplicar (⌘S)">
+        <Button variant="primary" onClick={() => void save()} disabled={!dirty || saving} title={`Guardar y aplicar (${kbd('Mod-S')})`}>
           {saving ? <Spinner size={11} /> : <Save size={12} />} Guardar
         </Button>
       </div>

@@ -17,7 +17,8 @@ import {
   type PlantillaResultado,
 } from '../api';
 import { indicatorColor } from '../components/DocBanners';
-import { Banner, Button, MOD, Modal, Spinner, cx } from '../components/ui';
+import { kbd } from '../lib/kbd';
+import { Banner, Button, Modal, Spinner, cx } from '../components/ui';
 import { useCompile, isPdfOutdated } from '../state/compile';
 import { isDirty, saveAll, useDocs } from '../state/docs';
 import { onFileChange } from '../state/events';
@@ -525,7 +526,7 @@ export function DatosPanel() {
         {data && (
           <span
             className="inline-flex items-center gap-1.5 text-[11px] text-muted"
-            title={`${PHASE_LABEL[phase]} · ${MOD}S guarda ahora`}
+            title={`${PHASE_LABEL[phase]} · ${kbd('Mod-S')} guarda ahora`}
             aria-label={`Estado: ${PHASE_LABEL[phase]}`}
           >
             {phase === 'saving' ? <Spinner size={9} /> : <span className={cx('inline-block h-2 w-2 rounded-full', indicatorColor(PHASE_IND[phase]))} />}

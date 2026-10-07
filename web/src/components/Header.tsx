@@ -4,7 +4,8 @@ import { saveAll, useGlobalSaveState } from '../state/docs';
 import { useCaptureQueue, flushCaptureQueue } from '../state/captureQueue';
 import { useConnection } from '../state/events';
 import { useUI } from '../state/ui';
-import { Button, MOD, Spinner, cx } from './ui';
+import { kbd } from '../lib/kbd';
+import { Button, Spinner, cx } from './ui';
 
 export function Header() {
   const setQuickOpen = useUI((s) => s.setQuickOpen);
@@ -26,11 +27,11 @@ export function Header() {
         type="button"
         onClick={() => setQuickOpen(true)}
         className="flex h-7 w-full max-w-[420px] min-w-0 items-center gap-2 rounded-md border border-line bg-bg px-2 text-[12px] text-faint hover:border-line-strong"
-        aria-label={`Abrir o buscar (${MOD}K)`}
+        aria-label={`Abrir o buscar (${kbd('Mod-K')})`}
       >
         <Search size={13} />
         <span className="flex-1 truncate text-left">Abrir archivo o buscar…</span>
-        <kbd className="rounded border border-line px-1 font-mono text-[10.5px]">{MOD}K</kbd>
+        <kbd className="rounded border border-line px-1 font-mono text-[10.5px]">{kbd('Mod-K')}</kbd>
       </button>
 
       <div className="flex-1" />
@@ -85,7 +86,7 @@ export function Header() {
 
       <SyncConflicts list={status?.syncConflicts ?? []} />
 
-      <Button variant="primary" onClick={() => setCaptureOpen(true)} title={`Capturar (${MOD}⇧C)`} className="h-7!">
+      <Button variant="primary" onClick={() => setCaptureOpen(true)} title={`Capturar (${kbd('Mod-Shift-C')})`} className="h-7!">
         <Plus size={13} /> Capturar
       </Button>
     </header>

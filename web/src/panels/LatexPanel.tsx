@@ -3,7 +3,8 @@ import type { IDockviewPanelProps } from 'dockview-react';
 import { AlertCircle, AlertTriangle, ChevronDown, ChevronRight, FileSearch, Play, Save } from 'lucide-react';
 import { CodeEditor, type LineDiagnostic } from '../components/CodeEditor';
 import { DocBanners, SaveIndicator } from '../components/DocBanners';
-import { Button, IconButton, MOD, Spinner, cx } from '../components/ui';
+import { Button, IconButton, Spinner, cx } from '../components/ui';
+import { kbd } from '../lib/kbd';
 import { langFor } from '../lib/editor';
 import { docKey } from '../lib/paths';
 import { countDiags, diagPath, useCompile } from '../state/compile';
@@ -84,18 +85,18 @@ export function LatexPanel({ params, api }: IDockviewPanelProps<FileParams>) {
         </span>
         <SaveIndicator docKey={key} />
         {canSync && (
-          <IconButton label={`Ver en PDF (${MOD}⇧J)`} onClick={() => showHere()} disabled={!hasPdf}>
+          <IconButton label={`Ver en PDF (${kbd('Mod-Shift-J')})`} onClick={() => showHere()} disabled={!hasPdf}>
             <FileSearch size={14} />
           </IconButton>
         )}
-        <IconButton label={`Guardar (${MOD}S)`} onClick={() => saveDoc(key)} disabled={status !== 'ready'}>
+        <IconButton label={`Guardar (${kbd('Mod-S')})`} onClick={() => saveDoc(key)} disabled={status !== 'ready'}>
           <Save size={14} />
         </IconButton>
         <Button
           variant="primary"
           onClick={() => saveAndCompile(key)}
           disabled={compiling}
-          title={`Guardar y compilar (${MOD}↵)`}
+          title={`Guardar y compilar (${kbd('Mod-Enter')})`}
           aria-label="Guardar y compilar"
         >
           {compiling ? <Spinner size={11} /> : <Play size={12} />}

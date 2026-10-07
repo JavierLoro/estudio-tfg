@@ -3,7 +3,8 @@ import { Paperclip, Upload, X } from 'lucide-react';
 import { submitCapture } from '../state/captureQueue';
 import { toast, useUI } from '../state/ui';
 import { openResource } from '../state/workspace';
-import { Button, MOD, Modal, Spinner, cx } from './ui';
+import { kbd } from '../lib/kbd';
+import { Button, Modal, Spinner, cx } from './ui';
 
 const MAX_FILE = 50 * 1024 * 1024;
 
@@ -73,7 +74,7 @@ export function CaptureModal() {
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key !== 'Enter' || e.nativeEvent.isComposing) return;
     const isTextarea = (e.target as HTMLElement).tagName === 'TEXTAREA';
-    // Enter guarda; en la nota, ⇧Enter hace salto de línea.
+    // Enter guarda; en la nota, Shift-Enter hace salto de línea.
     if (isTextarea && e.shiftKey) return;
     e.preventDefault();
     void submit();
@@ -96,7 +97,7 @@ export function CaptureModal() {
       width={540}
       footer={
         <>
-          <span className="mr-auto text-[11px] text-faint">↵ guarda · ⇧↵ salto de línea en la nota · {MOD}⇧C abre</span>
+          <span className="mr-auto text-[11px] text-faint">{kbd('Enter')} guarda · {kbd('Shift-Enter')} salto de línea en la nota · {kbd('Mod-Shift-C')} abre</span>
           <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
             Cancelar
           </Button>

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Ellipsis, Plus, RefreshCw, Workflow, X } from 'lucide-react';
 import type { DiagramaItem } from '../api';
+import { kbd } from '../lib/kbd';
 import { basename } from '../lib/paths';
 import {
   deleteDiagram,
@@ -15,7 +16,7 @@ import {
 } from '../state/diagramas';
 import { openFile, panelIdFor, useActivePanel } from '../state/workspace';
 import { openContextMenu, type MenuItem } from './ContextMenu';
-import { ALT, Button, Empty, IconButton, Spinner, cx } from './ui';
+import { Button, Empty, IconButton, Spinner, cx } from './ui';
 
 const ESTADO: Record<DiagramaItem['estado'], { label: string; cls: string; title: string }> = {
   exportado: { label: 'Exportada', cls: 'text-ok', title: 'La figura de la memoria está al día' },
@@ -49,7 +50,7 @@ export function DiagramasSection() {
   const menu = (it: DiagramaItem): MenuItem[] => {
     const m: MenuItem[] = [
       { label: 'Abrir', run: () => openFile('memoria', it.path) },
-      { label: 'Abrir al lado', hint: `${ALT}clic`, run: () => openFile('memoria', it.path, { side: true }) },
+      { label: 'Abrir al lado', hint: kbd('Alt-clic'), run: () => openFile('memoria', it.path, { side: true }) },
       { label: it.estado === 'sin-exportar' ? 'Exportar figura' : 'Volver a exportar', run: () => void exportDiagram(it.path) },
       { label: 'Insertar en la memoria…', run: () => openInsertFigure(it.path) },
     ];
@@ -131,7 +132,7 @@ export function DiagramasSection() {
                 key={it.path}
                 role="listitem"
                 className={cx('group flex w-full cursor-pointer items-start gap-2 px-3 py-1.5 text-left hover:bg-hover', active && 'bg-active')}
-                title={`${it.path}\n${ALT}clic: abrir al lado`}
+                title={`${it.path}\n${kbd('Alt-clic')}: abrir al lado`}
                 onClick={(e) => openFile('memoria', it.path, { side: e.altKey })}
                 onContextMenu={(e) => openContextMenu(e, menu(it))}
               >

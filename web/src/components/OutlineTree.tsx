@@ -16,6 +16,7 @@ import {
   Workflow,
 } from 'lucide-react';
 import { api, errorMessage, FieldError, type NewSectionKind, type OutlineItem } from '../api';
+import { kbd } from '../lib/kbd';
 import { docKey } from '../lib/paths';
 import { load, save } from '../lib/storage';
 import { useCursor } from '../state/cursor';
@@ -25,7 +26,7 @@ import { openDatos, openFile, useActivePanel } from '../state/workspace';
 import { openContextMenu, type MenuItem } from './ContextMenu';
 import { showInPdf, useActiveOutlineId, usePdfView } from '../state/synctex';
 import { fold, highlight } from './SearchView';
-import { ALT, Button, Empty, Modal, Spinner, cx } from './ui';
+import { Button, Empty, Modal, Spinner, cx } from './ui';
 import { useStaleFigures } from '../state/diagramas';
 
 // ---- Nodos de presentación ----
@@ -522,7 +523,7 @@ function OutlineTree({
     if (n.item) {
       const it = n.item;
       items.push({ label: 'Abrir', run: () => open(n) });
-      items.push({ label: 'Abrir al lado', hint: `${ALT}clic`, run: () => open(n, true) });
+      items.push({ label: 'Abrir al lado', hint: kbd('Alt-clic'), run: () => open(n, true) });
       if (it.kind === 'datos') items.push({ label: 'Abrir datos.tex', run: () => openFile('memoria', it.file) });
       else if (/\.tex$/i.test(it.file)) items.push({ label: 'Ver en PDF', run: () => void showInPdf(it.file, it.line) });
       if (it.kind === 'chapter') {
@@ -671,7 +672,7 @@ function OutlineRow({
     n.warnings.length ? `Avisos: ${n.warnings.join(', ')}` : null,
     staleFigs ? `Figura desactualizada: ${staleFigs.join(', ')} (vuelve a exportar el diagrama)` : null,
     !n.enabled ? 'Desactivado (línea comentada)' : null,
-    n.item ? `${ALT}clic: abrir al lado` : null,
+    n.item ? `${kbd('Alt-clic')}: abrir al lado` : null,
   ]
     .filter(Boolean)
     .join('\n');

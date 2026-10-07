@@ -6,9 +6,10 @@ import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { EventBus, FindState, LinkTarget, PDFFindController, PDFLinkService, PDFViewer } from 'pdfjs-dist/web/pdf_viewer.mjs';
 import 'pdfjs-dist/web/pdf_viewer.css';
 import { ChevronDown, ChevronUp, Minus, Moon, Plus, Search, X } from 'lucide-react';
+import { kbd } from '../lib/kbd';
 import { load, save } from '../lib/storage';
 import { openFromPdf, usePdfView } from '../state/synctex';
-import { IconButton, MOD, Spinner, cx } from './ui';
+import { IconButton, Spinner, cx } from './ui';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -161,7 +162,7 @@ export default function PdfViewer({ url }: { url: string }) {
     bus.on('pagesinit', schedulePos);
     bus.on('scalechanging', schedulePos);
 
-    // ⌘/Ctrl + rueda (o pellizco en el trackpad): zoom alrededor del puntero.
+    // Mod + rueda (o pellizco en el trackpad): zoom alrededor del puntero.
     const onWheel = (e: WheelEvent) => {
       if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
@@ -169,7 +170,7 @@ export default function PdfViewer({ url }: { url: string }) {
     };
     c.addEventListener('wheel', onWheel, { passive: false });
 
-    // ⌘/Ctrl + clic: ir al código (SyncTeX inverso). En captura, antes que los enlaces.
+    // Mod + clic: ir al código (SyncTeX inverso). En captura, antes que los enlaces.
     const onClick = (e: MouseEvent) => {
       if (!(e.metaKey || e.ctrlKey)) return;
       const pageEl = (e.target as HTMLElement).closest<HTMLElement>('.page');
@@ -344,7 +345,7 @@ export default function PdfViewer({ url }: { url: string }) {
           <span>/ {pages || '–'}</span>
         </span>
         <span className="mx-1 h-4 w-px bg-line" />
-        <IconButton label={`Alejar (${MOD}−)`} onClick={() => zoom(-1)}>
+        <IconButton label={`Alejar (${kbd('Mod--')})`} onClick={() => zoom(-1)}>
           <Minus size={13} />
         </IconButton>
         <select
@@ -365,14 +366,14 @@ export default function PdfViewer({ url }: { url: string }) {
           ))}
           {!isPreset && pctOption === 'custom' && <option value="custom">{scale.pct} %</option>}
         </select>
-        <IconButton label={`Acercar (${MOD}+)`} onClick={() => zoom(1)}>
+        <IconButton label={`Acercar (${kbd('Mod-+')})`} onClick={() => zoom(1)}>
           <Plus size={13} />
         </IconButton>
         <span className="flex-1" />
-        <span className="min-w-0 truncate text-faint" title="⌘/Ctrl+clic en el PDF abre el código de ese punto">
-          {MOD}clic: ir al código
+        <span className="min-w-0 truncate text-faint" title={`${kbd('Mod-clic')} en el PDF abre el código de ese punto`}>
+          {kbd('Mod-clic')}: ir al código
         </span>
-        <IconButton label={`Buscar en el PDF (${MOD}F)`} active={findOpen} onClick={() => (findOpen ? closeFind() : openFind())}>
+        <IconButton label={`Buscar en el PDF (${kbd('Mod-F')})`} active={findOpen} onClick={() => (findOpen ? closeFind() : openFind())}>
           <Search size={13} />
         </IconButton>
         <IconButton label="Páginas oscuras (invertir colores)" active={dark} onClick={toggleDark}>
@@ -407,13 +408,13 @@ export default function PdfViewer({ url }: { url: string }) {
           <span className="w-16 shrink-0 text-center tabular-nums">
             {query ? (matches.total ? `${matches.current} / ${matches.total}` : matches.notFound ? 'Sin resultados' : '…') : ''}
           </span>
-          <IconButton label="Anterior (⇧↵)" onClick={() => dispatchFind(true, true)} disabled={!matches.total}>
+          <IconButton label={`Anterior (${kbd('Shift-Enter')})`} onClick={() => dispatchFind(true, true)} disabled={!matches.total}>
             <ChevronUp size={13} />
           </IconButton>
-          <IconButton label="Siguiente (↵)" onClick={() => dispatchFind(true, false)} disabled={!matches.total}>
+          <IconButton label={`Siguiente (${kbd('Enter')})`} onClick={() => dispatchFind(true, false)} disabled={!matches.total}>
             <ChevronDown size={13} />
           </IconButton>
-          <IconButton label="Cerrar (Esc)" onClick={closeFind}>
+          <IconButton label={`Cerrar (${kbd('Escape')})`} onClick={closeFind}>
             <X size={13} />
           </IconButton>
         </div>

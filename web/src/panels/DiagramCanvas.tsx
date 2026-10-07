@@ -42,7 +42,7 @@ interface Props {
   /** Hay cambios sin guardar (barra de estado). */
   dirty: boolean;
   onCodeChange: (code: string) => void;
-  /** Deshacer / rehacer del documento (⌘Z): el historial es el del editor de código. */
+  /** Deshacer / rehacer del documento (Mod-Z): el historial es el del editor de código. */
   onUndo: () => void;
   onRedo: () => void;
   onSave: () => void;

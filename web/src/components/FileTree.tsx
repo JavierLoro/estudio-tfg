@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, Ellipsis, File, FileCode2, FileImage, FileText, Folder, FolderOpen, Workflow } from 'lucide-react';
 import type { Entry, Root } from '../api';
+import { isMac, kbd } from '../lib/kbd';
 import { basename, dirname, ext, join, panelKindFor } from '../lib/paths';
 import { indicatorOf, useDocs } from '../state/docs';
 import { canMoveInto, createFileIn, createFolderIn, deleteEntry, expandPath, moveEntry, moveInto, toggleExpanded, useExpanded } from '../state/files';
@@ -10,7 +11,7 @@ import { openNewDiagram, refreshDiagramasSoon, useDiagramas } from '../state/dia
 import { openContextMenu, type MenuItem } from './ContextMenu';
 import { fold, highlight } from './SearchView';
 import { openMoveDialog } from './MoveDialog';
-import { ALT, Empty, Spinner, cx, isMac } from './ui';
+import { Empty, Spinner, cx } from './ui';
 
 function iconFor(path: string) {
   const e = ext(path);
@@ -21,12 +22,12 @@ function iconFor(path: string) {
   return <File size={14} className="shrink-0 text-faint" />;
 }
 
-const DEL_HINT = isMac ? '⌘⌫' : 'Supr';
+const DEL_HINT = kbd(isMac ? 'Mod-Backspace' : 'Delete');
 
 /** Lo que se está arrastrando (dataTransfer no se puede leer durante dragover). */
 let dragged: { root: Root; path: string } | null = null;
 
-/** Campo de renombrado en línea: selecciona el nombre sin la extensión; ↵ confirma, Esc cancela. */
+/** Campo de renombrado en línea: selecciona el nombre sin la extensión; Enter confirma, Esc cancela. */
 function RenameInput({ initial, isDir, onCommit, onCancel }: { initial: string; isDir: boolean; onCommit: (name: string) => void; onCancel: () => void }) {
   const ref = useRef<HTMLInputElement>(null);
   const done = useRef(false);
@@ -181,8 +182,8 @@ export function FileTree({ root, filter }: { root: Root; filter: string }) {
 
   const fileMenu = (path: string): MenuItem[] => [
     { label: 'Abrir', run: () => openFile(root, path) },
-    { label: 'Abrir al lado', hint: `${ALT}clic`, run: () => openFile(root, path, { side: true }) },
-    { label: 'Renombrar', hint: 'F2', run: () => setRenaming(path) },
+    { label: 'Abrir al lado', hint: kbd('Alt-clic'), run: () => openFile(root, path, { side: true }) },
+    { label: 'Renombrar', hint: kbd('F2'), run: () => setRenaming(path) },
     { label: 'Mover a…', run: () => openMoveDialog(root, path) },
     { label: 'Eliminar', hint: DEL_HINT, danger: true, run: () => void deleteEntry(root, path, false) },
     { label: 'Copiar ruta', run: () => void navigator.clipboard?.writeText(path) },
@@ -192,7 +193,7 @@ export function FileTree({ root, filter }: { root: Root; filter: string }) {
     { label: root === 'notes' ? 'Nueva nota aquí…' : 'Nuevo archivo aquí…', run: () => void createFileIn(root, path) },
     ...(root === 'memoria' ? [{ label: 'Nuevo diagrama…', run: () => openNewDiagram(path) }] : []),
     { label: 'Nueva carpeta aquí…', run: () => void createFolderIn(root, path) },
-    { label: 'Renombrar', hint: 'F2', run: () => setRenaming(path) },
+    { label: 'Renombrar', hint: kbd('F2'), run: () => setRenaming(path) },
     { label: 'Mover a…', run: () => openMoveDialog(root, path) },
     { label: 'Eliminar', hint: DEL_HINT, danger: true, run: () => void deleteEntry(root, path, true) },
     { label: 'Copiar ruta', run: () => void navigator.clipboard?.writeText(path) },
@@ -221,7 +222,7 @@ export function FileTree({ root, filter }: { root: Root; filter: string }) {
         draggable
         className={cls}
         style={style}
-        title={`${path}\n${ALT}clic: abrir al lado`}
+        title={`${path}\n${kbd('Alt-clic')}: abrir al lado`}
         onClick={(e) => openFile(root, path, { side: e.altKey })}
         onKeyDown={(e) => rowKeys(e, path, false)}
         onDragStart={(e) => dragStart(e, path)}
