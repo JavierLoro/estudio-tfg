@@ -28,7 +28,29 @@ A ──┼─ C1…C7 ──┐
            └─ F1 ───────┘                       └─ G7
 ```
 
-Las tareas de una misma fase sin dependencia entre sí pueden ir en paralelo si tocan archivos distintos (lo dice cada tarea en «Archivos»).
+Las tareas de una misma fase sin dependencia entre sí pueden ir en paralelo si tocan archivos distintos (lo dice cada tarea en «Archivos»). Ver [Cómo seguir la hoja de ruta](#cómo-seguir-la-hoja-de-ruta).
+
+## Cómo seguir la hoja de ruta
+
+Un agente puede recibir una tarea concreta («haz la issue #4») o simplemente **«sigue la hoja de ruta»**. En ese caso:
+
+1. **Elige la siguiente tarea disponible**: la de fase más temprana y número más bajo que cumpla las tres condiciones:
+   - su issue está abierta y **sin** la etiqueta `en-curso`;
+   - todas sus dependencias («Depende de») tienen la issue **cerrada** (PR fusionado);
+   - no comparte archivos («Archivos») con otra tarea `en-curso`.
+
+   Para verlo: `gh issue list --repo JavierLoro/estudio-tfg --label hoja-de-ruta --state all --limit 60 --json number,title,state,labels`.
+2. **Resérvala**: añade la etiqueta `en-curso` (`gh issue edit <n> --add-label en-curso`) y comenta «Empiezo con esta tarea». Si al ir a reservarla ya la tiene, elige otra.
+3. **Hazla** siguiendo las reglas comunes de abajo, en la rama `hoja/<id>`, y abre el PR con `Closes #<n>`.
+4. **Al terminar**: deja el informe final como comentario del PR y quita la etiqueta `en-curso` solo si abandonas la tarea sin PR (explicando por qué). Una tarea por agente: no encadenes otra sin que te lo pidan.
+
+Si ninguna tarea está disponible (todo lo pendiente depende de PR sin fusionar), dilo y para.
+
+**Mensaje para lanzar un agente**:
+
+```text
+Sigue la hoja de ruta de JavierLoro/estudio-tfg (docs/HOJA-DE-RUTA.md, sección «Cómo seguir la hoja de ruta»): elige la siguiente tarea disponible, resérvala, hazla en su rama, abre el PR y termina con el informe final.
+```
 
 ## Reglas comunes para el agente
 
