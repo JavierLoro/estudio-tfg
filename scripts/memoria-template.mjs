@@ -6,6 +6,7 @@ import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { isSystemFile } from './system-files.mjs';
 
 export const REPO_ROOT = path.resolve(import.meta.dirname, '..');
 export const TEMPLATES_DIR = path.join(REPO_ROOT, 'templates');
@@ -21,10 +22,10 @@ export const PLANTILLA_VERSION = 'v0.5';
 
 const PERFIL_ID = /^[a-z0-9][a-z0-9-]*$/;
 
-/** Vacía = no existe o solo contiene dotfiles (p. ej. `.git`, `.DS_Store`). */
+/** Vacía = no existe o solo contiene dotfiles, archivos de sistema o temporales. */
 export function isEmptyDir(dir) {
   if (!fs.existsSync(dir)) return true;
-  return fs.readdirSync(dir).filter((f) => !f.startsWith('.')).length === 0;
+  return fs.readdirSync(dir, { withFileTypes: true }).every((f) => f.name.startsWith('.') || (f.isFile() && isSystemFile(f.name)));
 }
 
 /**

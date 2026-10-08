@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import os from 'node:os';
 import type { FastifyInstance } from 'fastify';
 import type { Ctx } from '../context.ts';
 import { HttpError, notFound } from '../errors.ts';
@@ -24,6 +25,8 @@ function describe(abs: string, name = path.basename(abs) || abs): DirEntry {
     isGitRepo: isDirSync(path.join(abs, '.git')) || isFileSync(path.join(abs, '.git')),
   };
 }
+
+const WINDOWS_SYSTEM_DIR = /^(AppData|\$Recycle\.Bin|System Volume Information|Config\.Msi|Recovery|PerfLogs|Windows|ProgramData|Program Files.*|MSOCache)$/i;
 
 const collator = new Intl.Collator('es', { sensitivity: 'base', numeric: true });
 
@@ -63,12 +66,19 @@ export default async function settingsRoutes(app: FastifyInstance, { ctx }: { ct
     }
     const dirs: DirEntry[] = [];
     for (const ent of ents) {
-      if (ent.name.startsWith('.')) continue;
+      if (ent.name.startsWith('.') || (os.platform() === 'win32' && WINDOWS_SYSTEM_DIR.test(ent.name))) continue;
       const abs = path.join(real, ent.name);
       if (ent.isSymbolicLink()) {
         const target = await fs.realpath(abs).catch(() => null);
         if (!target || !roots.some((r) => isInside(r, target)) || !isDirSync(target)) continue;
       } else if (!ent.isDirectory()) continue;
+      if (os.platform() === 'win32') {
+        // Junctions y carpetas protegidas pueden existir pero no ser navegables.
+        try { await fs.readdir(abs); } catch (e: any) {
+          if (['EPERM', 'EACCES', 'ENOENT'].includes(e?.code)) continue;
+          throw e;
+        }
+      }
       dirs.push(describe(abs, ent.name));
     }
     dirs.sort((a, b) => collator.compare(a.name, b.name) || a.name.localeCompare(b.name));
