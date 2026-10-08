@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Comprobaciones (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0 # Los tests de plantilla leen la versión histórica v0.3.
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            server/package-lock.json
+            web/package-lock.json
+      - name: Instalar API
+        run: npm ci --prefix server
+      - name: Instalar web
+        run: npm ci --prefix web
+      - name: Typecheck de la API
+        run: npm run typecheck --prefix server
+      - name: Tests del lanzador y de la API
+        run: npm test
+      - name: Typecheck y build de la web
+        run: npm run build --prefix web
+      - name: Tests del worker
+        run: node --test worker/*.test.mjs
+      - name: Manifiesto de plantilla
+        run: node scripts/template-manifest.mjs --check
+
+  template:
+    name: Plantilla (todos los perfiles, sin avisos)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci --prefix server
+      - name: Preparar carpeta de artefactos temporales
+        run: |
+          echo "TEMPLATE_OUT=$RUNNER_TEMP/estudio-tfg-template" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/estudio-tfg-template"
+      - name: Construir el worker
+        run: docker build --tag estudio-tfg-worker:ci worker
+      - name: Arrancar el worker aislado
+        run: |
+          mkdir -p "$TEMPLATE_OUT"
+          docker run --detach --name estudio-tfg-ci-worker --user "$(id -u):$(id -g)" --publish 127.0.0.1:8097:8090 --volume "$TEMPLATE_OUT:/out" estudio-tfg-worker:ci
+      - name: Compilar todos los perfiles y exigir cero avisos
+        run: node scripts/compile-template.mjs --worker-url http://127.0.0.1:8097 --output-dir "$TEMPLATE_OUT"
+      - name: Guardar log del worker y detenerlo
+        if: always()
+        run: |
+          if docker inspect estudio-tfg-ci-worker >/dev/null 2>&1; then
+            docker logs estudio-tfg-ci-worker > "$TEMPLATE_OUT/worker.log" 2>&1
+            docker rm --force estudio-tfg-ci-worker
+          fi
+      - name: Conservar diagnósticos y logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: plantilla-diagnosticos
+          path: |
+            ${{ env.TEMPLATE_OUT }}/resultado-*.json
+            ${{ env.TEMPLATE_OUT }}/**/*.log
+            ${{ env.TEMPLATE_OUT }}/**/latexmk.txt
+          if-no-files-found: ignore
+          retention-days: 7

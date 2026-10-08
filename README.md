@@ -1,10 +1,18 @@
 # Estudio TFG
 
+[![CI](https://github.com/JavierLoro/estudio-tfg/actions/workflows/ci.yml/badge.svg)](https://github.com/JavierLoro/estudio-tfg/actions/workflows/ci.yml)
+
 Entorno self-hosted para escribir la memoria del TFG en LaTeX con el PDF al lado, consultar tus notas de Obsidian y capturar recursos sin perderlos. Es una herramienta local: los archivos en disco son la fuente de verdad, no hay base de datos, y tu trabajo vive fuera de este repositorio.
 
 Se desarrolla y prueba en macOS. El modo Docker y el arranque nativo están preparados para Windows, Mac y Linux; las verificaciones pendientes por plataforma se recogen en [docs/PLATAFORMAS.md](docs/PLATAFORMAS.md) y [docs/HOJA-DE-RUTA.md](docs/HOJA-DE-RUTA.md).
 
 Especificación: [docs/CONTRACT.md](docs/CONTRACT.md) · Worker y requisitos de la plantilla: [worker/README.md](worker/README.md) · Guía para agentes de código: [AGENTS.md](AGENTS.md)
+
+Cada push y PR ejecuta tests, typecheck y build en Linux, macOS y Windows con
+Node 24. Otro job construye el worker y compila todos los perfiles con cero avisos.
+Para repetir esa comprobación: `node scripts/compile-template.mjs --output-dir <carpeta>`;
+la carpeta debe coincidir con el volumen `/out` del worker. Se usan copias temporales
+de la plantilla y no se lee `.env`. Los logs de CI se conservan durante 7 días.
 
 ## Usarlo con Docker (Windows, Mac, Linux)
 
