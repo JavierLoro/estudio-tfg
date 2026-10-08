@@ -6,7 +6,9 @@ import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { EventBus, FindState, LinkTarget, PDFFindController, PDFLinkService, PDFViewer } from 'pdfjs-dist/web/pdf_viewer.mjs';
 import 'pdfjs-dist/web/pdf_viewer.css';
 import { ChevronDown, ChevronUp, Minus, Moon, Plus, Search, X } from 'lucide-react';
-import { kbd } from '../lib/kbd';
+import { isMac, kbd } from '../lib/kbd';
+import { sideByEvent, sideHint } from '../lib/shortcuts';
+import { openContextMenu } from './ContextMenu';
 import { load, save } from '../lib/storage';
 import { openFromPdf, usePdfView } from '../state/synctex';
 import { IconButton, Spinner, cx } from './ui';
@@ -170,9 +172,8 @@ export default function PdfViewer({ url }: { url: string }) {
     };
     c.addEventListener('wheel', onWheel, { passive: false });
 
-    // Mod + clic: ir al código (SyncTeX inverso). En captura, antes que los enlaces.
-    const onClick = (e: MouseEvent) => {
-      if (!(e.metaKey || e.ctrlKey)) return;
+    // SyncTeX inverso. En captura, antes que los enlaces del PDF.
+    const sourceAt = (e: MouseEvent, side: boolean) => {
       const pageEl = (e.target as HTMLElement).closest<HTMLElement>('.page');
       const n = Number(pageEl?.dataset.pageNumber);
       if (!pageEl || !n) return;
@@ -182,9 +183,32 @@ export default function PdfViewer({ url }: { url: string }) {
       const box = pageEl.getBoundingClientRect();
       const [px, py] = pv.viewport.convertToPdfPoint(e.clientX - box.left - pageEl.clientLeft, e.clientY - box.top - pageEl.clientTop) as number[];
       const [vx0, , , vy1] = pv.viewport.viewBox as number[];
-      void openFromPdf(n, px - vx0, vy1 - py, e.altKey);
+      void openFromPdf(n, px - vx0, vy1 - py, side);
+    };
+    const onClick = (e: MouseEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) sourceAt(e, sideByEvent(e));
+    };
+    const onAuxClick = (e: MouseEvent) => {
+      if (e.button === 1) sourceAt(e, true);
+    };
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.button === 1 && (e.target as HTMLElement).closest('.page')) e.preventDefault();
+    };
+    const onContextMenu = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('.page')) return;
+      if (isMac && e.ctrlKey && e.shiftKey) {
+        sourceAt(e, true);
+        return;
+      }
+      openContextMenu(e, [
+        { label: 'Ir al código', run: () => sourceAt(e, false) },
+        { label: 'Abrir al lado', hint: sideHint(), run: () => sourceAt(e, true) },
+      ]);
     };
     c.addEventListener('click', onClick, true);
+    c.addEventListener('auxclick', onAuxClick, true);
+    c.addEventListener('mousedown', onMouseDown, true);
+    c.addEventListener('contextmenu', onContextMenu);
 
     return () => {
       ro.disconnect();
@@ -193,6 +217,9 @@ export default function PdfViewer({ url }: { url: string }) {
       usePdfView.setState({ pos: null });
       c.removeEventListener('wheel', onWheel);
       c.removeEventListener('click', onClick, true);
+      c.removeEventListener('auxclick', onAuxClick, true);
+      c.removeEventListener('mousedown', onMouseDown, true);
+      c.removeEventListener('contextmenu', onContextMenu);
       viewer.setDocument(null as unknown as pdfjs.PDFDocumentProxy);
       void docRef.current?.loadingTask.destroy();
       docRef.current = null;
@@ -370,7 +397,7 @@ export default function PdfViewer({ url }: { url: string }) {
           <Plus size={13} />
         </IconButton>
         <span className="flex-1" />
-        <span className="min-w-0 truncate text-faint" title={`${kbd('Mod-clic')} en el PDF abre el código de ese punto`}>
+        <span className="min-w-0 truncate text-faint" title={`${kbd('Mod-clic')} abre el código; ${sideHint()}, clic central o menú contextual lo abren al lado`}>
           {kbd('Mod-clic')}: ir al código
         </span>
         <IconButton label={`Buscar en el PDF (${kbd('Mod-F')})`} active={findOpen} onClick={() => (findOpen ? closeFind() : openFind())}>

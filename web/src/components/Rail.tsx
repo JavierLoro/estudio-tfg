@@ -2,6 +2,7 @@ import { BookMarked, FileCode2, Home, Inbox, Plus, Search, Settings, Workflow } 
 import { useUI, type Section } from '../state/ui';
 import { openHome, openSettings, useActivePanel } from '../state/workspace';
 import { kbd } from '../lib/kbd';
+import { shortcutFor } from '../lib/shortcuts';
 import { cx } from './ui';
 
 const ITEMS: { id: Section; label: string; icon: React.ReactNode }[] = [
@@ -69,7 +70,7 @@ export function Rail() {
         </RailButton>
       ))}
       <div className="flex-1" />
-      <RailButton label={`Capturar (${kbd('Mod-Shift-C')})`} onClick={() => useUI.getState().setCaptureOpen(true)}>
+      <RailButton label={`Capturar (${kbd(shortcutFor('capture'))})`} onClick={() => useUI.getState().setCaptureOpen(true)}>
         <Plus size={19} />
       </RailButton>
       <RailButton label="Ajustes" active={settingsActive} onClick={() => openSettings()}>

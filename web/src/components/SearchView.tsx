@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { sideHint } from '../lib/shortcuts';
+import { openActions } from './OpenActions';
 import { FileText, FileCode2, ListTree } from 'lucide-react';
 import { api, errorMessage, type Root, type SearchItem } from '../api';
 import { basename } from '../lib/paths';
 import { fold } from '../lib/search';
-import { kbd } from '../lib/kbd';
 import { useUI } from '../state/ui';
 import { findOutlineItem, outlineLabel, outlineOrder, useOutline } from '../state/outline';
 import { openFile } from '../state/workspace';
@@ -100,7 +101,7 @@ export function SearchResults({ q, scope, dense }: { q: string; scope: Root | 'a
   return (
     <div className={cx('pb-2', loading && 'opacity-60')}>
       <div className="px-3 py-1 text-[11px] text-faint">
-        {items.length >= 200 ? 'Más de 200' : items.length} coincidencias en {files} {files === 1 ? 'archivo' : 'archivos'} · {kbd('Alt-clic')} abre al lado
+        {items.length >= 200 ? 'Más de 200' : items.length} coincidencias en {files} {files === 1 ? 'archivo' : 'archivos'} · {sideHint()} abre al lado
       </div>
       {groups.map((g) =>
         g.kind === 'outline' ? (
@@ -110,7 +111,7 @@ export function SearchResults({ q, scope, dense }: { q: string; scope: Root | 'a
           <button
             type="button"
             className="flex w-full items-center gap-1.5 px-3 py-0.5 text-left text-[12px] font-medium hover:bg-hover"
-            onClick={(e) => openFile(g.root, g.path, { side: e.altKey })}
+            {...openActions((side) => openFile(g.root, g.path, { side }))}
             title={`${g.root === 'memoria' ? 'Memoria' : 'Notas'} · ${g.path}`}
           >
             {g.root === 'memoria' ? <FileCode2 size={13} className="shrink-0 text-muted" /> : <FileText size={13} className="shrink-0 text-muted" />}
@@ -124,7 +125,7 @@ export function SearchResults({ q, scope, dense }: { q: string; scope: Root | 'a
                 key={i}
                 type="button"
                 className="flex w-full items-baseline gap-2 py-0.5 pr-3 pl-7 text-left text-[12px] hover:bg-hover"
-                onClick={(e) => openFile(h.root, h.path, { line: h.line, side: e.altKey })}
+                {...openActions((side) => openFile(h.root, h.path, { line: h.line, side }))}
               >
                 <span className="w-7 shrink-0 text-right font-mono text-[10.5px] text-faint">{h.line}</span>
                 <span className={cx('min-w-0 flex-1 text-muted', dense ? 'truncate' : 'line-clamp-2')}>{highlight(h.snippet, q)}</span>
@@ -187,7 +188,7 @@ function OutlineGroup({ group: g, q, dense }: { group: OutlineHitGroup; q: strin
       <button
         type="button"
         className="flex w-full items-center gap-1.5 px-3 py-0.5 text-left text-[12px] font-medium hover:bg-hover"
-        onClick={(e) => openFile('memoria', file, { line: item?.line ?? first.line, side: e.altKey })}
+        {...openActions((side) => openFile('memoria', file, { line: item?.line ?? first.line, side }))}
         title={`Memoria · ${label} · ${file}`}
       >
         <ListTree size={13} className="shrink-0 text-muted" />
@@ -199,7 +200,7 @@ function OutlineGroup({ group: g, q, dense }: { group: OutlineHitGroup; q: strin
           key={i}
           type="button"
           className="flex w-full items-baseline gap-2 py-0.5 pr-3 pl-7 text-left text-[12px] hover:bg-hover"
-          onClick={(e) => openFile(h.root, h.path, { line: h.line, side: e.altKey })}
+          {...openActions((side) => openFile(h.root, h.path, { line: h.line, side }))}
           title={`${h.path}:${h.line}`}
         >
           <span className="w-7 shrink-0 text-right font-mono text-[10.5px] text-faint">{h.line}</span>

@@ -4,6 +4,7 @@ import { Archive, Check, ExternalLink, Inbox, Paperclip, Pencil, X } from 'lucid
 import { api, errorMessage } from '../api';
 import { MarkdownView, splitFrontmatter } from '../components/Markdown';
 import { Banner, Button, Spinner, cx } from '../components/ui';
+import { openActions } from '../components/OpenActions';
 import { ext, formatDate, hostOf, basename } from '../lib/paths';
 import { onFileChange } from '../state/events';
 import { STATUS_LABEL, attachmentPath, setResourceStatus, setResourceTags } from '../state/resources';
@@ -81,7 +82,7 @@ export function ResourcePanel({ params }: IDockviewPanelProps<FileParams>) {
               <Inbox size={12} /> A la bandeja
             </Button>
           )}
-          <Button variant="ghost" onClick={(e) => openFile('notes', path, { side: e.altKey })}>
+          <Button variant="ghost" {...openActions((side) => openFile('notes', path, { side }))}>
             <Pencil size={12} /> Editar nota
           </Button>
         </div>

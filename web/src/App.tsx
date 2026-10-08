@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { matchesShortcut } from './lib/shortcuts';
 import { registerTokenPrompt, type Status } from './api';
 import { CaptureModal } from './components/CaptureModal';
 import { ContextMenuHost } from './components/ContextMenu';
@@ -67,22 +68,20 @@ function useBoot() {
 function useGlobalKeys() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const mod = e.metaKey || e.ctrlKey;
-      if (!mod) return;
-      const k = e.key.toLowerCase();
-      if (k === 'k' && !e.shiftKey) {
+      if (e.defaultPrevented) return;
+      if (matchesShortcut(e, 'quickOpen')) {
         e.preventDefault();
         const ui = useUI.getState();
         ui.setQuickOpen(!ui.quickOpen);
-      } else if (k === 'c' && e.shiftKey) {
+      } else if (matchesShortcut(e, 'capture')) {
         e.preventDefault();
         useUI.getState().setCaptureOpen(true);
-      } else if (k === 's' && !e.defaultPrevented) {
+      } else if (matchesShortcut(e, 'save')) {
         // Mod-S fuera del editor (p. ej. nota en modo lectura): guardar el archivo activo.
         e.preventDefault();
         const f = activeFile();
         if (f) void saveDoc(docKey(f.root, f.path));
-      } else if (k === 'b' && !e.shiftKey && !e.defaultPrevented) {
+      } else if (matchesShortcut(e, 'sidebar')) {
         const target = e.target as HTMLElement;
         if (target.closest('.cm-editor, input, textarea')) return;
         e.preventDefault();

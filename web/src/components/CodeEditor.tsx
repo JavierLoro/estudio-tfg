@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { shortcutFor } from '../lib/shortcuts';
 import { Annotation, Compartment, EditorSelection, EditorState, Prec, Text } from '@codemirror/state';
 import { Decoration, EditorView, keymap } from '@codemirror/view';
 import { setDiagnostics, type Diagnostic as CmDiagnostic } from '@codemirror/lint';
@@ -22,7 +23,7 @@ interface Props {
   className?: string;
   onSave?: () => void;
   onSaveCompile?: () => void;
-  /** «Ver en PDF» (Mod-Shift-J) con la línea del cursor. */
+  /** «Ver en PDF» con la línea del cursor. */
   onShowInPdf?: (line: number) => void;
   diagnostics?: LineDiagnostic[];
   /** Avisa de la vista de CodeMirror (null al destruirla), p. ej. para deshacer desde fuera. */
@@ -91,7 +92,7 @@ export function CodeEditor({ docKey, lang, lineNumbers = true, className, onSave
               { key: 'Mod-s', preventDefault: true, run: () => (cb.current.onSave?.(), true) },
               { key: 'Mod-Enter', preventDefault: true, run: () => ((cb.current.onSaveCompile ?? cb.current.onSave)?.(), true) },
               {
-                key: 'Mod-Shift-j',
+                key: shortcutFor('showInPdf'),
                 preventDefault: true,
                 run: (v) => {
                   if (!cb.current.onShowInPdf) return false;

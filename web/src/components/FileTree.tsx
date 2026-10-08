@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, Ellipsis, File, FileCode2, FileImage, FileText, Folder, FolderOpen, Workflow } from 'lucide-react';
 import type { Entry, Root } from '../api';
 import { isMac, kbd } from '../lib/kbd';
+import { sideHint } from '../lib/shortcuts';
+import { openActions } from './OpenActions';
 import { basename, dirname, ext, join, panelKindFor } from '../lib/paths';
 import { indicatorOf, useDocs } from '../state/docs';
 import { canMoveInto, createFileIn, createFolderIn, deleteEntry, expandPath, moveEntry, moveInto, toggleExpanded, useExpanded } from '../state/files';
@@ -182,7 +184,7 @@ export function FileTree({ root, filter }: { root: Root; filter: string }) {
 
   const fileMenu = (path: string): MenuItem[] => [
     { label: 'Abrir', run: () => openFile(root, path) },
-    { label: 'Abrir al lado', hint: kbd('Alt-clic'), run: () => openFile(root, path, { side: true }) },
+    { label: 'Abrir al lado', hint: sideHint(), run: () => openFile(root, path, { side: true }) },
     { label: 'Renombrar', hint: kbd('F2'), run: () => setRenaming(path) },
     { label: 'Mover a…', run: () => openMoveDialog(root, path) },
     { label: 'Eliminar', hint: DEL_HINT, danger: true, run: () => void deleteEntry(root, path, false) },
@@ -222,18 +224,14 @@ export function FileTree({ root, filter }: { root: Root; filter: string }) {
         draggable
         className={cls}
         style={style}
-        title={`${path}\n${kbd('Alt-clic')}: abrir al lado`}
-        onClick={(e) => openFile(root, path, { side: e.altKey })}
+        title={`${path}\n${sideHint()}: abrir al lado`}
+        {...openActions((side) => openFile(root, path, { side }), () => fileMenu(path))}
         onKeyDown={(e) => rowKeys(e, path, false)}
         onDragStart={(e) => dragStart(e, path)}
         onDragEnd={dragEnd}
         // Soltar sobre un archivo = soltar en su carpeta.
         onDragOver={(e) => !flat && over(e, dirname(path))}
         onDrop={(e) => !flat && drop(e, dirname(path))}
-        onContextMenu={(e) => {
-          e.stopPropagation();
-          openContextMenu(e, fileMenu(path));
-        }}
       >
         {iconFor(path)}
         <span className="min-w-0 flex-1 truncate">{label ?? basename(path)}</span>

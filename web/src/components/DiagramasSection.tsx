@@ -1,9 +1,10 @@
 // Sección «Diagramas» del panel lateral: los diagramas de la memoria (diagramas/*.mmd) con
 // el estado de su figura exportada, para abrirlos, crearlos y gestionarlos desde un sitio.
 import { useEffect, useMemo, useState } from 'react';
+import { sideHint } from '../lib/shortcuts';
+import { openActions } from './OpenActions';
 import { Ellipsis, Plus, RefreshCw, Workflow, X } from 'lucide-react';
 import type { DiagramaItem } from '../api';
-import { kbd } from '../lib/kbd';
 import { basename } from '../lib/paths';
 import {
   deleteDiagram,
@@ -50,7 +51,7 @@ export function DiagramasSection() {
   const menu = (it: DiagramaItem): MenuItem[] => {
     const m: MenuItem[] = [
       { label: 'Abrir', run: () => openFile('memoria', it.path) },
-      { label: 'Abrir al lado', hint: kbd('Alt-clic'), run: () => openFile('memoria', it.path, { side: true }) },
+      { label: 'Abrir al lado', hint: sideHint(), run: () => openFile('memoria', it.path, { side: true }) },
       { label: it.estado === 'sin-exportar' ? 'Exportar figura' : 'Volver a exportar', run: () => void exportDiagram(it.path) },
       { label: 'Insertar en la memoria…', run: () => openInsertFigure(it.path) },
     ];
@@ -132,9 +133,8 @@ export function DiagramasSection() {
                 key={it.path}
                 role="listitem"
                 className={cx('group flex w-full cursor-pointer items-start gap-2 px-3 py-1.5 text-left hover:bg-hover', active && 'bg-active')}
-                title={`${it.path}\n${kbd('Alt-clic')}: abrir al lado`}
-                onClick={(e) => openFile('memoria', it.path, { side: e.altKey })}
-                onContextMenu={(e) => openContextMenu(e, menu(it))}
+                title={`${it.path}\n${sideHint()}: abrir al lado`}
+                {...openActions((side) => openFile('memoria', it.path, { side }), () => menu(it))}
               >
                 <Workflow size={14} className="mt-0.5 shrink-0 text-muted" />
                 <span className="min-w-0 flex-1">

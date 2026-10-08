@@ -16,7 +16,8 @@ import {
   Workflow,
 } from 'lucide-react';
 import { api, errorMessage, FieldError, type NewSectionKind, type OutlineItem } from '../api';
-import { kbd } from '../lib/kbd';
+import { sideByEvent, sideHint } from '../lib/shortcuts';
+import { openActions } from './OpenActions';
 import { docKey } from '../lib/paths';
 import { load, save } from '../lib/storage';
 import { useCursor } from '../state/cursor';
@@ -523,7 +524,7 @@ function OutlineTree({
     if (n.item) {
       const it = n.item;
       items.push({ label: 'Abrir', run: () => open(n) });
-      items.push({ label: 'Abrir al lado', hint: kbd('Alt-clic'), run: () => open(n, true) });
+      items.push({ label: 'Abrir al lado', hint: sideHint(), run: () => open(n, true) });
       if (it.kind === 'datos') items.push({ label: 'Abrir datos.tex', run: () => openFile('memoria', it.file) });
       else if (/\.tex$/i.test(it.file)) items.push({ label: 'Ver en PDF', run: () => void showInPdf(it.file, it.line) });
       if (it.kind === 'chapter') {
@@ -577,7 +578,7 @@ function OutlineTree({
       case ' ':
         e.preventDefault();
         setFocusKey(r.node.key);
-        open(r.node, e.altKey);
+        open(r.node, sideByEvent(e));
         break;
       case 'ContextMenu':
       case 'F10':
@@ -672,7 +673,7 @@ function OutlineRow({
     n.warnings.length ? `Avisos: ${n.warnings.join(', ')}` : null,
     staleFigs ? `Figura desactualizada: ${staleFigs.join(', ')} (vuelve a exportar el diagrama)` : null,
     !n.enabled ? 'Desactivado (línea comentada)' : null,
-    n.item ? `${kbd('Alt-clic')}: abrir al lado` : null,
+    n.item ? `${sideHint()}: abrir al lado` : null,
   ]
     .filter(Boolean)
     .join('\n');
@@ -694,11 +695,7 @@ function OutlineRow({
         !n.enabled && 'text-faint',
       )}
       style={{ paddingLeft: 4 + depth * 12 }}
-      onClick={(e) => onOpen(e.altKey)}
-      onContextMenu={(e) => {
-        const items = menu();
-        if (items.length) openContextMenu(e, items);
-      }}
+      {...openActions(onOpen, menu)}
     >
       {reading && <span aria-hidden className="absolute inset-y-[3px] left-0 w-[2px] rounded-full bg-accent" />}
       {hasChildren ? (
