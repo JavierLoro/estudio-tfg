@@ -15,7 +15,7 @@ import {
   comandosDatos,
   manifestProblems,
   mergeManifest,
-  sha256,
+  templateHash,
 } from './memoria-template.mjs';
 
 const args = process.argv.slice(2);
@@ -43,7 +43,7 @@ if (args.includes('--check')) {
   // (con otro perfil no se cambian por los del genérico).
   for (const r of rutas) {
     const rel = r.slice(PREFIX.length);
-    archivos[rel.startsWith('1-capitulos/') ? `esi-uclm:${rel}` : rel] = sha256(git('show', `${COMMIT}:${r}`));
+    archivos[rel.startsWith('1-capitulos/') ? `esi-uclm:${rel}` : rel] = templateHash(git('show', `${COMMIT}:${r}`), rel);
   }
   // Variante conocida de la clase anterior al arreglo de epstopdf (memorias creadas antes de 2529624).
   archivos['estilo/esi-tfg.cls'] = [archivos['estilo/esi-tfg.cls'], 'f56acaa2f00c629cb51c35b5d9376b1956a0dbc3d14d5ad9650b1d6b8bd65a5c'];

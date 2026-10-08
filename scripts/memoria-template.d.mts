@@ -26,6 +26,7 @@ export declare const MANIFIESTOS_DIR: string;
 export declare const PLANTILLA_VERSION: string;
 export declare const GIT_IDENTITY: string[];
 export declare function sha256(buf: string | Uint8Array): string;
+export declare function templateHash(buf: Uint8Array, rel: string): string;
 export declare function templateFiles(perfil?: string): Map<string, string>;
 export declare function claseDe(src: string): string | null;
 export declare function comandosDatos(src: string): string[];

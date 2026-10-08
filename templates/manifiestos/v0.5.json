@@ -21,6 +21,7 @@
     "atribucion"
   ],
   "archivos": {
+    ".gitattributes": "d0164e7ab878c02a8a0959c7b91d71c79a0252762e2bede08f623966a4b4d22c",
     ".gitignore": "4c697c6efd5b7a9e9ee1eac0d4c06f628f985baf0dbfd43056b067857fb1d163",
     "0-inicio/abstract.tex": "83dd4481b1c18602e13f1cc28aafeee412e1db1bc3c7ad3dbd59e4dc4ebddcf6",
     "0-inicio/acronimos.tex": "3ed78365ead34cb2deeca200bc6c614d8b4cb5136db765e65d47a770766efb2d",

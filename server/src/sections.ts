@@ -42,7 +42,7 @@ export function texEscape(t: string): string {
 
 const INCLUDE_RE = /\\(input|include)\s*\{([^{}]+)\}/;
 const keyOf = (f: string) => f.trim().replace(/^\.\//, '').replace(/\.tex$/i, '');
-const eolOf = (s: string) => (s.includes('\r\n') ? '\r\n' : '\n');
+export const eolOf = (s: string) => (s.includes('\r\n') ? '\r\n' : '\n');
 
 async function readWithRev(ctx: Ctx, rel: string): Promise<{ abs: string; content: string; rev: string }> {
   const r = await resolveSafe(ctx.cfg, 'memoria', rel);

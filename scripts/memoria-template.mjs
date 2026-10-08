@@ -123,6 +123,13 @@ export function sha256(buf) {
   return crypto.createHash('sha256').update(buf).digest('hex');
 }
 
+/** Hash de plantilla: normaliza CRLF solo en los formatos de texto conocidos. */
+export function templateHash(buf, rel) {
+  const text = /\.(tex|cls|sty|bib|md|txt|json)$/i.test(rel) || ['.gitignore', '.gitattributes'].includes(path.posix.basename(rel));
+  // latin1 permite quitar CR sin alterar ningún otro byte, incluso UTF-8 no válido.
+  return sha256(text ? Buffer.from(Buffer.from(buf).toString('latin1').replace(/\r\n/g, '\n'), 'latin1') : buf);
+}
+
 /**
  * Archivos que `copyTemplate` crearía con ese perfil: Map ruta relativa → ruta absoluta
  * (base/ y encima el perfil, sin perfil.json), ordenado por ruta.
@@ -168,7 +175,7 @@ export function buildManifest() {
   for (const rel of rutas) {
     const hashes = perfiles.map((id) => {
       const abs = porPerfil.get(id).get(rel);
-      return abs ? sha256(fs.readFileSync(abs)) : null;
+      return abs ? templateHash(fs.readFileSync(abs), rel) : null;
     });
     if (hashes.every((h) => h && h === hashes[0])) archivos[rel] = hashes[0];
     else perfiles.forEach((id, i) => hashes[i] && (archivos[`${id}:${rel}`] = hashes[i]));
