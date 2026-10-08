@@ -381,8 +381,11 @@ async function isGitRepo(dir: string): Promise<boolean> {
 
 /** Conserva las primeras líneas útiles de stderr sin volcar un log entero. */
 function gitError(e: any): string {
-  return String(e?.stderr || e?.message || e).replace(/[\x00-\x1f\x7f]/g, (c) => c === '\n' ? '\n' : ' ')
-    .trim().split('\n').filter(Boolean).slice(0, 3).join(' · ').slice(0, 500);
+  const lines = String(e?.stderr || e?.message || e).replace(/[\x00-\x1f\x7f]/g, (c) => c === '\n' ? '\n' : ' ')
+    .trim().split('\n').map((line) => line.trim()).filter(Boolean);
+  // Los avisos de autocrlf no deben ocultar el rechazo del hook o el error real.
+  const useful = lines.filter((line) => !/^warning: in the working copy of .* (?:LF|CRLF) will be replaced by (?:LF|CRLF) the next time Git touches it\.?$/.test(line));
+  return (useful.length ? useful : lines).slice(0, 3).join(' · ').slice(0, 500);
 }
 
 async function gitHead(dir: string): Promise<string | null> {

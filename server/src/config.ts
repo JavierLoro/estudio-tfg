@@ -66,10 +66,15 @@ export function realpathLoose(p: string, paths = path): string {
   }
 }
 
-function insideRepoNotWorkspace(dir: string, repoRoot: string): boolean {
-  const rel = path.relative(repoRoot, dir);
-  const inside = rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
-  return inside && !(rel === 'workspace' || rel.startsWith(`workspace${path.sep}`));
+function insideRepoNotWorkspace(dir: string, repoRoot: string, paths = path): boolean {
+  if (paths.sep === '\\') {
+    dir = paths.toNamespacedPath(dir);
+    repoRoot = paths.toNamespacedPath(repoRoot);
+  }
+  const rel = paths.relative(repoRoot, dir);
+  const inside = rel === '' || (rel !== '..' && !rel.startsWith(`..${paths.sep}`) && !paths.isAbsolute(rel));
+  const key = paths.sep === '\\' ? rel.toLowerCase() : rel;
+  return inside && !(key === 'workspace' || key.startsWith(`workspace${paths.sep}`));
 }
 
 /**
@@ -77,9 +82,9 @@ function insideRepoNotWorkspace(dir: string, repoRoot: string): boolean {
  * NOTES_DIR / MEMORIA_DIR may only live under the git-ignored workspace/ folder.
  * Checked on the lexical path and on its realpath. Returns an error message or null.
  */
-export function repoGuardError(name: string, dir: string, repoRoot = REPO_ROOT): string | null {
-  const realRepo = realpathLoose(repoRoot);
-  if (insideRepoNotWorkspace(dir, repoRoot) || insideRepoNotWorkspace(realpathLoose(dir), realRepo)) {
+export function repoGuardError(name: string, dir: string, repoRoot = REPO_ROOT, paths = path): string | null {
+  const realRepo = realpathLoose(repoRoot, paths);
+  if (insideRepoNotWorkspace(dir, repoRoot, paths) || insideRepoNotWorkspace(realpathLoose(dir, paths), realRepo, paths)) {
     return `${name} (${dir}) está dentro del repositorio: usa una carpeta externa o workspace/ (ignorada por git)`;
   }
   return null;

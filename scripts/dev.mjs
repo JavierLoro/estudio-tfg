@@ -4,6 +4,15 @@ import path from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 
+/** Comparar ambas rutas canónicas: Windows puede usar aliases cortos y otra capitalización. */
+export function isMain(moduleUrl, entry = process.argv[1], paths = path, realpath = fs.realpathSync.native) {
+  if (!entry) return false;
+  try {
+    const modulePath = fileURLToPath(moduleUrl, { windows: paths.sep === '\\' });
+    return paths.relative(realpath(entry), realpath(modulePath)) === '';
+  } catch { return false; }
+}
+
 /** Cierra el árbol de tsx/Vite; en POSIX incluye el grupo aunque el padre termine. */
 export function signalTree(child, signal, platform = process.platform, { kill = process.kill, run = spawnSync } = {}) {
   if (!child.pid) return;
@@ -110,4 +119,4 @@ function main() {
   }
 }
 
-if (process.argv[1] && fs.realpathSync.native(process.argv[1]) === fileURLToPath(import.meta.url)) main();
+if (isMain(import.meta.url)) main();

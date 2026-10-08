@@ -5,7 +5,17 @@ import os from 'node:os';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { test } from 'node:test';
-import { signalTree } from './dev.mjs';
+import { isMain, signalTree } from './dev.mjs';
+
+test('el punto de entrada Windows compara aliases y mayúsculas por sus rutas canónicas', () => {
+  const short = 'C:\\Users\\RUNNER~1\\dev.mjs';
+  const long = 'C:\\Users\\RunnerAdmin\\dev.mjs';
+  const canonical = (p) => p === short ? long : p;
+  assert.equal(isMain('file:///C:/Users/RUNNER~1/dev.mjs', long, path.win32, canonical), true);
+  assert.equal(isMain('file:///C:/Users/RunnerAdmin/dev.mjs', long.toLowerCase(), path.win32, canonical), true);
+  assert.equal(isMain('file:///C:/Users/RunnerAdmin/dev.mjs', 'C:\\Users\\RunnerAdmin\\otro.mjs', path.win32, canonical), false);
+  assert.equal(isMain('file:///C:/Users/RunnerAdmin/dev.mjs', undefined, path.win32, () => { throw new Error('ENOENT'); }), false);
+});
 
 const idle = `console.log('listo', process.pid); setInterval(() => {}, 1000);`;
 
