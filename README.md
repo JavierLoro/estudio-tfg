@@ -166,23 +166,25 @@ si chocan con el navegador, usa los botones. Más detalles en
 
 ### Atajos
 
-En Windows y Linux, ⌘ es Ctrl.
+En Windows y Linux, ⌘ es Ctrl, salvo Capturar y Ver en PDF: usan los atajos
+alternativos indicados para evitar las herramientas del navegador y AltGr.
 
 | Atajo | Acción |
 | --- | --- |
 | ⌘K | Abrir / buscar |
-| ⌘⇧C | Capturar |
+| ⌘⇧C (Mac) · Ctrl+Mayús+F8 (Windows/Linux) | Capturar |
 | ⌘B | Mostrar u ocultar la barra lateral (fuera del editor) |
 | ⌘S | Guardar |
 | ⌘↵ | Guardar y compilar (editor LaTeX y diagramas) |
-| ⌘⇧J | Ver la línea actual en el PDF |
+| ⌘⇧J (Mac) · Ctrl+Mayús+F9 (Windows/Linux) | Ver la línea actual en el PDF |
 | ⌘clic en el PDF | Ir al código |
 | ⌘E | Alternar lectura / edición de una nota Markdown |
 | ⌘F | Buscar dentro del PDF |
 | ⌘+ · ⌘- · ⌘0 | Zoom del PDF: acercar, alejar, ajustar al ancho |
 | ⌘rueda | Zoom del PDF alrededor del puntero |
 | ⌘Z · ⌘⇧Z | Deshacer / rehacer en el lienzo de diagramas |
-| ⌥clic | Abrir al lado (en listas, resultados y enlaces) |
+| Alt+clic · Ctrl+Mayús+clic · clic central | Abrir al lado (listas, resultados, enlaces internos y PDF; también desde el menú contextual) |
+| Alt+Intro · Ctrl+Mayús+Intro | Abrir al lado desde Abrir / buscar |
 
 ## Qué va al repo y qué no
 

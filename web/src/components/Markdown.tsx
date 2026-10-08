@@ -5,7 +5,8 @@ import { parse as parseYaml } from 'yaml';
 import { ChevronDown, ChevronRight, Workflow } from 'lucide-react';
 import { api, type Root } from '../api';
 import { dirname, ext, join } from '../lib/paths';
-import { kbd } from '../lib/kbd';
+import { sideHint } from '../lib/shortcuts';
+import { openActions } from './OpenActions';
 import { openFile } from '../state/workspace';
 import { confirmDialog } from '../state/ui';
 import { createNoteAt } from '../state/files';
@@ -236,11 +237,8 @@ export const MarkdownView = memo(function MarkdownView({ content, path, root = '
               {...rest}
               href="#"
               className="et-wikilink"
-              title={`${target} (${kbd('Alt-clic')}: abrir al lado)`}
-              onClick={(e) => {
-                e.preventDefault();
-                void openWikilink(target, e.altKey, path);
-              }}
+              title={`${target} (${sideHint()}: abrir al lado)`}
+              {...openActions((side) => void openWikilink(target, side, path))}
             >
               {children}
             </a>
@@ -254,11 +252,11 @@ export const MarkdownView = memo(function MarkdownView({ content, path, root = '
             <a
               {...rest}
               href="#"
-              onClick={(e) => {
-                e.preventDefault();
-                if (/\.md$/i.test(target) || !ext(target)) void openWikilink(ext(target) ? target : `${target}.md`, e.altKey, path, true);
-                else openFile(root, target, { side: e.altKey });
-              }}
+              title={`${target} (${sideHint()}: abrir al lado)`}
+              {...openActions((side) => {
+                if (/\.md$/i.test(target) || !ext(target)) void openWikilink(ext(target) ? target : `${target}.md`, side, path, true);
+                else openFile(root, target, { side });
+              })}
             >
               {children}
             </a>

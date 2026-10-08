@@ -5,6 +5,7 @@ import { useCaptureQueue, flushCaptureQueue } from '../state/captureQueue';
 import { useConnection } from '../state/events';
 import { useUI } from '../state/ui';
 import { kbd } from '../lib/kbd';
+import { shortcutFor } from '../lib/shortcuts';
 import { Button, Spinner, cx } from './ui';
 
 export function Header() {
@@ -91,7 +92,7 @@ export function Header() {
         </span>
       )}
 
-      <Button variant="primary" onClick={() => setCaptureOpen(true)} title={`Capturar (${kbd('Mod-Shift-C')})`} className="h-7!">
+      <Button variant="primary" onClick={() => setCaptureOpen(true)} title={`Capturar (${kbd(shortcutFor('capture'))})`} className="h-7!">
         <Plus size={13} /> Capturar
       </Button>
     </header>

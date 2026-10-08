@@ -7,6 +7,8 @@ import { DocBanners, SaveIndicator } from '../components/DocBanners';
 import { MarkdownView } from '../components/Markdown';
 import { IconButton, Spinner } from '../components/ui';
 import { kbd } from '../lib/kbd';
+import { openActions } from '../components/OpenActions';
+import { matchesShortcut } from '../lib/shortcuts';
 import { langFor } from '../lib/editor';
 import { docKey, ext, stripExt, basename } from '../lib/paths';
 import { ensureDoc, saveDoc, useDocs } from '../state/docs';
@@ -38,7 +40,7 @@ export function NotePanel({ params, api: panelApi }: IDockviewPanelProps<FilePar
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!panelApi.isActive) return;
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'e' && isMd) {
+      if (!e.defaultPrevented && matchesShortcut(e, 'noteMode') && isMd) {
         e.preventDefault();
         setMode(mode === 'read' ? 'edit' : 'read');
       }
@@ -126,7 +128,7 @@ function Backlinks({ path }: { path: string }) {
             <button
               type="button"
               className="w-full rounded-md px-2 py-1 text-left hover:bg-hover"
-              onClick={(e) => openFile('notes', b.path, { side: e.altKey })}
+              {...openActions((side) => openFile('notes', b.path, { side }))}
             >
               <div className="text-[13px] font-medium text-accent">{b.title || stripExt(basename(b.path))}</div>
               {b.snippet && <div className="line-clamp-2 text-[12px] text-muted">{b.snippet}</div>}

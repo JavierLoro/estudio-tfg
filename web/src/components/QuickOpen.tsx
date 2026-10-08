@@ -4,6 +4,8 @@ import { CornerDownLeft, FilePlus2, FileCode2, FileText, Inbox, Search, Workflow
 import type { Root } from '../api';
 import { score } from '../lib/quickOpen';
 import { kbd } from '../lib/kbd';
+import { sideByEvent } from '../lib/shortcuts';
+import { openActions } from './OpenActions';
 import { basename, stripExt } from '../lib/paths';
 import { createNoteAt } from '../state/files';
 import { openNewDiagram, sanitizeDiagramName, useNewDiagram } from '../state/diagramas';
@@ -142,7 +144,7 @@ export function QuickOpen() {
                 setSel((s) => Math.max(s - 1, 0));
               } else if (e.key === 'Enter') {
                 e.preventDefault();
-                choose(items[sel], e.altKey);
+                choose(items[sel], sideByEvent(e));
               }
             }}
             placeholder="Nombre de archivo, recurso o texto…"
@@ -163,7 +165,9 @@ export function QuickOpen() {
               role: 'option',
               'aria-selected': active,
               onMouseMove: () => setSel(i),
-              onClick: (e: React.MouseEvent) => choose(it, e.altKey),
+              ...(it.kind === 'create' || it.kind === 'diagram'
+                ? { onClick: () => choose(it, false) }
+                : openActions((side) => choose(it, side))),
               className: cx('flex w-full cursor-pointer items-center gap-2 px-3 py-1 text-left text-[12.5px]', active && 'bg-active'),
             } as const;
             if (it.kind === 'create')
@@ -215,10 +219,10 @@ export function QuickOpen() {
             );
           })}
         </div>
-        <div className="flex h-7 shrink-0 items-center gap-3 border-t border-line px-3 text-[10.5px] text-faint">
+        <div className="flex min-h-7 shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-t border-line px-3 py-1 text-[10.5px] text-faint">
           <span>{kbd('ArrowUp')}{kbd('ArrowDown')} navegar</span>
           <span>{kbd('Enter')} abrir</span>
-          <span>{kbd('Alt-Enter')} abrir al lado</span>
+          <span>{kbd('Alt-Enter')} / {kbd('Ctrl-Shift-Enter')} / clic central: abrir al lado</span>
           <span>{kbd('Escape')} cerrar</span>
         </div>
       </div>

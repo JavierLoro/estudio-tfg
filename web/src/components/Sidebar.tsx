@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { sideHint } from '../lib/shortcuts';
+import { openActions } from './OpenActions';
 import { Archive, Check, ExternalLink, FilePlus2, FolderPlus, Inbox, Paperclip, Play, RefreshCw, Search as SearchIcon, Workflow, X } from 'lucide-react';
 import type { Root } from '../api';
-import { kbd } from '../lib/kbd';
 import { formatDate, hostOf } from '../lib/paths';
 import { useCompile } from '../state/compile';
 import { STATUS_LABEL, setResourceStatus } from '../state/resources';
@@ -285,8 +286,8 @@ function ResourcesSection() {
               <button
                 type="button"
                 className="block w-full px-3 py-1 pr-16 text-left hover:bg-hover"
-                onClick={(e) => openResource(r.path, { side: e.altKey })}
-                title={`${r.title}\n${kbd('Alt-clic')}: abrir al lado`}
+                {...openActions((side) => openResource(r.path, { side }))}
+                title={`${r.title}\n${sideHint()}: abrir al lado`}
               >
                 <div className="truncate text-[12.5px] font-medium">{r.title}</div>
                 <div className="flex items-center gap-1 truncate text-[10.5px] text-faint">

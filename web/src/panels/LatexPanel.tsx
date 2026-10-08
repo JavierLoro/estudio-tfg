@@ -4,7 +4,9 @@ import { AlertCircle, AlertTriangle, ChevronDown, ChevronRight, FileSearch, Play
 import { CodeEditor, type LineDiagnostic } from '../components/CodeEditor';
 import { DocBanners, SaveIndicator } from '../components/DocBanners';
 import { Button, IconButton, Spinner, cx } from '../components/ui';
+import { openActions } from '../components/OpenActions';
 import { kbd } from '../lib/kbd';
+import { shortcutFor } from '../lib/shortcuts';
 import { langFor } from '../lib/editor';
 import { docKey } from '../lib/paths';
 import { countDiags, diagPath, useCompile } from '../state/compile';
@@ -85,7 +87,7 @@ export function LatexPanel({ params, api }: IDockviewPanelProps<FileParams>) {
         </span>
         <SaveIndicator docKey={key} />
         {canSync && (
-          <IconButton label={`Ver en PDF (${kbd('Mod-Shift-J')})`} onClick={() => showHere()} disabled={!hasPdf}>
+          <IconButton label={`Ver en PDF (${kbd(shortcutFor('showInPdf'))})`} onClick={() => showHere()} disabled={!hasPdf}>
             <FileSearch size={14} />
           </IconButton>
         )}
@@ -166,10 +168,10 @@ export function DiagnosticList({
             type="button"
             className={cx('flex w-full items-start gap-2 px-2 py-0.5 text-left text-[12px]', d.path ? 'hover:bg-hover' : 'cursor-default opacity-70')}
             disabled={!d.path}
-            onClick={(e) => {
-              if (d.path === currentPath && currentKey && d.line != null) requestReveal(currentKey, d.line);
-              else goToDiagnostic(d, { side: e.altKey });
-            }}
+            {...openActions((side) => {
+              if (!side && d.path === currentPath && currentKey && d.line != null) requestReveal(currentKey, d.line);
+              else goToDiagnostic(d, { side });
+            })}
             title={`${d.path ?? d.file}${d.line != null ? `:${d.line}` : ''} — ${d.message}`}
           >
             {d.severity === 'error' ? (
