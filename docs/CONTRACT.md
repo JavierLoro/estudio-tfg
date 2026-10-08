@@ -498,3 +498,8 @@ Los diagramas viven en la memoria: fuente en `diagramas/<nombre>.mmd` (Mermaid) 
 - Ajustes usa esas rutas POSIX del contenedor. Se puede elegir otro vault o crear una memoria bajo `/data/home` sin cambiar `.env`; la selección persiste en `data/settings.json`. App y worker comparten los artefactos del host `data/builds`.
 - Si la carpeta inicial del selector está fuera de las raíces permitidas (por ejemplo, el padre `/data` de `/data/memoria` al crear una memoria), empieza directamente en la lista de raíces.
 - El acceso a Ajustes mantiene la regla de loopback o `AUTH_TOKEN`: una conexión desde el navegador a un puerto publicado de Docker puede llegar con la IP del puente. El modo Docker se configura con un token propio y el navegador lo pide al entrar. Los puertos publicados siguen ligados a `127.0.0.1`.
+
+## Operaciones de archivo multiplataforma (v0.11)
+
+- En Windows, las escrituras y movimientos reintentan `rename`/`unlink` ante `EPERM`, `EACCES` o `EBUSY`, con espera creciente de hasta unos 2 s. Si el bloqueo persiste, responden **423** `{ error: "El archivo está en uso por otro programa; ciérralo y vuelve a intentarlo" }`. En POSIX no se reintenta. Un guardado fallido conserva el original y su historial; el cliente conserva la edición y muestra el error.
+- Si un movimiento de archivo coloca el destino pero no puede quitar el origen, retira el destino recién creado antes de devolver el error. Si tampoco puede retirarlo (o ha sido sustituido), devuelve **423** con un aviso explícito de que el origen se conserva y la copia no se pudo retirar. Los eventos `move` solo se emiten tras completar el movimiento. Al renombrar una carpeta, `EPERM` con un destino existente se traduce a **409**.

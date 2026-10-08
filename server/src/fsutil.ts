@@ -1,6 +1,8 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
+import { fileInUse } from './errors.ts';
 import type { Config } from './config.ts';
 import { isIgnoredName } from './ignore.ts';
 import { isInside, rootDir, type RootName } from './paths.ts';
@@ -22,6 +24,23 @@ function tmpName(abs: string): string {
   return path.join(path.dirname(abs), `.${path.basename(abs)}.${process.pid}.${crypto.randomBytes(6).toString('hex')}.tmp`);
 }
 
+const BUSY = new Set(['EPERM', 'EACCES', 'EBUSY']);
+const RETRY_DELAYS = [20, 40, 80, 160, 320, 640, 740];
+
+/** Windows puede bloquear rename/unlink brevemente (antivirus, sincronización…). */
+export async function retryFileOp<T>(op: () => Promise<T>): Promise<T> {
+  const windows = os.platform() === 'win32';
+  for (let i = 0; ; i++) {
+    try {
+      return await op();
+    } catch (e: any) {
+      if (!windows || !BUSY.has(e?.code)) throw e;
+      if (i === RETRY_DELAYS.length) throw fileInUse();
+      await new Promise((resolve) => setTimeout(resolve, RETRY_DELAYS[i]));
+    }
+  }
+}
+
 /** Atomic write: temp file in the same folder + rename. Preserves the file mode if it existed. */
 export async function atomicWrite(abs: string, data: string | Buffer): Promise<void> {
   const tmp = tmpName(abs);
@@ -39,7 +58,7 @@ export async function atomicWrite(abs: string, data: string | Buffer): Promise<v
     } finally {
       await fh.close();
     }
-    await fs.rename(tmp, abs);
+    await retryFileOp(() => fs.rename(tmp, abs));
   } catch (e) {
     await fs.rm(tmp, { force: true });
     throw e;
