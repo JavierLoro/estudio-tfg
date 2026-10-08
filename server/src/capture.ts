@@ -8,7 +8,7 @@ import type { Config } from './config.ts';
 import { HttpError, badRequest } from './errors.ts';
 import { createExclusive, linkExclusive } from './fsutil.ts';
 import { yamlScalar } from './frontmatter.ts';
-import { resolveSafe } from './paths.ts';
+import { isReservedName, resolveSafe } from './paths.ts';
 
 export const MAX_UPLOAD = 50 * 1024 * 1024;
 const TITLE_TIMEOUT_MS = 4000;
@@ -41,12 +41,13 @@ export function sanitizeTitle(t: string, max = 100, fallback = 'recurso'): strin
     .replace(/^[. ]+/, '')
     .replace(/[. ]+$/, '');
   if (s.length > max) s = s.slice(0, max).replace(/[. ]+$/, '').trim();
-  return s || fallback;
+  s ||= fallback;
+  return isReservedName(s) ? s.replace(/^([^.]+)/, '$1 (recurso)') : s;
 }
 
 export function sanitizeFilename(name: string): string {
   const base = path.basename(name.replace(/\\/g, '/'));
-  const ext = path.extname(base).replace(/[^A-Za-z0-9.]/g, '').slice(0, 16);
+  const ext = path.extname(base).replace(/[^A-Za-z0-9.]/g, '').slice(0, 16).replace(/\.+$/, '');
   const stem = sanitizeTitle(base.slice(0, base.length - path.extname(base).length), 100, 'adjunto');
   return `${stem}${ext.toLowerCase()}`;
 }

@@ -7,7 +7,7 @@ import { HttpError, badRequest, notFound } from './errors.ts';
 import { atomicWrite, backup, copyExclusive, retryFileOp, rev, tryHardLink, walkFiles } from './fsutil.ts';
 import { isIgnoredName, isIgnoredRel } from './ignore.ts';
 import { DEFAULT_GRAPHICSPATH, noteLinkCtx, parseGraphicspath, rewriteNote, rewriteTex, texLinkCtx, type MoveMap } from './links.ts';
-import { isInside, normalizeRel, resolveSafe, rootDir, type RootName } from './paths.ts';
+import { isInside, normalizeRel, resolveSafe, rootDir, validateNewPath, type RootName } from './paths.ts';
 
 /**
  * Carpetas, mover/renombrar, papelera y restaurar (contrato v0.7).
@@ -123,7 +123,7 @@ async function removeSource(src: string, dst: string, linkedTo?: Stats): Promise
 // ───────────────────────────── Carpetas ─────────────────────────────
 
 export async function createDir(ctx: Ctx, root: RootName, input: unknown): Promise<string> {
-  const e = await entryOf(ctx.cfg, root, input);
+  const e = await entryOf(ctx.cfg, root, await validateNewPath(ctx.cfg, root, input));
   return ctx.locks.run(treeKey(root), async () => {
     if (await lstatOrNull(e.abs)) throw new HttpError(409, 'Ya existe un archivo o carpeta con ese nombre');
     try {
@@ -152,7 +152,7 @@ const isUnder = (child: string, parent: string) => child === parent || child.sta
 export async function moveEntryOp(ctx: Ctx, root: RootName, fromIn: unknown, toIn: unknown, updateLinks: boolean): Promise<MoveResult> {
   const { cfg } = ctx;
   const from = await entryOf(cfg, root, fromIn, 'from');
-  const to = await entryOf(cfg, root, toIn, 'to');
+  const to = await entryOf(cfg, root, await validateNewPath(cfg, root, toIn, 'to'), 'to');
   if (isUnder(to.rel, from.rel) && to.rel !== from.rel) throw badRequest('No se puede mover una carpeta dentro de sí misma');
   return ctx.locks.run(treeKey(root), async () => {
     const fromSt = await lstatOrNull(from.abs);

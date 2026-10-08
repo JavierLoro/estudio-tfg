@@ -31,6 +31,45 @@ export function normalizeRel(p: unknown, allowEmpty = false): string {
   return rel;
 }
 
+/** También Windows reserva estos nombres con extensión y los dígitos ¹²³. */
+export function isReservedName(name: string): boolean {
+  return /^(CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³])$/i.test(name.split('.')[0].trimEnd());
+}
+
+function segmentError(name: string): string | null {
+  if (!name || name === '.' || name === '..') return 'elige un nombre de archivo o carpeta';
+  if (/[<>:"/\\|?*\u0000-\u001f\u007f]/.test(name)) return 'no uses caracteres de control ni <>:"/\\|?*';
+  if (/[. ]$/.test(name)) return 'no puede terminar en punto ni espacio';
+  if (isReservedName(name)) return 'es un nombre reservado en Windows';
+  return null;
+}
+
+export function validSegment(name: string): boolean {
+  return segmentError(name) === null;
+}
+
+/** Validar nombres nuevos; los padres que ya existen pueden conservar nombres antiguos. */
+export async function validateNewPath(cfg: Config, root: RootName, input: unknown, field = 'path'): Promise<string> {
+  let rel: string;
+  try {
+    rel = normalizeRel(input);
+  } catch (e) {
+    if (e instanceof HttpError && e.statusCode === 400) throw new HttpError(400, e.message, { ...e.body, field });
+    throw e;
+  }
+  const segments = rel.split('/');
+  for (let i = 0; i < segments.length; i++) {
+    const reason = segmentError(segments[i]);
+    if (!reason) continue;
+    if (i < segments.length - 1) {
+      const parent = await resolveSafe(cfg, root, segments.slice(0, i + 1).join('/')).catch(() => null);
+      if (parent?.exists) continue;
+    }
+    throw new HttpError(400, `Nombre «${segments[i]}» no válido: ${reason}`, { field });
+  }
+  return rel;
+}
+
 export function isInside(parent: string, child: string, paths = path): boolean {
   const r = paths.relative(parent, child);
   return r === '' || (!r.startsWith('..' + paths.sep) && r !== '..' && !paths.isAbsolute(r));
