@@ -6,7 +6,7 @@ import type { Ctx } from '../context.ts';
 import { HttpError, badRequest, notFound } from '../errors.ts';
 import { atomicWrite, backup, createExclusive, isTextPath, rev } from '../fsutil.ts';
 import { contentTypeFor } from '../mime.ts';
-import { parseRoot, resolveSafe } from '../paths.ts';
+import { parseRoot, resolveSafe, validateNewPath } from '../paths.ts';
 import { buildTree } from '../tree.ts';
 
 type Q = Record<string, string | undefined>;
@@ -75,7 +75,8 @@ export default async function filesRoutes(app: FastifyInstance, { ctx }: { ctx: 
     const b = (req.body ?? {}) as Record<string, unknown>;
     const root = parseRoot(b.root);
     const content = typeof b.content === 'string' ? b.content : '';
-    const r = await resolveSafe(cfg, root, b.path);
+    const rel = await validateNewPath(cfg, root, b.path);
+    const r = await resolveSafe(cfg, root, rel);
     requireText(r.rel);
     return locks.run(`${root}:${r.rel}`, async () => {
       if (r.exists) {

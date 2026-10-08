@@ -4,10 +4,10 @@ import path from 'node:path';
 import type { Ctx } from './context.ts';
 import type { Config } from './config.ts';
 import { HttpError, badRequest, notFound } from './errors.ts';
-import { atomicWrite, backup, rev, walkFiles } from './fsutil.ts';
+import { atomicWrite, backup, copyExclusive, retryFileOp, rev, tryHardLink, walkFiles } from './fsutil.ts';
 import { isIgnoredName, isIgnoredRel } from './ignore.ts';
 import { DEFAULT_GRAPHICSPATH, noteLinkCtx, parseGraphicspath, rewriteNote, rewriteTex, texLinkCtx, type MoveMap } from './links.ts';
-import { isInside, normalizeRel, resolveSafe, rootDir, type RootName } from './paths.ts';
+import { isInside, normalizeRel, resolveSafe, rootDir, validateNewPath, type RootName } from './paths.ts';
 
 /**
  * Carpetas, mover/renombrar, papelera y restaurar (contrato v0.7).
@@ -61,45 +61,69 @@ async function listEntryFiles(e: Entry, root: RootName): Promise<string[]> {
   return out.sort();
 }
 
-const NO_LINK = new Set(['EXDEV', 'EPERM', 'ENOTSUP', 'EOPNOTSUPP', 'EMLINK', 'ENOSYS', 'EACCES']);
-
 /**
- * Mueve un archivo o carpeta sin sobrescribir nunca: archivos con link+unlink
- * (falla si el destino existe), carpetas con rename; si cruza de dispositivo
- * (EXDEV), copia y luego borra el origen. `onPlaced` se llama cuando el destino
- * ya existe y antes de quitar el origen.
+ * Mueve sin sobrescribir: archivos con link+unlink o copia exclusiva,
+ * carpetas con rename; si cruza de dispositivo
+ * (EXDEV), copia y luego borra el origen. `onPlaced` se llama solo cuando
+ * el movimiento ha terminado, para no anunciar movimientos fallidos.
  */
 export async function moveEntry(src: string, dst: string, st: Stats, onPlaced: () => void = () => {}, caseOnly = false): Promise<void> {
   await fs.mkdir(path.dirname(dst), { recursive: true });
   if (st.isFile() && !caseOnly) {
+    let linked: boolean;
     try {
-      await fs.link(src, dst);
-      onPlaced();
-      await fs.unlink(src);
-      return;
+      linked = await tryHardLink(src, dst);
     } catch (e: any) {
       if (e?.code === 'EEXIST') throw new HttpError(409, 'Ya existe un archivo o carpeta con ese nombre');
-      if (!NO_LINK.has(e?.code)) throw e;
+      throw e;
     }
+    if (!linked && !(await copyExclusive(src, dst))) throw new HttpError(409, 'Ya existe un archivo o carpeta con ese nombre');
+    // Incluso sin enlaces duros, una carrera no puede sobrescribir el destino.
+    await removeSource(src, dst, linked ? st : await fs.lstat(dst));
+    onPlaced();
+    return;
   }
   if (!caseOnly && (await lstatOrNull(dst))) throw new HttpError(409, 'Ya existe un archivo o carpeta con ese nombre');
   try {
-    await fs.rename(src, dst);
-    onPlaced();
+    await retryFileOp(async () => {
+      try {
+        await fs.rename(src, dst);
+      } catch (e: any) {
+        if (e?.code === 'EPERM' && !caseOnly && await lstatOrNull(dst)) throw new HttpError(409, 'Ya existe un archivo o carpeta con ese nombre');
+        throw e;
+      }
+    });
   } catch (e: any) {
     if (e?.code === 'ENOTEMPTY' || e?.code === 'EEXIST') throw new HttpError(409, 'Ya existe un archivo o carpeta con ese nombre');
     if (e?.code !== 'EXDEV') throw e;
     // Otro dispositivo: copiar (sin sobrescribir) y quitar el origen solo si la copia terminó.
     await fs.cp(src, dst, { recursive: true, errorOnExist: true, force: false, preserveTimestamps: true, verbatimSymlinks: true });
-    onPlaced();
-    await fs.rm(src, { recursive: true });
+    if (st.isFile()) await removeSource(src, dst);
+    else await retryFileOp(() => fs.rm(src, { recursive: true }));
+  }
+  onPlaced();
+}
+
+/** Si no se puede quitar el origen, retirar solo el destino creado por nosotros. */
+async function removeSource(src: string, dst: string, linkedTo?: Stats): Promise<void> {
+  try {
+    await retryFileOp(() => fs.unlink(src));
+  } catch (e) {
+    try {
+      const placed = await lstatOrNull(dst);
+      if (placed && linkedTo && (placed.ino !== linkedTo.ino || placed.dev !== linkedTo.dev)) throw new Error('El destino ha cambiado');
+      if (placed) await retryFileOp(() => fs.unlink(dst));
+    } catch {
+      throw new HttpError(423, 'No se pudo completar el movimiento ni retirar su copia de destino; el origen se conserva. Cierra los programas que usen ambos archivos y vuelve a intentarlo');
+    }
+    throw e;
   }
 }
 
 // ───────────────────────────── Carpetas ─────────────────────────────
 
 export async function createDir(ctx: Ctx, root: RootName, input: unknown): Promise<string> {
-  const e = await entryOf(ctx.cfg, root, input);
+  const e = await entryOf(ctx.cfg, root, await validateNewPath(ctx.cfg, root, input));
   return ctx.locks.run(treeKey(root), async () => {
     if (await lstatOrNull(e.abs)) throw new HttpError(409, 'Ya existe un archivo o carpeta con ese nombre');
     try {
@@ -128,7 +152,7 @@ const isUnder = (child: string, parent: string) => child === parent || child.sta
 export async function moveEntryOp(ctx: Ctx, root: RootName, fromIn: unknown, toIn: unknown, updateLinks: boolean): Promise<MoveResult> {
   const { cfg } = ctx;
   const from = await entryOf(cfg, root, fromIn, 'from');
-  const to = await entryOf(cfg, root, toIn, 'to');
+  const to = await entryOf(cfg, root, await validateNewPath(cfg, root, toIn, 'to'), 'to');
   if (isUnder(to.rel, from.rel) && to.rel !== from.rel) throw badRequest('No se puede mover una carpeta dentro de sí misma');
   return ctx.locks.run(treeKey(root), async () => {
     const fromSt = await lstatOrNull(from.abs);
