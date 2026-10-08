@@ -6,7 +6,7 @@ import path from 'node:path';
 import { Readable } from 'node:stream';
 import { setTimeout as delay } from 'node:timers/promises';
 import { parseArgs } from 'node:util';
-import { pathToFileURL } from 'node:url';
+import { isMain } from './dev.mjs';
 import { copyTemplate, listPerfiles } from './memoria-template.mjs';
 import { tsImport } from '../server/node_modules/tsx/dist/esm/api/index.mjs';
 
@@ -70,7 +70,7 @@ export async function compileTemplates({ workerUrl, outputDir }) {
   if (failures.length) throw new Error(failures.join('\n'));
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMain(import.meta.url)) {
   try {
     const { values } = parseArgs({ options: {
       'worker-url': { type: 'string', default: 'http://127.0.0.1:8090' },

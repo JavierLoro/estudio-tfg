@@ -43,7 +43,7 @@ describe('config: ALLOWED_ROOTS por sistema', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'estudio-tfg-roots-'));
     try {
       vi.spyOn(os, 'homedir').mockReturnValue(dir);
-      const canonical = fs.realpathSync(dir);
+      const canonical = fs.realpathSync.native(dir);
       for (const value of [undefined, '', ` ${path.delimiter} `]) {
         expect(parseAllowedRoots(value, REPO_ROOT)).toEqual([canonical]);
       }

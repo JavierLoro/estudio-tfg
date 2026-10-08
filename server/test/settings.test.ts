@@ -9,6 +9,7 @@ import { NO_GIT_WARNING } from '../../scripts/memoria-template.mjs';
 import { canSymlink, flatPaths, setup, type TestEnv } from './helpers.ts';
 
 const supportsDirSymlink = await canSymlink('dir');
+const testRoots = [...new Set([path.parse(os.tmpdir()).root, path.parse(REPO_ROOT).root])].join(path.delimiter);
 
 let t: TestEnv | null = null;
 const extra: string[] = [];
@@ -158,7 +159,7 @@ describe('PUT /api/settings', () => {
   });
 
   it.skipIf(!supportsDirSymlink)('repo guard: versioned repo folders are rejected (workspace/ allowed)', async () => {
-    t = await setup({ ALLOWED_ROOTS: `${'/'}` });
+    t = await setup({ ALLOWED_ROOTS: testRoots });
     for (const v of [REPO_ROOT, path.join(REPO_ROOT, 'docs'), path.join(REPO_ROOT, 'templates', 'base')]) {
       const r = await put(t, { memoriaDir: v });
       expect(r.statusCode).toBe(400);
@@ -219,7 +220,7 @@ describe('precedence and reset', () => {
 
   it('invalid stored values fall back to .env and are reported (startup does not fail)', async () => {
     t = await setup(
-      { ALLOWED_ROOTS: '/' },
+      { ALLOWED_ROOTS: testRoots },
       {
         before: async (dir) => {
           await fs.mkdir(path.join(dir, 'data'), { recursive: true });

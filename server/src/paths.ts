@@ -19,11 +19,11 @@ export function rootDir(cfg: Config, root: RootName): string {
  * Validate and normalise a root-relative path. Rejects absolute paths, `..`,
  * backslashes, NUL and empty paths (unless allowEmpty).
  */
-export function normalizeRel(p: unknown, allowEmpty = false): string {
+export function normalizeRel(p: unknown, allowEmpty = false, paths = path): string {
   if (typeof p !== 'string') throw badRequest('path es obligatorio');
   if (p.includes('\0')) throw badRequest('Ruta no válida');
   if (p.includes('\\')) throw badRequest('Ruta no válida: usa "/"');
-  if (p.startsWith('/') || /^[a-zA-Z]:/.test(p)) throw badRequest('Ruta absoluta no permitida');
+  if (paths.isAbsolute(p) || p.startsWith('/') || /^[a-zA-Z]:/.test(p)) throw badRequest('Ruta absoluta no permitida');
   const segs = p.split('/').filter((s) => s !== '' && s !== '.');
   if (segs.some((s) => s === '..')) throw badRequest('Ruta no permitida ("..")');
   const rel = segs.join('/');
@@ -71,6 +71,10 @@ export async function validateNewPath(cfg: Config, root: RootName, input: unknow
 }
 
 export function isInside(parent: string, child: string, paths = path): boolean {
+  if (paths.sep === '\\') {
+    parent = paths.toNamespacedPath(parent);
+    child = paths.toNamespacedPath(child);
+  }
   const r = paths.relative(parent, child);
   return r === '' || (!r.startsWith('..' + paths.sep) && r !== '..' && !paths.isAbsolute(r));
 }
@@ -126,6 +130,6 @@ export async function resolveSafe(cfg: Config, root: RootName, relInput: unknown
   }
 }
 
-export function toPosix(p: string): string {
-  return p.split(path.sep).join('/');
+export function toPosix(p: string, paths = path): string {
+  return p.split(paths.sep).join('/');
 }

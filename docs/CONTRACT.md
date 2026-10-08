@@ -520,3 +520,11 @@ Los diagramas viven en la memoria: fuente en `diagramas/<nombre>.mmd` (Mermaid) 
 - Se conservan `⌘/Ctrl+K` (abrir/buscar), `⌘/Ctrl+E` (leer/editar nota), `⌘/Ctrl+B` (panel lateral fuera de campos de texto) y `⌘/Ctrl+S` (guardar). Los eventos ya atendidos, la composición de texto, AltGr y combinaciones con modificadores extra no disparan estas acciones.
 - Los archivos, apartados, resultados de búsqueda, enlaces internos de Markdown, recursos, diagramas y enlaces entrantes aceptan **Alt+clic, Ctrl+Mayús+clic y clic central** para abrir al lado. Su menú contextual incluye «Abrir al lado»; los enlaces externos conservan el comportamiento del navegador. En Abrir/buscar también se acepta `Ctrl+Mayús+Intro`, además de `Alt+Intro`.
 - En una página del PDF, esos gestos abren el código al lado mediante SyncTeX; `⌘/Ctrl+clic` sigue abriéndolo en el grupo activo. El menú contextual ofrece «Ir al código» y «Abrir al lado» en el punto elegido.
+
+## Precisiones de portabilidad y contenido personal (v0.14)
+
+- Una carpeta del repositorio cuyo nombre empieza por dos puntos, como `..datos`, sigue estando dentro del repositorio y se rechaza para notas o memoria. Solo `..` como segmento de salida representa una carpeta externa.
+- La excepción `workspace/` respeta la comparación de mayúsculas de cada sistema: `WORKSPACE` también se admite en Windows; en POSIX se mantiene la distinción. Se comprueban tanto la ruta escrita como su ruta canónica.
+- En Windows, las comprobaciones de pertenencia equiparan una ruta de unidad o UNC con su variante extendida `\\?\` antes de calcular la relativa, manteniendo los límites de carpeta y de unidad.
+- El lanzador de desarrollo y el comprobador de plantilla reconocen su punto de entrada comparando las dos rutas canónicas, también cuando Windows utiliza un alias corto o cambia la capitalización.
+- Si Git rechaza un commit durante la actualización de plantilla, los avisos de conversión LF/CRLF se omiten del resumen cuando hay otras líneas de error, para conservar el motivo del rechazo. Si solo hay avisos, se mantienen.

@@ -302,6 +302,7 @@ describe('git y deshacer', () => {
 
   it('un commit rechazado muestra las líneas de stderr y permite deshacer', async () => {
     await boot(async (d) => { await writeV03(d); gitInit(); });
+    git('config', 'core.autocrlf', 'true'); // Reproduce avisos de Git para Windows en cualquier SO.
     const before = await snapshot();
     await fs.writeFile(mem('.git/hooks/pre-commit'), '#!/bin/sh\necho "Fallo ficticio del hook" >&2\necho "Detalle del rechazo" >&2\nexit 1\n', { mode: 0o755 });
     const p = await preview();
