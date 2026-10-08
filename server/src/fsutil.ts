@@ -42,12 +42,12 @@ export async function retryFileOp<T>(op: () => Promise<T>): Promise<T> {
   }
 }
 
-/** Atomic write: temp file in the same folder + rename. Preserves the file mode if it existed. */
+/** Atomic write: temp file in the same folder + rename. Preserves the file mode on POSIX. */
 export async function atomicWrite(abs: string, data: string | Buffer): Promise<void> {
   const tmp = tmpName(abs);
   let mode: number | undefined;
   try {
-    mode = (await fs.stat(abs)).mode & 0o777;
+    if (os.platform() !== 'win32') mode = (await fs.stat(abs)).mode & 0o777;
   } catch {
     /* new file */
   }
@@ -109,11 +109,11 @@ export async function tryHardLink(src: string, dst: string): Promise<boolean> {
 
 /** Copia en streaming con O_EXCL y fsync; nunca borra un destino preexistente. */
 export async function copyExclusive(src: string, dst: string): Promise<boolean> {
-  const st = await fs.lstat(src);
+  const st = await fs.lstat(src, { bigint: true });
   if (!st.isFile()) throw Object.assign(new Error('El origen no es un archivo regular'), { code: st.isSymbolicLink() ? 'ELOOP' : 'EINVAL' });
   const source = await fs.open(src, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
   try {
-    const opened = await source.stat();
+    const opened = await source.stat({ bigint: true });
     if (!opened.isFile() || opened.dev !== st.dev || opened.ino !== st.ino) throw new Error('El archivo de origen ha cambiado');
     let fh;
     try {

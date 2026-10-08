@@ -14,6 +14,9 @@ export function cleanTarget(target: string): string {
   return t;
 }
 
+/** Clave de comparación; nunca se usa como ruta de disco. */
+export const nameKey = (s: string) => s.normalize('NFC').toLowerCase();
+
 export type Resolver = (rawTarget: string, fromPath?: string) => string | null;
 
 /**
@@ -24,6 +27,7 @@ export type Resolver = (rawTarget: string, fromPath?: string) => string | null;
  */
 export function makeResolver(files: string[]): Resolver {
   const set = new Set(files);
+  const byNormalized = new Map<string, string[]>();
   const byLower = new Map<string, string[]>();
   const byBase = new Map<string, string[]>();
   const push = (m: Map<string, string[]>, k: string, f: string) => {
@@ -32,7 +36,8 @@ export function makeResolver(files: string[]): Resolver {
     else m.set(k, [f]);
   };
   for (const f of files) {
-    const lf = f.toLowerCase();
+    push(byNormalized, f.normalize('NFC'), f);
+    const lf = nameKey(f);
     push(byLower, lf, f);
     push(byBase, lf.slice(lf.lastIndexOf('/') + 1), f);
   }
@@ -44,6 +49,8 @@ export function makeResolver(files: string[]): Resolver {
 
     // 1. Exact path from root.
     for (const c of candidates) if (set.has(c)) return c;
+    const normalized = candidates.flatMap((c) => byNormalized.get(c.normalize('NFC')) ?? []);
+    if (normalized.length) return shortest(normalized);
     // 1b. Relative to the linking note's folder.
     if (fromPath) {
       const dir = path.posix.dirname(fromPath);
@@ -51,18 +58,20 @@ export function makeResolver(files: string[]): Resolver {
         for (const c of candidates) {
           const p = path.posix.normalize(`${dir}/${c}`);
           if (set.has(p)) return p;
+          const matches = byNormalized.get(p.normalize('NFC'));
+          if (matches?.length) return shortest(matches);
         }
       }
     }
     // 2. Case-insensitive exact path.
-    const lowerCands = candidates.map((c) => c.toLowerCase());
+    const lowerCands = candidates.map(nameKey);
     const exact = lowerCands.flatMap((c) => byLower.get(c) ?? []);
     if (exact.length) return shortest(exact);
     // 3. Suffix match (by filename, or folder/filename), case-insensitive.
     const suffix = new Set<string>();
     for (const c of lowerCands) {
       for (const f of byBase.get(c.slice(c.lastIndexOf('/') + 1)) ?? []) {
-        if (f.toLowerCase().endsWith('/' + c)) suffix.add(f);
+        if (nameKey(f).endsWith('/' + c)) suffix.add(f);
       }
     }
     if (suffix.size) return shortest([...suffix]);

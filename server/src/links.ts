@@ -1,7 +1,7 @@
 import path from 'node:path';
 import YAML from 'yaml';
 import { splitFrontmatter } from './frontmatter.ts';
-import { cleanTarget, makeResolver, type Resolver } from './notes.ts';
+import { cleanTarget, makeResolver, nameKey, type Resolver } from './notes.ts';
 
 /**
  * Mantener enlaces al mover (contrato v0.7). Funciones puras: reciben el contenido
@@ -102,6 +102,7 @@ export interface NoteLinkCtx extends MoveMap {
   pre: Resolver;
   post: Resolver;
   preSet: Set<string>;
+  prePaths: Map<string, string>;
   postSet: Set<string>;
   /** Nombre de archivo (minúsculas) → cuántos hay después de mover. */
   baseCount: Map<string, number>;
@@ -112,19 +113,20 @@ export interface NoteLinkCtx extends MoveMap {
 export function noteLinkCtx(m: MoveMap): NoteLinkCtx {
   const baseCount = new Map<string, number>();
   for (const f of m.postFiles) {
-    const b = baseName(f).toLowerCase();
+    const b = nameKey(baseName(f));
     baseCount.set(b, (baseCount.get(b) ?? 0) + 1);
   }
   const names = new Set<string>();
   for (const [a, b] of m.map) {
-    names.add(baseName(a).toLowerCase());
-    names.add(baseName(b).toLowerCase());
+    names.add(nameKey(baseName(a)));
+    names.add(nameKey(baseName(b)));
   }
   return {
     ...m,
     pre: makeResolver(m.preFiles),
     post: makeResolver(m.postFiles),
     preSet: new Set(m.preFiles),
+    prePaths: new Map(m.preFiles.map((p) => [p.normalize('NFC'), p])),
     postSet: new Set(m.postFiles),
     baseCount,
     names,
@@ -133,7 +135,7 @@ export function noteLinkCtx(m: MoveMap): NoteLinkCtx {
 
 /** Si un destino puede cambiar de significado (su nombre coincide con el de un archivo movido). */
 function mayChange(dest: string, c: NoteLinkCtx): boolean {
-  const b = baseName(cleanTarget(dest)).toLowerCase();
+  const b = nameKey(baseName(cleanTarget(dest)));
   return c.names.has(b) || c.names.has(`${b}.md`);
 }
 
@@ -148,7 +150,7 @@ function firstResolving(cands: (string | null)[], target: string, newPath: strin
 /** Nombre solo si es único tras mover. */
 function bareName(target: string, keepMd: boolean, c: NoteLinkCtx): string | null {
   const b = baseName(target);
-  if ((c.baseCount.get(b.toLowerCase()) ?? 0) > 1) return null;
+  if ((c.baseCount.get(nameKey(b)) ?? 0) > 1) return null;
   return keepMd ? b : stripMd(b);
 }
 
@@ -192,7 +194,7 @@ function relinkMd(decoded: string, oldPath: string, newPath: string, c: NoteLink
   const s = decoded.replace(/^(\.\/)+/, '');
   const oldDir = posixDir(oldPath);
   const newDir = posixDir(newPath);
-  const same = (p: string, f: string) => p === f || `${p}.md` === f;
+  const same = (p: string, f: string) => p.normalize('NFC') === f.normalize('NFC') || `${p}.md`.normalize('NFC') === f.normalize('NFC');
   const isRel = same(path.posix.normalize(oldDir ? `${oldDir}/${s}` : s), old) && (oldDir === '' || s !== old || dotSlash);
   const isAbs = !isRel && same(s, old);
   // ¿Sigue apuntando al mismo archivo con la misma forma?
@@ -215,6 +217,8 @@ function relinkAttachment(val: string, oldPath: string, newPath: string, c: Note
   let relForm: boolean;
   if (c.preSet.has(rel)) [old, relForm] = [rel, true];
   else if (c.preSet.has(path.posix.normalize(val))) [old, relForm] = [path.posix.normalize(val), false];
+  else if (c.prePaths.has(rel.normalize('NFC'))) [old, relForm] = [c.prePaths.get(rel.normalize('NFC'))!, true];
+  else if (c.prePaths.has(path.posix.normalize(val).normalize('NFC'))) [old, relForm] = [c.prePaths.get(path.posix.normalize(val).normalize('NFC'))!, false];
   else return null;
   const target = c.map.get(old) ?? old;
   const next = relForm ? path.posix.relative(posixDir(newPath) || '.', target) : target;

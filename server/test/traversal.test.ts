@@ -3,7 +3,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { normalizeRel } from '../src/paths.ts';
-import { flatPaths, setup, type TestEnv } from './helpers.ts';
+import { canSymlink, flatPaths, setup, type TestEnv } from './helpers.ts';
+
+const supportsFileSymlink = await canSymlink();
+const supportsDirSymlink = await canSymlink('dir');
 
 let t: TestEnv;
 let outside: string;
@@ -38,9 +41,9 @@ describe('path traversal protection', () => {
     expect(await fs.readFile(path.join(outside, 'secret.md'), 'utf8')).toBe('SECRETO');
   });
 
-  it('rejects symlinks that escape the root (file and directory)', async () => {
+  it.skipIf(!supportsFileSymlink || !supportsDirSymlink)('rejects symlinks that escape the root (file and directory)', async () => {
     await fs.symlink(path.join(outside, 'secret.md'), path.join(t.cfg.notesDir, 'link.md'));
-    await fs.symlink(path.join(outside, 'dir'), path.join(t.cfg.notesDir, 'linkdir'));
+    await fs.symlink(path.join(outside, 'dir'), path.join(t.cfg.notesDir, 'linkdir'), process.platform === 'win32' ? 'junction' : 'dir');
 
     expect((await t.app.inject({ url: '/api/file?root=notes&path=link.md' })).statusCode).toBe(400);
     expect((await t.app.inject({ url: '/api/raw?root=notes&path=link.md' })).statusCode).toBe(400);
@@ -59,7 +62,7 @@ describe('path traversal protection', () => {
     expect(all).not.toContain('linkdir');
   });
 
-  it('allows symlinks that stay inside the root', async () => {
+  it.skipIf(!supportsFileSymlink)('allows symlinks that stay inside the root', async () => {
     await fs.symlink(path.join(t.cfg.notesDir, 'Sistema', 'Arquitectura.md'), path.join(t.cfg.notesDir, 'alias.md'));
     const res = await t.app.inject({ url: '/api/file?root=notes&path=alias.md' });
     expect(res.statusCode).toBe(200);

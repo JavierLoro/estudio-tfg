@@ -11,6 +11,7 @@ import {
   PLANTILLA_VERSION,
   REPO_ROOT,
   buildManifest,
+  gitPlatformArgs,
   claseDe,
   comandosDatos,
   manifestProblems,
@@ -36,7 +37,7 @@ if (args.includes('--check')) {
 } else if (args.includes('--v0.3')) {
   const COMMIT = '2529624';
   const PREFIX = 'templates/esi-tfg/';
-  const git = (...a) => execFileSync('git', a, { cwd: REPO_ROOT, maxBuffer: 64 * 1024 * 1024 });
+  const git = (...a) => execFileSync('git', [...gitPlatformArgs(), ...a], { cwd: REPO_ROOT, maxBuffer: 64 * 1024 * 1024 });
   const rutas = git('ls-tree', '-r', '--name-only', COMMIT, PREFIX).toString().split('\n').filter(Boolean);
   const archivos = {};
   // La plantilla v0.3 equivale al perfil esi-uclm: sus capítulos son propios de ese perfil

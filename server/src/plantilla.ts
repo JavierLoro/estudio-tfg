@@ -18,6 +18,7 @@ import {
   PLANTILLA_VERSION,
   claseDe,
   hashesDe,
+  gitPlatformArgs,
   listPerfiles,
   readManifiestos,
   sha256,
@@ -350,7 +351,7 @@ export function publicPlan(p: Plan): PlanPlantilla {
 
 function git(cwd: string, args: string[], env?: NodeJS.ProcessEnv): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile('git', args, { cwd, env: env ?? process.env, maxBuffer: 16 * 1024 * 1024 }, (err, stdout, stderr) => {
+    execFile('git', [...gitPlatformArgs(), ...args], { cwd, env: env ?? process.env, maxBuffer: 16 * 1024 * 1024 }, (err, stdout, stderr) => {
       if (err) reject(Object.assign(err, { stderr: String(stderr) }));
       else resolve(String(stdout));
     });

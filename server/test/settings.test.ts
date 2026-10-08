@@ -6,7 +6,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { expandUserPath } from '../src/settings.ts';
 import { REPO_ROOT } from '../src/config.ts';
 import { NO_GIT_WARNING } from '../../scripts/memoria-template.mjs';
-import { flatPaths, setup, type TestEnv } from './helpers.ts';
+import { canSymlink, flatPaths, setup, type TestEnv } from './helpers.ts';
+
+const supportsDirSymlink = await canSymlink('dir');
 
 let t: TestEnv | null = null;
 const extra: string[] = [];
@@ -134,11 +136,11 @@ describe('PUT /api/settings', () => {
     expect(t.cfg.resourcesSubdir).toBe('Recursos');
   });
 
-  it('ALLOWED_ROOTS: rejects folders outside, including via symlink (realpath)', async () => {
+  it.skipIf(!supportsDirSymlink)('ALLOWED_ROOTS: rejects folders outside, including via symlink (realpath)', async () => {
     const outside = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'estudio-tfg-outside-')));
     extra.push(outside);
     t = await setup();
-    await fs.symlink(outside, path.join(t.dir, 'enlace'));
+    await fs.symlink(outside, path.join(t.dir, 'enlace'), process.platform === 'win32' ? 'junction' : 'dir');
     for (const v of [outside, path.join(t.dir, 'enlace'), path.join(t.dir, '..')]) {
       const r = await put(t, { notesDir: v });
       expect(r.statusCode).toBe(400);
@@ -149,13 +151,13 @@ describe('PUT /api/settings', () => {
     expect(init.json().field).toBe('dir');
     await expect(fs.stat(path.join(outside, 'nueva'))).rejects.toThrow();
     // resourcesSubdir through a symlink escaping notesDir
-    await fs.symlink(outside, path.join(t.cfg.notesDir, 'escape'));
+    await fs.symlink(outside, path.join(t.cfg.notesDir, 'escape'), process.platform === 'win32' ? 'junction' : 'dir');
     const rs = await put(t, { resourcesSubdir: 'escape/Recursos' });
     expect(rs.statusCode).toBe(400);
     expect(rs.json().field).toBe('resourcesSubdir');
   });
 
-  it('repo guard: versioned repo folders are rejected (workspace/ allowed)', async () => {
+  it.skipIf(!supportsDirSymlink)('repo guard: versioned repo folders are rejected (workspace/ allowed)', async () => {
     t = await setup({ ALLOWED_ROOTS: `${'/'}` });
     for (const v of [REPO_ROOT, path.join(REPO_ROOT, 'docs'), path.join(REPO_ROOT, 'templates', 'base')]) {
       const r = await put(t, { memoriaDir: v });
@@ -163,7 +165,7 @@ describe('PUT /api/settings', () => {
       expect(r.json()).toEqual({ error: expect.stringMatching(/dentro del repositorio/), field: 'memoriaDir' });
     }
     // symlink pointing into the repo is caught too
-    await fs.symlink(path.join(REPO_ROOT, 'docs'), path.join(t.dir, 'docs-link'));
+    await fs.symlink(path.join(REPO_ROOT, 'docs'), path.join(t.dir, 'docs-link'), process.platform === 'win32' ? 'junction' : 'dir');
     const r = await put(t, { notesDir: path.join(t.dir, 'docs-link') });
     expect(r.statusCode).toBe(400);
     expect(r.json().error).toMatch(/dentro del repositorio/);
@@ -402,7 +404,7 @@ describe('GET /api/templates/perfiles', () => {
 });
 
 describe('GET /api/fs/dirs', () => {
-  it('lists allowed roots, subfolders with flags, hides dotfiles, parent null at a root', async () => {
+  it.skipIf(!supportsDirSymlink)('lists allowed roots, subfolders with flags, hides dotfiles, parent null at a root', async () => {
     t = await setup();
     await newDir(t, 'Vault/.obsidian');
     await newDir(t, 'Memoria', { 'main.tex': 'x' });
@@ -411,8 +413,8 @@ describe('GET /api/fs/dirs', () => {
     await fs.writeFile(path.join(t.dir, 'archivo.txt'), 'x');
     const outside = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'estudio-tfg-outside-')));
     extra.push(outside);
-    await fs.symlink(outside, path.join(t.dir, 'zz-fuera'));
-    await fs.symlink(path.join(t.dir, 'Memoria'), path.join(t.dir, 'zz-dentro'));
+    await fs.symlink(outside, path.join(t.dir, 'zz-fuera'), process.platform === 'win32' ? 'junction' : 'dir');
+    await fs.symlink(path.join(t.dir, 'Memoria'), path.join(t.dir, 'zz-dentro'), process.platform === 'win32' ? 'junction' : 'dir');
 
     const roots = (await t.app.inject({ url: '/api/fs/dirs' })).json();
     expect(roots.parent).toBeNull();

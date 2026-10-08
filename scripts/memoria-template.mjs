@@ -6,6 +6,7 @@ import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { isSystemFile } from './system-files.mjs';
 
 export const REPO_ROOT = path.resolve(import.meta.dirname, '..');
@@ -76,12 +77,17 @@ export function copyTemplate(dir, { perfil = DEFAULT_PERFIL } = {}) {
   });
 }
 
+/** Opciones locales a cada llamada: no modifican la configuración del usuario. */
+export function gitPlatformArgs(platform = os.platform()) {
+  return platform === 'win32' ? ['-c', 'core.longpaths=true'] : [];
+}
+
 export const GIT_IDENTITY = ['-c', 'user.name=Estudio TFG', '-c', 'user.email=estudio-tfg@localhost'];
 export const NO_GIT_WARNING = 'La memoria se ha creado sin control de versiones: instala Git para tener historial y actualizaciones de plantilla';
 
 export function hasGit() {
   try {
-    execFileSync('git', ['--version'], { stdio: 'ignore' });
+    execFileSync('git', [...gitPlatformArgs(), '--version'], { stdio: 'ignore' });
     return true;
   } catch {
     return false;
@@ -105,7 +111,7 @@ export function createMemoriaFromTemplate(dir, { perfil = DEFAULT_PERFIL } = {})
   copyTemplate(dir, { perfil });
   if (!available) return { dir, git: false, perfil, warning: NO_GIT_WARNING };
   if (fs.existsSync(path.join(dir, '.git'))) return { dir, git: false, perfil };
-  const git = (...a) => execFileSync('git', a, { cwd: dir, stdio: 'ignore' });
+  const git = (...a) => execFileSync('git', [...gitPlatformArgs(), ...a], { cwd: dir, stdio: 'ignore' });
   git('init', '-q', '-b', 'main');
   git('add', '-A');
   const msg = 'Memoria creada desde la plantilla de Estudio TFG';

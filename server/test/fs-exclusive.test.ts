@@ -1,7 +1,10 @@
+import { canSymlink } from './helpers.ts';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const supportsFileSymlink = await canSymlink();
 
 let dir: string;
 let util: typeof import('../src/fsutil.ts');
@@ -36,7 +39,7 @@ describe('creación y movimiento sin enlaces duros', () => {
     expect(await util.linkExclusive(src, dst)).toBe(false);
     expect(await fs.readFile(path.join(dir, 'nota.md'), 'utf8')).toBe('nota');
     const moved = path.join(dir, 'movido.pdf');
-    await ops.moveEntry(dst, moved, await fs.stat(dst));
+    await ops.moveEntry(dst, moved, await fs.stat(dst, { bigint: true }));
     expect(await fs.readFile(moved)).toEqual(bytes);
     await expect(fs.stat(dst)).rejects.toMatchObject({ code: 'ENOENT' });
     expect(link).toHaveBeenCalledTimes(1);
@@ -81,7 +84,7 @@ describe('creación y movimiento sin enlaces duros', () => {
     expect(unlink).not.toHaveBeenCalled();
   });
 
-  it.skipIf(process.platform === 'win32')('la copia alternativa no sigue un origen sustituido por un symlink', async () => {
+  it.skipIf(!supportsFileSymlink)('la copia alternativa no sigue un origen sustituido por un symlink', async () => {
     const real = path.join(dir, 'fuera.md');
     const src = path.join(dir, 'origen.md');
     const dst = path.join(dir, 'destino.md');
@@ -100,7 +103,7 @@ describe('creación y movimiento sin enlaces duros', () => {
       await fs.writeFile(dst, 'otro escritor');
       throw fail('EINVAL');
     });
-    await expect(ops.moveEntry(src, dst, await fs.stat(src))).rejects.toMatchObject({ statusCode: 409 });
+    await expect(ops.moveEntry(src, dst, await fs.stat(src, { bigint: true }))).rejects.toMatchObject({ statusCode: 409 });
     expect(await fs.readFile(src, 'utf8')).toBe('origen');
     expect(await fs.readFile(dst, 'utf8')).toBe('otro escritor');
   });
@@ -117,7 +120,7 @@ describe('creación y movimiento sin enlaces duros', () => {
     });
     vi.spyOn(os, 'platform').mockReturnValue('linux');
     const placed = vi.fn();
-    await expect(ops.moveEntry(src, dst, await fs.stat(src), placed)).rejects.toMatchObject({ code: 'EBUSY' });
+    await expect(ops.moveEntry(src, dst, await fs.stat(src, { bigint: true }), placed)).rejects.toMatchObject({ code: 'EBUSY' });
     expect(await fs.readFile(src, 'utf8')).toBe('origen');
     await expect(fs.stat(dst)).rejects.toMatchObject({ code: 'ENOENT' });
     expect(placed).not.toHaveBeenCalled();

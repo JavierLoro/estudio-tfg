@@ -17,7 +17,7 @@ const fail = (code: string) => Object.assign(new Error(code), { code });
 const windows = () => vi.spyOn(os, 'platform').mockReturnValue('win32');
 
 describe('bloqueos de archivos en Windows', () => {
-  it.each(['EPERM', 'EACCES', 'EBUSY'])('reintenta rename ante %s y conserva el modo', async (code) => {
+  it.each(['EPERM', 'EACCES', 'EBUSY'])('reintenta rename ante %s con un temporal escribible', async (code) => {
     const abs = path.join(t.cfg.notesDir, 'nota.md');
     await fs.writeFile(abs, 'original', { mode: 0o640 });
     const rename = vi.spyOn(fs, 'rename').mockRejectedValueOnce(fail(code)).mockRejectedValueOnce(fail(code));
@@ -25,7 +25,7 @@ describe('bloqueos de archivos en Windows', () => {
     await atomicWrite(abs, 'nuevo');
     expect(rename).toHaveBeenCalledTimes(3);
     expect(await fs.readFile(abs, 'utf8')).toBe('nuevo');
-    if (process.platform !== 'win32') expect((await fs.stat(abs)).mode & 0o777).toBe(0o640);
+    if (process.platform !== 'win32') expect((await fs.stat(abs)).mode & 0o777).toBe(0o644);
   });
 
   it('un bloqueo permanente al guardar devuelve 423, conserva original/historial y limpia temporales', async () => {
@@ -62,7 +62,7 @@ describe('bloqueos de archivos en Windows', () => {
     const unlink = vi.spyOn(fs, 'unlink').mockRejectedValueOnce(fail(code)).mockRejectedValueOnce(fail(code));
     const placed = vi.fn();
     windows();
-    await moveEntry(src, dst, await fs.stat(src), placed);
+    await moveEntry(src, dst, await fs.stat(src, { bigint: true }), placed);
     expect(unlink).toHaveBeenCalledTimes(3);
     expect(placed).toHaveBeenCalledTimes(1);
     expect(unlink.mock.invocationCallOrder[2]).toBeLessThan(placed.mock.invocationCallOrder[0]);
@@ -100,7 +100,7 @@ describe('bloqueos de archivos en Windows', () => {
       if (p === src) throw fail('EACCES');
       return realUnlink(p);
     });
-    await expect(moveEntry(src, dst, await fs.stat(src))).rejects.toMatchObject({ code: 'EACCES' });
+    await expect(moveEntry(src, dst, await fs.stat(src, { bigint: true }))).rejects.toMatchObject({ code: 'EACCES' });
     expect(unlink).toHaveBeenCalledTimes(2);
     expect(await fs.readFile(src, 'utf8')).toBe('datos');
     await expect(fs.stat(dst)).rejects.toMatchObject({ code: 'ENOENT' });
@@ -113,7 +113,7 @@ describe('bloqueos de archivos en Windows', () => {
     vi.spyOn(fs, 'unlink').mockRejectedValue(fail('EPERM'));
     vi.spyOn(os, 'platform').mockReturnValue('linux');
     const placed = vi.fn();
-    await expect(moveEntry(src, dst, await fs.stat(src), placed)).rejects.toMatchObject({ statusCode: 423, message: expect.stringContaining('ni retirar su copia') });
+    await expect(moveEntry(src, dst, await fs.stat(src, { bigint: true }), placed)).rejects.toMatchObject({ statusCode: 423, message: expect.stringContaining('ni retirar su copia') });
     expect(await fs.readFile(src, 'utf8')).toBe('datos');
     expect(await fs.readFile(dst, 'utf8')).toBe('datos');
     expect(placed).not.toHaveBeenCalled();
@@ -128,8 +128,8 @@ describe('bloqueos de archivos en Windows', () => {
       throw fail('EPERM');
     });
     windows();
-    await expect(moveEntry(src, dst, await fs.stat(src))).rejects.toMatchObject({ statusCode: 409 });
+    await expect(moveEntry(src, dst, await fs.stat(src, { bigint: true }))).rejects.toMatchObject({ statusCode: 409 });
     expect(rename).toHaveBeenCalledTimes(1);
-    expect((await fs.stat(src)).isDirectory()).toBe(true);
+    expect((await fs.stat(src, { bigint: true })).isDirectory()).toBe(true);
   });
 });

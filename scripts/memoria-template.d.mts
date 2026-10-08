@@ -24,6 +24,7 @@ export interface Manifiesto {
 }
 export declare const MANIFIESTOS_DIR: string;
 export declare const PLANTILLA_VERSION: string;
+export declare function gitPlatformArgs(platform?: string): string[];
 export declare const GIT_IDENTITY: string[];
 export declare function sha256(buf: string | Uint8Array): string;
 export declare function templateHash(buf: Uint8Array, rel: string): string;
