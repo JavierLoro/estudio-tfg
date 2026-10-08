@@ -10,6 +10,7 @@ import type { Ctx } from './context.ts';
 import { HttpError, badRequest } from './errors.ts';
 import { ADDED_MARK, DATOS_REL, INSTITUCION_REL, applyChanges, fieldsOf, findCommand, parseDatos } from './datos.ts';
 import { atomicWrite, backup, createExclusive, rev, type KeyedLock } from './fsutil.ts';
+import { eolOf } from './sections.ts';
 import { resolveSafe } from './paths.ts';
 import {
   DEFAULT_PERFIL,
@@ -17,10 +18,12 @@ import {
   PLANTILLA_VERSION,
   claseDe,
   hashesDe,
+  gitPlatformArgs,
   listPerfiles,
   readManifiestos,
   sha256,
   templateFiles,
+  templateHash,
   type Manifiesto,
 } from '../../scripts/memoria-template.mjs';
 
@@ -145,7 +148,7 @@ function withTemplateComments(src: string, tplSrc: string, cmds: string[]): stri
   const mark = src.indexOf(ADDED_MARK);
   if (mark < 0) return src;
   const head = src.slice(0, mark);
-  const lines = src.slice(mark).split('\n');
+  const lines = src.slice(mark).split(/\r?\n/);
   for (const cmd of cmds) {
     const t = new RegExp(`^\\\\${cmd}(?![A-Za-z]).*?(\\s+%.*)$`, 'm').exec(tplSrc);
     if (!t) continue;
@@ -153,7 +156,7 @@ function withTemplateComments(src: string, tplSrc: string, cmds: string[]): stri
     const i = lines.findIndex((l) => new RegExp(`^\\\\${cmd}(\\{[^%\\n]*\\})+$`).test(l));
     if (i >= 0) lines[i] = lines[i].padEnd(Math.max(col, lines[i].length + 2)) + t[1].trimStart();
   }
-  return head + lines.join('\n');
+  return head + lines.join(eolOf(src));
 }
 
 /**
@@ -207,7 +210,7 @@ export async function computePlan(cfg: Config, perfilPedido?: string): Promise<P
   let sigueClaseAntigua = false;
   if (mainBuf) {
     const src = mainBuf.toString('utf8');
-    const nl = src.includes('\r\n') ? '\r\n' : '\n';
+    const nl = eolOf(src);
     const lines = src.split(/\r?\n/);
     const tplLines = tpl.has('tfg.tex') ? (await tplBuf('tfg.tex')).toString('utf8').split(/\r?\n/) : [];
     const hechos: string[] = [];
@@ -241,9 +244,9 @@ export async function computePlan(cfg: Config, perfilPedido?: string): Promise<P
   // Clase (zona «no tocar»): se sustituye; la antigua se retira.
   const tplCls = await tplBuf('estilo/memoria.cls');
   if (!memCls) add('estilo/memoria.cls', 'crear', `clase de la plantilla ${actual.version}`, null, tplCls);
-  else if (!memCls.equals(tplCls)) {
+  else if (templateHash(memCls, 'estilo/memoria.cls') !== templateHash(tplCls, 'estilo/memoria.cls')) {
     add('estilo/memoria.cls', 'sustituir', `clase nueva (${actual.clase})`, memCls, tplCls);
-    if (!known(desde, perfil, 'estilo/memoria.cls').includes(sha256(memCls))) {
+    if (!known(desde, perfil, 'estilo/memoria.cls').includes(templateHash(memCls, 'estilo/memoria.cls'))) {
       revisar.push({ archivo: 'estilo/memoria.cls', motivo: 'tenía cambios tuyos: se sustituye por la de la plantilla (queda una copia en el historial)' });
     }
   }
@@ -253,7 +256,7 @@ export async function computePlan(cfg: Config, perfilPedido?: string): Promise<P
     } else {
       add('estilo/esi-tfg.cls', 'retirar', 'la sustituye estilo/memoria.cls', oldCls, null);
       const mOld = manifiestos.find((m) => m.clase === claseDe(oldCls.toString('utf8')));
-      if (!mOld || !knownAny(mOld, 'estilo/esi-tfg.cls').includes(sha256(oldCls))) {
+      if (!mOld || !knownAny(mOld, 'estilo/esi-tfg.cls').includes(templateHash(oldCls, 'estilo/esi-tfg.cls'))) {
         revisar.push({ archivo: 'estilo/esi-tfg.cls', motivo: 'tenía cambios tuyos: se retira igualmente (queda una copia en el historial)' });
       }
     }
@@ -304,14 +307,14 @@ export async function computePlan(cfg: Config, perfilPedido?: string): Promise<P
     const cur = await readMem(cfg, rel);
     if (!cur) continue;
     const nuevo = await fs.readFile(abs);
-    if (cur.equals(nuevo)) continue;
-    if (known(desde, perfil, rel).includes(sha256(cur))) {
+    if (templateHash(cur, rel) === templateHash(nuevo, rel)) continue;
+    if (known(desde, perfil, rel).includes(templateHash(cur, rel))) {
       const nov = desde.version === 'v0.3' ? NOVEDADES_V03[rel] : undefined;
       add(rel, 'sustituir', nov ? `sin cambios tuyos: ${nov}` : 'sin cambios tuyos: versión nueva de la plantilla', cur, nuevo);
-    } else if (!knownAny(desde, rel).includes(sha256(cur))) {
+    } else if (!knownAny(desde, rel).includes(templateHash(cur, rel))) {
       // (Si coincide con el de otro perfil, sigue sin tocar pero no es de este perfil: se deja.)
       const antes = knownAny(desde, rel);
-      if (antes.length && !antes.includes(sha256(nuevo))) revisar.push({ archivo: rel, motivo: motivoRevisar(rel, cur.toString('utf8')) });
+      if (antes.length && !antes.includes(templateHash(nuevo, rel))) revisar.push({ archivo: rel, motivo: motivoRevisar(rel, cur.toString('utf8')) });
     }
   }
 
@@ -329,7 +332,8 @@ export async function computePlan(cfg: Config, perfilPedido?: string): Promise<P
         .filter((l) => l && !l.startsWith('#') && !have.has(l));
       if (missing.length) {
         const s = gi.toString('utf8');
-        const out = s + (s.length && !s.endsWith('\n') ? '\n' : '') + missing.join('\n') + '\n';
+        const nl = eolOf(s);
+        const out = s + (s.length && !s.endsWith('\n') ? nl : '') + missing.join(nl) + nl;
         add('.gitignore', 'editar', `añade ${missing.join(' ')}`, gi, Buffer.from(out, 'utf8'));
       }
     }
@@ -347,7 +351,7 @@ export function publicPlan(p: Plan): PlanPlantilla {
 
 function git(cwd: string, args: string[], env?: NodeJS.ProcessEnv): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile('git', args, { cwd, env: env ?? process.env, maxBuffer: 16 * 1024 * 1024 }, (err, stdout, stderr) => {
+    execFile('git', [...gitPlatformArgs(), ...args], { cwd, env: env ?? process.env, maxBuffer: 16 * 1024 * 1024 }, (err, stdout, stderr) => {
       if (err) reject(Object.assign(err, { stderr: String(stderr) }));
       else resolve(String(stdout));
     });

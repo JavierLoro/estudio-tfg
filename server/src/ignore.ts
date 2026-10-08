@@ -1,3 +1,4 @@
+import { isSystemFile } from '../../scripts/system-files.mjs';
 import type { RootName } from './paths.ts';
 
 const LATEX_AUX = [
@@ -15,6 +16,7 @@ export function isSyncConflict(name: string): boolean {
  */
 export function isIgnoredName(name: string, root: RootName, isDir?: boolean): boolean {
   if (name.startsWith('.')) return true;
+  if (isDir !== true && isSystemFile(name)) return true;
   if (name === 'node_modules') return true;
   if (name.endsWith('.lock')) return true;
   if (isSyncConflict(name)) return true;

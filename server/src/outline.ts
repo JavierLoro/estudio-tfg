@@ -331,6 +331,13 @@ interface FileData {
   tokens: Map<number, Token[]>;
 }
 
+/** Las rutas del worker son POSIX, aunque el servidor se ejecute en Windows. */
+export function workerDiagnosticRel(file: string, memoriaDir: string): string {
+  let f = file.replace(/\\/g, '/');
+  if (path.posix.isAbsolute(f)) f = path.posix.relative(memoriaDir.replace(/\\/g, '/'), f);
+  return f.replace(/^(\.\/)+/, '');
+}
+
 export async function buildOutline(cfg: Config, last: CompileResult | null): Promise<BuiltOutline> {
   const main = normalizeRel(cfg.memoriaMain);
   const items: OutlineItem[] = [];
@@ -682,9 +689,7 @@ export async function buildOutline(cfg: Config, last: CompileResult | null): Pro
     const memAbs = cfg.memoriaDir;
     for (const dgn of last.diagnostics ?? []) {
       if (dgn.severity !== 'error' || !dgn.file) continue;
-      let f = dgn.file.replace(/\\/g, '/');
-      if (path.isAbsolute(f)) f = path.relative(memAbs, f).split(path.sep).join('/');
-      f = f.replace(/^(\.\/)+/, '');
+      const f = workerDiagnosticRel(dgn.file, memAbs);
       const key = owners.has(f) ? f : owners.has(`${f}.tex`) ? `${f}.tex` : null;
       if (!key) continue;
       let target: OutlineItem | undefined;

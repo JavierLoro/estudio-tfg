@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises';
-import type { Stats } from 'node:fs';
+import type { BigIntStats } from 'node:fs';
 import path from 'node:path';
 import type { Ctx } from './context.ts';
 import type { Config } from './config.ts';
@@ -23,12 +23,12 @@ export interface Entry {
   rel: string;
   /** Ruta absoluta sin seguir el último enlace simbólico (carpeta padre real + nombre). */
   abs: string;
-  st: Stats | null;
+  st: BigIntStats | null;
 }
 
-async function lstatOrNull(abs: string): Promise<Stats | null> {
+async function lstatOrNull(abs: string): Promise<BigIntStats | null> {
   try {
-    return await fs.lstat(abs);
+    return await fs.lstat(abs, { bigint: true });
   } catch (e: any) {
     if (e?.code === 'ENOENT' || e?.code === 'ENOTDIR') return null;
     throw e;
@@ -67,7 +67,7 @@ async function listEntryFiles(e: Entry, root: RootName): Promise<string[]> {
  * (EXDEV), copia y luego borra el origen. `onPlaced` se llama solo cuando
  * el movimiento ha terminado, para no anunciar movimientos fallidos.
  */
-export async function moveEntry(src: string, dst: string, st: Stats, onPlaced: () => void = () => {}, caseOnly = false): Promise<void> {
+export async function moveEntry(src: string, dst: string, st: BigIntStats, onPlaced: () => void = () => {}, caseOnly = false): Promise<void> {
   await fs.mkdir(path.dirname(dst), { recursive: true });
   if (st.isFile() && !caseOnly) {
     let linked: boolean;
@@ -79,7 +79,7 @@ export async function moveEntry(src: string, dst: string, st: Stats, onPlaced: (
     }
     if (!linked && !(await copyExclusive(src, dst))) throw new HttpError(409, 'Ya existe un archivo o carpeta con ese nombre');
     // Incluso sin enlaces duros, una carrera no puede sobrescribir el destino.
-    await removeSource(src, dst, linked ? st : await fs.lstat(dst));
+    await removeSource(src, dst, linked ? st : await fs.lstat(dst, { bigint: true }));
     onPlaced();
     return;
   }
@@ -105,7 +105,7 @@ export async function moveEntry(src: string, dst: string, st: Stats, onPlaced: (
 }
 
 /** Si no se puede quitar el origen, retirar solo el destino creado por nosotros. */
-async function removeSource(src: string, dst: string, linkedTo?: Stats): Promise<void> {
+async function removeSource(src: string, dst: string, linkedTo?: BigIntStats): Promise<void> {
   try {
     await retryFileOp(() => fs.unlink(src));
   } catch (e) {

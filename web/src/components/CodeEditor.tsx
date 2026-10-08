@@ -1,9 +1,10 @@
 import { useEffect, useRef } from 'react';
-import { Annotation, EditorSelection, EditorState, Prec } from '@codemirror/state';
+import { Annotation, Compartment, EditorSelection, EditorState, Prec, Text } from '@codemirror/state';
 import { Decoration, EditorView, keymap } from '@codemirror/view';
 import { setDiagnostics, type Diagnostic as CmDiagnostic } from '@codemirror/lint';
 import { StateEffect, StateField } from '@codemirror/state';
 import { latexCompletion, wantsLatexCompletion } from '../lib/latexComplete';
+import { eolOf } from '../lib/eol';
 import { baseExtensions, languageExtension, type EditorLang } from '../lib/editor';
 import { setContent, useDocs } from '../state/docs';
 import { setCursorLine, useCursor } from '../state/cursor';
@@ -64,6 +65,7 @@ function toCmDiagnostics(state: EditorState, diags: LineDiagnostic[] | undefined
 export function CodeEditor({ docKey, lang, lineNumbers = true, className, onSave, onSaveCompile, onShowInPdf, diagnostics, onView }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
+  const separator = useRef(new Compartment());
   const cb = useRef({ onSave, onSaveCompile, onShowInPdf, onView });
   cb.current = { onSave, onSaveCompile, onShowInPdf, onView };
   const diagRef = useRef(diagnostics);
@@ -83,6 +85,7 @@ export function CodeEditor({ docKey, lang, lineNumbers = true, className, onSave
       state: EditorState.create({
         doc: doc.content,
         extensions: [
+          separator.current.of(EditorState.lineSeparator.of(eolOf(doc.content))),
           Prec.highest(
             keymap.of([
               { key: 'Mod-s', preventDefault: true, run: () => (cb.current.onSave?.(), true) },
@@ -106,7 +109,7 @@ export function CodeEditor({ docKey, lang, lineNumbers = true, className, onSave
             if (u.selectionSet || u.docChanged) setCursorLine(docKey, u.state.doc.lineAt(u.state.selection.main.head).number);
             if (!u.docChanged) return;
             if (u.transactions.some((tr) => tr.annotation(External))) return;
-            setContent(docKey, u.state.doc.toString());
+            setContent(docKey, u.state.sliceDoc());
           }),
         ],
       }),
@@ -133,11 +136,14 @@ export function CodeEditor({ docKey, lang, lineNumbers = true, className, onSave
     const view = viewRef.current;
     const doc = useDocs.getState().docs[docKey];
     if (!view || !doc) return;
-    const cur = view.state.doc.toString();
+    const cur = view.state.sliceDoc();
     if (cur === doc.content) return;
-    const head = Math.min(view.state.selection.main.head, doc.content.length);
+    const nl = eolOf(doc.content);
+    const text = Text.of(doc.content.split(nl));
+    const head = Math.min(view.state.selection.main.head, text.length);
     view.dispatch({
-      changes: { from: 0, to: cur.length, insert: doc.content },
+      changes: { from: 0, to: view.state.doc.length, insert: text },
+      effects: separator.current.reconfigure(EditorState.lineSeparator.of(nl)),
       selection: EditorSelection.cursor(head),
       annotations: External.of(true),
     });
@@ -175,7 +181,7 @@ export function ReadOnlyEditor({ content, lang }: { content: string; lang: Edito
     if (!host.current) return;
     const view = new EditorView({
       parent: host.current,
-      state: EditorState.create({ doc: content, extensions: [baseExtensions({ lineNumbers: true, readOnly: true }), languageExtension(lang)] }),
+      state: EditorState.create({ doc: content, extensions: [EditorState.lineSeparator.of(eolOf(content)), baseExtensions({ lineNumbers: true, readOnly: true }), languageExtension(lang)] }),
     });
     return () => view.destroy();
   }, [content, lang]);

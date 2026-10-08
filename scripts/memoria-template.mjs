@@ -6,6 +6,8 @@ import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
+import { isSystemFile } from './system-files.mjs';
 
 export const REPO_ROOT = path.resolve(import.meta.dirname, '..');
 export const TEMPLATES_DIR = path.join(REPO_ROOT, 'templates');
@@ -21,10 +23,10 @@ export const PLANTILLA_VERSION = 'v0.5';
 
 const PERFIL_ID = /^[a-z0-9][a-z0-9-]*$/;
 
-/** Vacía = no existe o solo contiene dotfiles (p. ej. `.git`, `.DS_Store`). */
+/** Vacía = no existe o solo contiene dotfiles, archivos de sistema o temporales. */
 export function isEmptyDir(dir) {
   if (!fs.existsSync(dir)) return true;
-  return fs.readdirSync(dir).filter((f) => !f.startsWith('.')).length === 0;
+  return fs.readdirSync(dir, { withFileTypes: true }).every((f) => f.name.startsWith('.') || (f.isFile() && isSystemFile(f.name)));
 }
 
 /**
@@ -75,12 +77,17 @@ export function copyTemplate(dir, { perfil = DEFAULT_PERFIL } = {}) {
   });
 }
 
+/** Opciones locales a cada llamada: no modifican la configuración del usuario. */
+export function gitPlatformArgs(platform = os.platform()) {
+  return platform === 'win32' ? ['-c', 'core.longpaths=true'] : [];
+}
+
 export const GIT_IDENTITY = ['-c', 'user.name=Estudio TFG', '-c', 'user.email=estudio-tfg@localhost'];
 export const NO_GIT_WARNING = 'La memoria se ha creado sin control de versiones: instala Git para tener historial y actualizaciones de plantilla';
 
 export function hasGit() {
   try {
-    execFileSync('git', ['--version'], { stdio: 'ignore' });
+    execFileSync('git', [...gitPlatformArgs(), '--version'], { stdio: 'ignore' });
     return true;
   } catch {
     return false;
@@ -104,7 +111,7 @@ export function createMemoriaFromTemplate(dir, { perfil = DEFAULT_PERFIL } = {})
   copyTemplate(dir, { perfil });
   if (!available) return { dir, git: false, perfil, warning: NO_GIT_WARNING };
   if (fs.existsSync(path.join(dir, '.git'))) return { dir, git: false, perfil };
-  const git = (...a) => execFileSync('git', a, { cwd: dir, stdio: 'ignore' });
+  const git = (...a) => execFileSync('git', [...gitPlatformArgs(), ...a], { cwd: dir, stdio: 'ignore' });
   git('init', '-q', '-b', 'main');
   git('add', '-A');
   const msg = 'Memoria creada desde la plantilla de Estudio TFG';
@@ -121,6 +128,13 @@ export function createMemoriaFromTemplate(dir, { perfil = DEFAULT_PERFIL } = {})
 
 export function sha256(buf) {
   return crypto.createHash('sha256').update(buf).digest('hex');
+}
+
+/** Hash de plantilla: normaliza CRLF solo en los formatos de texto conocidos. */
+export function templateHash(buf, rel) {
+  const text = /\.(tex|cls|sty|bib|md|txt|json)$/i.test(rel) || ['.gitignore', '.gitattributes'].includes(path.posix.basename(rel));
+  // latin1 permite quitar CR sin alterar ningún otro byte, incluso UTF-8 no válido.
+  return sha256(text ? Buffer.from(Buffer.from(buf).toString('latin1').replace(/\r\n/g, '\n'), 'latin1') : buf);
 }
 
 /**
@@ -168,7 +182,7 @@ export function buildManifest() {
   for (const rel of rutas) {
     const hashes = perfiles.map((id) => {
       const abs = porPerfil.get(id).get(rel);
-      return abs ? sha256(fs.readFileSync(abs)) : null;
+      return abs ? templateHash(fs.readFileSync(abs), rel) : null;
     });
     if (hashes.every((h) => h && h === hashes[0])) archivos[rel] = hashes[0];
     else perfiles.forEach((id, i) => hashes[i] && (archivos[`${id}:${rel}`] = hashes[i]));

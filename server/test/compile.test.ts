@@ -7,7 +7,7 @@ import * as tar from 'tar';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.ts';
 import { computeSourceRev } from '../src/compile.ts';
-import { setup, type TestEnv } from './helpers.ts';
+import { canSymlink, setup, type TestEnv } from './helpers.ts';
 
 interface Fake {
   url: string;
@@ -79,6 +79,8 @@ async function fakeWorker(buildDir: () => string): Promise<Fake> {
   f.url = `http://127.0.0.1:${(f.server.address() as AddressInfo).port}`;
   return f;
 }
+
+const supportsFileSymlink = await canSymlink();
 
 let t: TestEnv;
 let w: Fake;
@@ -179,7 +181,7 @@ describe('compile', () => {
     expect(got).toEqual([r]);
   });
 
-  it('sends a tar of the memoria sources (same filter as sourceRev) with X-Main', async () => {
+  it.skipIf(!supportsFileSymlink)('sends a tar of the memoria sources (same filter as sourceRev) with X-Main', async () => {
     await fs.writeFile(path.join(t.cfg.memoriaDir, 'main.aux'), 'aux');
     await fs.writeFile(path.join(t.cfg.memoriaDir, '.oculto.tex'), 'x');
     await fs.mkdir(path.join(t.cfg.memoriaDir, 'build'), { recursive: true });

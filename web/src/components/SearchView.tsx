@@ -2,15 +2,14 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { FileText, FileCode2, ListTree } from 'lucide-react';
 import { api, errorMessage, type Root, type SearchItem } from '../api';
 import { basename } from '../lib/paths';
+import { fold } from '../lib/search';
 import { kbd } from '../lib/kbd';
 import { useUI } from '../state/ui';
 import { findOutlineItem, outlineLabel, outlineOrder, useOutline } from '../state/outline';
 import { openFile } from '../state/workspace';
 import { Empty, Spinner, cx } from './ui';
 
-export function fold(s: string) {
-  return s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
-}
+export { fold } from '../lib/search';
 
 /** Resalta `q` en `text` (insensible a mayúsculas y tildes). */
 export function highlight(text: string, q: string): ReactNode {

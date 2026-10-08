@@ -121,6 +121,24 @@ describe('GET /api/memoria/plantilla (vista previa)', () => {
     expect(await snapshot()).toEqual(before);
   });
 
+  it('migra v0.3 CRLF sin falsos cambios y conserva finales y comentarios de datos', async () => {
+    await boot(async (memDir) => {
+      for (const [rel, buf] of v03Files()) {
+        await fs.mkdir(path.dirname(path.join(memDir, rel)), { recursive: true });
+        await fs.writeFile(path.join(memDir, rel), rel.endsWith('.pdf') ? buf : buf.toString('utf8').replace(/\r?\n/g, '\r\n'));
+      }
+    });
+    const p = await preview();
+    expect(p.revisar).toEqual([]);
+    expect(p.cambios.some((c: any) => c.archivo.startsWith('1-capitulos/'))).toBe(false);
+    expect((await actualizar({ perfil: p.perfil, cambios: p.cambios })).statusCode).toBe(200);
+    for (const rel of ['datos.tex', 'tfg.tex', '.gitignore']) {
+      const src = await read(rel);
+      expect(src.replace(/\r\n/g, '')).not.toContain('\n');
+    }
+    expect(await read('datos.tex')).toMatch(/\\keywords\{[^\r\n]+\} +% \(opcional\)[^\r\n]*\r\n/);
+  });
+
   it('(a) aplicar: el resultado es la plantilla actual salvo las ediciones puntuales', async () => {
     await boot(writeV03);
     const p = await preview();

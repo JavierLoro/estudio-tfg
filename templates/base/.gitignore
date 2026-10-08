@@ -17,3 +17,9 @@
 *.acr
 *.alg
 /build/
+
+# Archivos de sistema y temporales
+[dD][eE][sS][kK][tT][oO][pP].[iI][nN][iI]
+[tT][hH][uU][mM][bB][sS].[dD][bB]
+*.[tT][mM][pP]
+.trash/

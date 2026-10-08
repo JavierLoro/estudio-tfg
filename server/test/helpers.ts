@@ -50,7 +50,7 @@ export async function setup(env: Record<string, string> = {}, opts: { watch?: bo
     ctx,
     close: async () => {
       await app.close();
-      await fs.rm(dir, { recursive: true, force: true });
+      await fs.rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     },
   };
 }
@@ -66,4 +66,30 @@ export async function multipart(fd: FormData): Promise<{ payload: Buffer; header
 
 export function flatPaths(entries: { path: string; children?: any[] }[]): string[] {
   return entries.flatMap((e) => [e.path, ...(e.children ? flatPaths(e.children) : [])]);
+}
+
+const symlinkSupport = new Map<string, Promise<boolean>>();
+
+/** Prueba una vez por tipo; en Windows las carpetas usan junction sin privilegios. */
+export function canSymlink(kind: 'file' | 'dir' = 'file'): Promise<boolean> {
+  let probe = symlinkSupport.get(kind);
+  if (!probe) {
+    probe = (async () => {
+      const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'estudio-tfg-symlink-'));
+      const target = path.join(dir, 'target');
+      try {
+        if (kind === 'dir') await fs.mkdir(target);
+        else await fs.writeFile(target, 'prueba');
+        await fs.symlink(target, path.join(dir, 'link'), kind === 'dir' && process.platform === 'win32' ? 'junction' : kind);
+        return true;
+      } catch (e: any) {
+        if (['EPERM', 'EACCES', 'ENOTSUP', 'EOPNOTSUPP'].includes(e?.code)) return false;
+        throw e;
+      } finally {
+        await fs.rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+      }
+    })();
+    symlinkSupport.set(kind, probe);
+  }
+  return probe;
 }

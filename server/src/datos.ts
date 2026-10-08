@@ -1,3 +1,5 @@
+import { eolOf } from './sections.ts';
+
 // Panel «Datos del trabajo» (v0.5): lectura y escritura de datos.tex y estilo/institucion.tex.
 // Cada campo se lee de la primera línea no comentada que empieza por su comando y al escribir
 // solo se reemplaza su argumento (llaves equilibradas), conservando el resto de la línea.
@@ -253,9 +255,10 @@ export function applyChanges(src: string, file: DatosFile, changes: Record<strin
     }
   }
   if (appended.length) {
-    if (out.length && !out.endsWith('\n')) out += '\n';
-    if (!out.includes(ADDED_MARK)) out += `${out.length ? '\n' : ''}${ADDED_MARK}\n`;
-    out += appended.join('\n') + '\n';
+    const nl = eolOf(src);
+    if (out.length && !out.endsWith('\n')) out += nl;
+    if (!out.includes(ADDED_MARK)) out += `${out.length ? nl : ''}${ADDED_MARK}${nl}`;
+    out += appended.join(nl) + nl;
   }
   return out;
 }
