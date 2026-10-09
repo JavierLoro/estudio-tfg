@@ -71,7 +71,7 @@ describe('GET /api/resources', () => {
 
 describe('PATCH /api/resources', () => {
   it('updates only status/tags and preserves the rest of the file byte-for-byte', async () => {
-    const res = await t.app.inject({ method: 'PATCH', url: '/api/resources', payload: { path: 'Recursos/old.md', status: 'revisado', tags: ['recurso', 'leído', 'tfg'] } });
+    const res = await t.app.inject({ method: 'PATCH', url: '/api/resources', payload: { path: 'Recursos/old.md', status: 'revisado', tags: ['recurso', 'leído', 'tfg'], baseRev: rev(OLD) } });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({ path: 'Recursos/old.md', status: 'revisado', tags: ['recurso', 'leído', 'tfg'] });
     const after = await fs.readFile(R('old.md'), 'utf8');
@@ -83,8 +83,33 @@ describe('PATCH /api/resources', () => {
   });
 
   it('status only; flow-style tags untouched', async () => {
-    await t.app.inject({ method: 'PATCH', url: '/api/resources', payload: { path: 'Recursos/new.md', status: 'descartado' } });
+    await t.app.inject({ method: 'PATCH', url: '/api/resources', payload: { path: 'Recursos/new.md', status: 'descartado', baseRev: rev(NEW) } });
     expect(await fs.readFile(R('new.md'), 'utf8')).toBe(NEW.replace('status: revisado', 'status: descartado'));
+  });
+
+  it('exige revisión válida sin modificar disco ni historial', async () => {
+    for (const baseRev of [undefined, null, 2, '', 'abc']) {
+      const res = await t.app.inject({ method: 'PATCH', url: '/api/resources', payload: { path: 'Recursos/old.md', tags: ['cambio'], baseRev } });
+      expect(res.statusCode).toBe(400);
+      expect(await fs.readFile(R('old.md'), 'utf8')).toBe(OLD);
+    }
+    await expect(fs.stat(path.join(t.cfg.historyDir, 'notes', 'Recursos', 'old.md'))).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('serializa dos clientes y permite reaplicar solo tras leer la revisión actual', async () => {
+    const responses = await Promise.all([
+      { status: 'revisado' }, { tags: ['recurso', 'nuevo'] },
+    ].map((changes) => t.app.inject({ method: 'PATCH', url: '/api/resources', payload: { path: 'Recursos/old.md', baseRev: rev(OLD), ...changes } })));
+    expect(responses.map((r) => r.statusCode).sort()).toEqual([200, 409]);
+    const loser = responses.findIndex((r) => r.statusCode === 409);
+    const current = responses[loser].json();
+    expect(current.content).toBe(await fs.readFile(R('old.md'), 'utf8'));
+    const retried = await t.app.inject({ method: 'PATCH', url: '/api/resources', payload: { path: 'Recursos/old.md', baseRev: current.rev, ...(loser === 0 ? { status: 'revisado' } : { tags: ['recurso', 'nuevo'] }) } });
+    expect(retried.statusCode).toBe(200);
+    expect(retried.json()).toMatchObject({ status: 'revisado', tags: ['recurso', 'nuevo'] });
+    const baks = await fs.readdir(path.join(t.cfg.historyDir, 'notes', 'Recursos', 'old.md'));
+    expect(baks).toHaveLength(2);
+    expect(await fs.readFile(path.join(t.cfg.historyDir, 'notes', 'Recursos', 'old.md', baks.sort()[0]), 'utf8')).toBe(OLD);
   });
 
   it('409 on baseRev mismatch, no write', async () => {
@@ -98,7 +123,7 @@ describe('PATCH /api/resources', () => {
 
   it('rejects traversal and missing files', async () => {
     expect((await t.app.inject({ method: 'PATCH', url: '/api/resources', payload: { path: '../x.md', status: 'a' } })).statusCode).toBe(400);
-    expect((await t.app.inject({ method: 'PATCH', url: '/api/resources', payload: { path: 'Recursos/no.md', status: 'a' } })).statusCode).toBe(404);
+    expect((await t.app.inject({ method: 'PATCH', url: '/api/resources', payload: { path: 'Recursos/no.md', status: 'a', baseRev: rev(OLD) } })).statusCode).toBe(404);
   });
 });
 

@@ -39,3 +39,9 @@ export function keysWithPrefix(prefix: string): string[] {
   }
   return out;
 }
+
+/** Lectura sin ocultar fallos: usada al migrar contenido que no se puede perder. */
+export function loadRequired<T>(key: string): T | null {
+  const raw = localStorage.getItem(key);
+  return raw == null ? null : JSON.parse(raw) as T;
+}

@@ -6,7 +6,6 @@ import { pipeline } from 'node:stream/promises';
 import type { Readable } from 'node:stream';
 import type { Config } from './config.ts';
 import { HttpError, badRequest } from './errors.ts';
-import { createExclusive, linkExclusive } from './fsutil.ts';
 import { yamlScalar } from './frontmatter.ts';
 import { isReservedName, resolveSafe } from './paths.ts';
 
@@ -147,6 +146,8 @@ export function parseTags(v: unknown): string[] {
 }
 
 export interface CaptureInput {
+  operationId?: string;
+  libraryId?: string;
   url?: string;
   title?: string;
   note?: string;
@@ -173,10 +174,6 @@ export function buildResourceMarkdown(o: {
   return lines.join('\n');
 }
 
-function withSuffix(stem: string, ext: string, n: number) {
-  return n === 1 ? `${stem}${ext}` : `${stem} ${n}${ext}`;
-}
-
 /** Stream an upload to a hidden temp file in the attachments dir. */
 export async function receiveUpload(cfg: Config, stream: Readable): Promise<string> {
   const dir = await attachmentsDir(cfg);
@@ -191,19 +188,13 @@ export async function receiveUpload(cfg: Config, stream: Readable): Promise<stri
   return tmp;
 }
 
-async function resourcesDir(cfg: Config): Promise<{ abs: string; rel: string }> {
-  const r = await resolveSafe(cfg, 'notes', cfg.resourcesSubdir);
-  await fs.mkdir(r.abs, { recursive: true });
-  return { abs: r.abs, rel: r.rel };
-}
-
 async function attachmentsDir(cfg: Config): Promise<string> {
   const r = await resolveSafe(cfg, 'notes', `${cfg.resourcesSubdir}/adjuntos`);
   await fs.mkdir(r.abs, { recursive: true });
   return r.abs;
 }
 
-export async function capture(cfg: Config, input: CaptureInput, now = new Date()): Promise<{ path: string; title: string }> {
+export async function prepareCapture(input: CaptureInput): Promise<{ title: string; url?: string; note?: string }> {
   const url = input.url?.trim() || undefined;
   const note = input.note?.trim() ? input.note : undefined;
   if (!url && !note && !input.file) throw badRequest('Indica al menos una URL, una nota o un archivo');
@@ -214,41 +205,5 @@ export async function capture(cfg: Config, input: CaptureInput, now = new Date()
   if (!title && note) title = note.trim().split(/\r?\n/)[0].replace(/^#+\s*/, '').slice(0, 80).trim();
   if (!title) title = 'Recurso';
 
-  const res = await resourcesDir(cfg);
-  let attachment: string | undefined;
-  try {
-    if (input.file) {
-      const dir = await attachmentsDir(cfg);
-      const clean = sanitizeFilename(input.file.filename || 'adjunto');
-      const ext = path.extname(clean);
-      const stem = clean.slice(0, clean.length - ext.length) || 'adjunto';
-      for (let n = 1; ; n++) {
-        const name = withSuffix(stem, ext, n);
-        if (await linkExclusive(input.file.tmpAbs, path.join(dir, name))) {
-          attachment = `adjuntos/${name}`;
-          break;
-        }
-        if (n > 1000) throw new Error('Demasiadas colisiones de nombre');
-      }
-    }
-  } finally {
-    if (input.file) await fs.rm(input.file.tmpAbs, { force: true });
-  }
-
-  const md = buildResourceMarkdown({
-    title,
-    url,
-    captured: localIso(now),
-    tags: input.tags ?? [],
-    attachment,
-    note,
-  });
-  const stem = `${localDate(now)} ${sanitizeTitle(title)}`;
-  for (let n = 1; ; n++) {
-    const name = withSuffix(stem, '.md', n);
-    if (await createExclusive(path.join(res.abs, name), md)) {
-      return { path: `${res.rel}/${name}`, title };
-    }
-    if (n > 1000) throw new Error('Demasiadas colisiones de nombre');
-  }
+  return { title, url, note };
 }

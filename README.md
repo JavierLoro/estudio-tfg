@@ -155,6 +155,14 @@ si chocan con el navegador, usa los botones. Más detalles en
 - Captura rápida (⌘⇧C) de recursos a la carpeta de recursos de tu vault.
 - Panel de recursos y lista de recientes en el Inicio.
 
+### Recuperar capturas pendientes
+
+Antes de enviar un recurso, el navegador conserva texto y adjunto en IndexedDB. Si falla el envío, pulsa **Pendientes** en la cabecera para revisar el error, corregir los datos o reintentar. Un error de acceso conserva la captura; autentícate al reintentar. El destino queda fijado: vuelve al vault original si has cambiado de carpeta. Las capturas de la cola antigua requieren asignar el destino explícitamente.
+
+No borres los datos del navegador mientras haya pendientes. El botón **Descartar** pide confirmación y solo elimina la copia local. Si se perdió la respuesta de un envío, el reintento recupera el recurso original sin duplicarlo; si el servidor ya lo recibió, recupera su resultado antes de editarlo.
+
+El servidor conserva recibos y operaciones interrumpidas en `data/captures/` (junto a `BUILD_DIR`, si lo cambias). Incluye esa carpeta en tus copias de seguridad: los recibos no caducan automáticamente. Usa un único proceso servidor por biblioteca. Al reiniciar se completan las operaciones interrumpidas del destino actual. Si aparece un conflicto de recuperación, detén la app, copia la biblioteca y el registro completo, aparta el archivo que ocupa el destino reservado y reinicia; conserva el archivo apartado y comprueba ambos contenidos antes de decidir qué mantener. Si falta `attachment` en el registro, reenvía el mismo pendiente desde el navegador. No elimines `operation.json` para «desbloquear» una captura: perderías su identidad y podrías duplicarla.
+
 ### Diagramas
 
 - Sección **Diagramas** en la barra lateral: lista con su estado y dónde se usan, crear, abrir, renombrar (actualiza las figuras que los usan) y eliminar.
@@ -202,7 +210,7 @@ Este repositorio es **solo la herramienta**: código, la plantilla de la memoria
 | --- | --- | --- |
 | Memoria del TFG | `MEMORIA_DIR` (p. ej. `~/Documents/tfg-memoria`) | Su propio git, independiente |
 | Notas y recursos | `NOTES_DIR` (tu vault de Obsidian) | El del vault |
-| Compilaciones, historial y ajustes locales | `data/` | Ignorado |
+| Compilaciones, historial, recibos de capturas y ajustes locales | `data/` | Ignorado |
 | Configuración local | `.env` | Ignorado |
 
 - `npm run init` copia la plantilla a `MEMORIA_DIR` solo si está vacío y le crea su propio git. Nunca sobrescribe.

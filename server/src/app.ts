@@ -10,6 +10,7 @@ import type { Ctx } from './context.ts';
 import { HttpError } from './errors.ts';
 import { EventBus, WatchManager } from './events.ts';
 import { KeyedLock } from './fsutil.ts';
+import { recoverCaptures } from './captureOperations.ts';
 import { MAX_UPLOAD } from './capture.ts';
 import { ROOTS, rootDir, type RootName } from './paths.ts';
 import { OutlineService } from './outline.ts';
@@ -69,6 +70,8 @@ export async function buildApp(cfg: Config, opts: BuildOptions = {}): Promise<{ 
   app.addHook('onClose', async () => outline.close());
   const ctx: Ctx = { cfg, bus, compiler, locks: new KeyedLock(), settings, watcher, outline };
   await compiler.load();
+  const captureProblems = await recoverCaptures({ ...cfg });
+  for (const problem of captureProblems) app.log.warn({ problem }, 'Captura pendiente de recuperación');
   if (watcher) {
     await watcher.start();
     app.addHook('onClose', async () => watcher.close());

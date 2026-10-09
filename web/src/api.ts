@@ -3,6 +3,8 @@
 export type Root = 'notes' | 'memoria';
 
 export interface Status {
+  /** v0.16: identidad del vault y su carpeta de recursos. */
+  libraryId?: string;
   notesDir: string;
   memoriaDir: string;
   memoriaMain: string;
@@ -490,9 +492,12 @@ export const api = {
 
   capture: (form: FormData) => json<{ path: string; title: string }>('/api/capture', { method: 'POST', body: form }),
 
+  captureOperation: (operationId: string, libraryId: string) =>
+    json<{ state: 'unknown' | 'prepared' | 'done' }>(`/api/capture/operation?${qs({ operationId, libraryId })}`),
+
   resources: () => json<{ items: Resource[] }>('/api/resources'),
 
-  patchResource: (body: { path: string; status?: string; tags?: string[]; baseRev?: string }) =>
+  patchResource: (body: { path: string; status?: string; tags?: string[]; baseRev: string }) =>
     json<Resource & { rev: string; mtime: number }>('/api/resources', jsonBody('PATCH', body)),
 
   search: (q: string, root: Root | 'all' = 'all', signal?: AbortSignal) =>

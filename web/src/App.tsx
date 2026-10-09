@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { matchesShortcut } from './lib/shortcuts';
 import { registerTokenPrompt, type Status } from './api';
+import { CaptureQueueDialog } from './components/CaptureQueueDialog';
+import { ResourceConflictDialog } from './components/ResourceConflictDialog';
 import { CaptureModal } from './components/CaptureModal';
 import { ContextMenuHost } from './components/ContextMenu';
 import { Header } from './components/Header';
@@ -37,6 +39,7 @@ function useBoot() {
     const ui = useUI.getState();
     // Arranque en cuanto llegue el primer estado (puede tardar si el server está caído).
     let started = false;
+    let stopQueue: (() => void) | undefined;
     const start = (status: Status) => {
       if (started) return;
       started = true;
@@ -50,7 +53,7 @@ function useBoot() {
       void ui.refreshResources();
       void useCompile.getState().fetchLast();
       void useOutline.getState().refresh();
-      initCaptureQueue();
+      stopQueue = initCaptureQueue();
     };
     const unsub = useUI.subscribe((s) => s.status && start(s.status));
     void ui.refreshStatus().then(() => {
@@ -60,6 +63,7 @@ function useBoot() {
     const t = setInterval(() => void useUI.getState().refreshStatus(), 60_000);
     return () => {
       clearInterval(t);
+      stopQueue?.();
       unsub();
     };
   }, []);
@@ -178,6 +182,8 @@ export function App() {
         </main>
       </div>
       <CaptureModal />
+      <CaptureQueueDialog />
+      <ResourceConflictDialog />
       <QuickOpen />
       <MoveDialog />
       <NewDiagramDialog />

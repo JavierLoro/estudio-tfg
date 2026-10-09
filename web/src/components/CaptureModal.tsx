@@ -64,7 +64,7 @@ export function CaptureModal() {
       reset();
       setOpen(false);
     } else if (r.kind === 'queued') {
-      toast({ kind: 'warn', text: 'Sin conexión: la captura se ha guardado en este navegador y se enviará automáticamente.' });
+      toast({ kind: 'warn', text: 'Captura conservada en este navegador. Abre Pendientes para revisar el envío.' });
       reset();
       setOpen(false);
     } else {

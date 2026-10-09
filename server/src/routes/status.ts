@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { Ctx } from '../context.ts';
+import { libraryId } from '../captureOperations.ts';
 import { walkFiles } from '../fsutil.ts';
 import { ROOTS } from '../paths.ts';
 import { instanceId, isConfigured } from '../settings.ts';
@@ -34,6 +35,7 @@ export default async function statusRoutes(app: FastifyInstance, { ctx }: { ctx:
       ...(ctx.watcher?.status ?? { watcher: 'ok' }),
       configured: isConfigured(cfg),
       instanceId: instanceId(cfg),
+      libraryId: libraryId(cfg),
     };
   });
 }

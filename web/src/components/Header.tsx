@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, CloudOff, Inbox, Plus, Search, ServerCrash } from 'lucide-react';
 import { saveAll, useGlobalSaveState } from '../state/docs';
-import { useCaptureQueue, flushCaptureQueue } from '../state/captureQueue';
+import { useCaptureQueue } from '../state/captureQueue';
 import { useConnection } from '../state/events';
 import { useUI } from '../state/ui';
 import { kbd } from '../lib/kbd';
@@ -14,6 +14,7 @@ export function Header() {
   const status = useUI((s) => s.status);
   const statusError = useUI((s) => s.statusError);
   const connected = useConnection((s) => s.connected);
+  const queueError = useCaptureQueue((s) => s.error);
   const queued = useCaptureQueue((s) => s.items.length);
   const [dirty, conflicts, saving] = useGlobalSaveState().split('|').map(Number);
 
@@ -63,14 +64,14 @@ export function Header() {
         )}
       </div>
 
-      {queued > 0 && (
+      {(queued > 0 || queueError) && (
         <button
           type="button"
           className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[12px] text-warn hover:bg-hover"
-          onClick={() => void flushCaptureQueue()}
-          title="Capturas guardadas localmente pendientes de enviar. Clic para reintentar."
+          onClick={() => useCaptureQueue.setState({ open: true })}
+          title="Capturas conservadas en este navegador. Clic para revisar, editar o reintentar."
         >
-          <Inbox size={13} /> {queued} pendiente{queued > 1 ? 's' : ''}
+          <Inbox size={13} /> {queued > 0 ? `${queued} pendiente${queued > 1 ? 's' : ''}` : 'Revisar cola'}
         </button>
       )}
 
