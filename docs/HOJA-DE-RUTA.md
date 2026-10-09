@@ -1,10 +1,12 @@
-# Hoja de ruta: Windows, modo Docker, motores de compilación y app de escritorio
+# Hoja de ruta: fiabilidad, biblioteca de recursos y app de escritorio
 
-> Objetivo final: distribuir Estudio TFG como **app instalable y portable para Windows y Mac** (Electron), sin obligar a instalar Docker. Por el camino: que funcione en Windows nativo, ofrecer un modo Docker para usarlo en cualquier sistema (y desplegarlo como servidor), y poder compilar LaTeX con distintos motores.
+> Objetivo de producto: reunir fuentes en una **Biblioteca** y utilizarlas al escribir la memoria: añadir, organizar, consultar, citar e insertar figuras. Primero se corrigen los riesgos de pérdida de datos detectados en la auditoría del 09-10-2026; después se construye la biblioteca y se retoman los motores de compilación y la distribución como **app instalable y portable para Windows y Mac** (Electron), sin obligar a instalar Docker.
 >
-> Cada tarea está escrita para que **un agente pueda hacerla leyendo solo su sección** (más AGENTS.md y lo que la sección enlace). Cada tarea tiene su issue en GitHub con la etiqueta `hoja-de-ruta` y la de su fase (`fase-A`…`fase-G`).
+> Cada tarea está escrita para que **un agente pueda hacerla leyendo solo su sección** (más AGENTS.md y lo que la sección enlace). Cada tarea tiene su issue en GitHub con la etiqueta `hoja-de-ruta` y la de su fase (`fase-A`…`fase-G`, `fase-R` y `fase-L`).
 >
-> Fuentes: [PLATAFORMAS.md](PLATAFORMAS.md) (50 hallazgos de portabilidad; los IDs como `S1`, `P2`, `F4` se refieren a él) y [CONTRACT.md](CONTRACT.md).
+> Fuentes: [PLATAFORMAS.md](PLATAFORMAS.md) (50 hallazgos de portabilidad; los IDs como `S1`, `P2`, `F4` se refieren a él), [CONTRACT.md](CONTRACT.md) y la auditoría del 09-10-2026, cuyas evidencias y acciones se describen en R1–R8 y L1–L5.
+>
+> **Estado al 09-10-2026:** A–D completadas y fusionadas. **Siguiente bloque: `r-integridad` (R1 + R2)**, sujeto a comprobar reservas y PR abiertos. Orden de continuación: **R → L → E → F → G**. R y L se insertan aquí sin renumerar las tareas anteriores; sus letras no determinan la prioridad.
 
 ## Índice
 
@@ -14,19 +16,20 @@
 | [B](#fase-b) | Modo Docker para usarlo en cualquier sistema y como servidor | B1–B4 | #10–#13 | A1 |
 | [C](#fase-c) | Robustez en Windows (archivos en uso, nombres, saltos de línea…) | C1–C7 | #14–#20 | A |
 | [D](#fase-d) | CI en Linux, macOS y Windows | D1–D2 | #21–#22 | A |
-| [E](#fase-e) | Motores de compilación intercambiables (Docker / TeX del sistema / Tectonic) | E1–E4 | #23–#26 | A |
+| [R](#fase-r) | Fiabilidad, seguridad y recuperación | R1–R8 | #45–#52 | D |
+| [L](#fase-l) | Biblioteca, bibliografía e integración con la memoria | L1–L5 | #53–#57 | R (dependencias por tarea) |
+| [E](#fase-e) | Motores de compilación intercambiables (Docker / TeX del sistema / Tectonic) | E1–E4 | #23–#26 | A, L5; E2 también R6 y R8 |
 | [F](#fase-f) | Exportar diagramas sin Docker | F1 | #27 | E1 |
 | [G](#fase-g) | App de escritorio con Electron | G1–G7 | #28–#34 | B1, C, D1, E1–E2, F1 |
 
+```text
+A–D (completadas)
+  → r-integridad → r-recursos → r-compilacion → r-recuperacion
+  → l-biblioteca → l-referencias → l-validacion
+  → e-motores → e-validacion → f-diagramas → g-base → g-entrega → g-firma
 ```
-A1 ─┬─ B1 ── B2 ── B3 ── B4
-    │
-A ──┼─ C1…C7 ──┐
-    ├─ D1 ─ D2 ┤
-    └─ E1 ─┬─ E2 ─ E3 ──┐
-           ├─ E4        ├─ G1 ─ G2 ─ G3 ─ G4 ─ G5 ─ G6
-           └─ F1 ───────┘                       └─ G7
-```
+
+Este esquema indica **prioridad de entrega**, no todas las dependencias técnicas. Las dependencias vinculantes figuran en cada tarea. E1 incorpora L5 como puerta de entrega para completar la biblioteca antes de retomar motores.
 
 Las issues siguen siendo la unidad de seguimiento; la unidad de trabajo y revisión es un **bloque de tareas relacionadas**, con una rama y un PR para el bloque y un commit por tarea. Dos bloques pueden trabajarse en paralelo si no comparten archivos (ver «Archivos» de cada tarea). Ver [Cómo seguir la hoja de ruta](#cómo-seguir-la-hoja-de-ruta).
 
@@ -34,7 +37,7 @@ Las issues siguen siendo la unidad de seguimiento; la unidad de trabajo y revisi
 
 Un agente puede recibir una tarea concreta («haz la issue #4»), un bloque («haz el bloque de configuración») o simplemente **«sigue la hoja de ruta»**. Una tarea concreta mantiene ese alcance; el encargo general autoriza a completar **un bloque**, siguiendo estos pasos:
 
-1. **Elige el siguiente bloque disponible** de la tabla de abajo: el de fase más temprana y número de tarea más bajo que cumpla estas condiciones:
+1. **Elige el siguiente bloque disponible** de la tabla de abajo: el primero **en el orden explícito de filas de «Bloques de entrega»**, no por letra de fase ni por número de issue, que cumpla estas condiciones:
    - sus tareas pendientes tienen la issue abierta, **sin** `en-curso` y sin un PR abierto que ya las cubra;
    - todas las dependencias **externas al bloque** («Depende de») tienen la issue **cerrada** por un PR fusionado en `main`;
    - la unión de los archivos de sus tareas pendientes («Archivos») no se solapa con los de tareas abiertas `en-curso` ajenas al bloque.
@@ -44,7 +47,7 @@ Un agente puede recibir una tarea concreta («haz la issue #4»), un bloque («h
    Para comprobarlo:
 
    ```bash
-   gh issue list --repo JavierLoro/estudio-tfg --label hoja-de-ruta --state all --limit 60 --json number,title,state,labels
+   gh issue list --repo JavierLoro/estudio-tfg --label hoja-de-ruta --state all --limit 100 --json number,title,state,labels
    gh pr list --repo JavierLoro/estudio-tfg --state open --json number,title,headRefName,body
    ```
 
@@ -57,7 +60,7 @@ Si ningún bloque está disponible porque sus dependencias, reservas o PR siguen
 
 ### Bloques de entrega
 
-Agrupación prevista de 2–4 tareas relacionadas; una tarea autónoma o con una dependencia que exige otra entrega puede tener su propio bloque. Las dependencias vinculantes son las de cada tarea, no el orden de las filas.
+Agrupación prevista de 2–4 tareas relacionadas; una tarea autónoma o con una dependencia que exige otra entrega puede tener su propio bloque. Las filas fijan la prioridad de selección; las dependencias vinculantes son las de cada tarea. Las filas completadas se omiten.
 
 | Bloque / rama `hoja/…` | Resultado que se revisa | Tareas | Issues |
 |---|---|---|---|
@@ -69,6 +72,13 @@ Agrupación prevista de 2–4 tareas relacionadas; una tarea autónoma o con una
 | `c-compatibilidad` | CRLF, archivos de sistema y detalles de portabilidad | C4, C5, C7 | #17, #18, #20 |
 | `c-atajos` | Atajos y apertura al lado en distintos navegadores | C6 | #19 |
 | `d-ci` | CI y pruebas de Windows desde otros sistemas | D1, D2 | #21, #22 |
+| `r-integridad` | Actualizaciones sin pérdida y cola recuperable | R1, R2 | #45, #46 |
+| `r-recursos` | Recursos movibles, diálogos accesibles e importación web protegida | R3, R4, R5 | #47, #48, #49 |
+| `r-compilacion` | Política de confianza y distribución TeX fijada | R6, R8 | #50, #52 |
+| `r-recuperacion` | Copia independiente y restauración comprobada | R7 | #51 |
+| `l-biblioteca` | Modelo compatible, migración reversible y vista Biblioteca | L1, L2 | #53, #54 |
+| `l-referencias` | Importar bibliografía y usar citas/figuras en la memoria | L3, L4 | #55, #56 |
+| `l-validacion` | Recorridos de navegador y recuperación verificados en CI | L5 | #57 |
 | `e-motores` | Interfaz de motores y compilación con TeX del sistema | E1, E2 | #23, #24 |
 | `e-validacion` | Requisitos de TeX y evaluación de Tectonic | E3, E4 | #25, #26 |
 | `f-diagramas` | Exportación de diagramas sin Docker | F1 | #27 |
@@ -76,7 +86,7 @@ Agrupación prevista de 2–4 tareas relacionadas; una tarea autónoma o con una
 | `g-entrega` | Primer arranque, instaladores, licencia y guía | G4, G5, G7 | #31, #32, #34 |
 | `g-firma` | Firma y notarización de los instaladores | G6 | #33 |
 
-**Transición:** los PR ya abiertos por tarea (#35–#38: A1, A2, A3 y A6) se conservan y se revisan por separado. No se duplican ni se reagrupan en otro PR. Tras fusionar A3, podrá empezar `a-configuracion` si no hay reservas o solapamientos con otro trabajo en curso. La agrupación se aplica a los próximos encargos.
+**Replanificación del 09-10-2026:** A–D permanecen cerradas. Se añaden R y L antes de E; E1/E2 se actualizan con las nuevas puertas de entrega y seguridad. Crear estas issues no las reserva ni inicia su implementación. No se publica ninguna funcionalidad por este cambio de planificación.
 
 **Mensaje para lanzar un agente**:
 
@@ -404,6 +414,259 @@ Resultado: en Windows no se pierden ni duplican archivos aunque Obsidian, OneDri
 
 ---
 
+<a id="fase-r"></a>
+## Fase R — Fiabilidad, seguridad y recuperación
+
+Resultado: corregir los fallos reproducidos y preparar importaciones y compilación sin pérdida de datos. La auditoría se hizo con fixtures sobre el árbol fusionado en el PR #44; no fue una certificación exhaustiva de seguridad. Se distingue en cada contexto lo reproducido de lo observado en código. Las compilaciones siguen usando Docker hasta E2.
+
+<a id="r1"></a>
+### R1 · Exigir revisión en los cambios de recursos
+
+**Issue**: [#45](https://github.com/JavierLoro/estudio-tfg/issues/45)
+
+- **Objetivo**: Exigir revisión en los cambios de recursos.
+- **Contexto**: La auditoría del 09-10-2026 reprodujo PATCH /api/resources sin baseRev: HTTP 200 y cambio de estado. AGENTS.md exige revisión en toda actualización, mientras CONTRACT.md permite baseRev opcional en este endpoint.
+- **Alcance**: Exigir baseRev al actualizar estado o etiquetas; adaptar todos los clientes y reconciliar el contrato. Mantener bloqueo, historial y escritura atómica. Ante conflicto, conservar la intención del usuario y ofrecer recarga/reaplicación explícita, sin sobrescribir automáticamente.
+- **Criterios de aceptación**:
+  - Sin baseRev: 400 y ningún cambio en disco; revisión obsoleta: 409 con revisión/contenido actual; revisión correcta: actualización e historial.
+  - Dos clientes que editan el mismo recurso no pierden cambios; la interfaz conserva el cambio pendiente y permite resolver el conflicto.
+- **Verificación**: Tests API de revisión ausente/obsoleta/válida, concurrencia e historial; navegador con dos vistas y datos ficticios.
+- **Archivos orientativos**: server/src/routes/resources.ts, server/test/resources.test.ts, web/src/state/resources.ts, web/src/panels/ResourcePanel.tsx, docs/CONTRACT.md.
+- **Contrato**: sí; cuando corresponda, usar la siguiente versión libre.
+- **Depende de**: D (completada).
+- **Bloque / rama**: `hoja/r-integridad`.
+
+<a id="r2"></a>
+### R2 · Cola recuperable, reintentos idempotentes y destino estable
+
+**Issue**: [#46](https://github.com/JavierLoro/estudio-tfg/issues/46)
+
+- **Objetivo**: Cola recuperable, reintentos idempotentes y destino estable.
+- **Contexto**: captureQueue.ts elimina pendientes ante 401 y otros 4xx salvo 408/429, usa una clave global por origen y cambia el estado en memoria antes de comprobar la persistencia. Reenviar el mismo POST crea dos fichas; se reprodujo en una instancia aislada.
+- **Alcance**: Asignar un identificador persistente de operación enviado al servidor y vincular cada pendiente a la identidad estable de su biblioteca/vault de destino. Un reintento con el mismo ID y contenido devuelve el mismo resultado, incluso tras reiniciar; con contenido distinto se rechaza. Mantener fallidos recuperables y una vista de pendientes con reintentar, editar y descartar explícitamente. Migrar la cola antigua sin pérdida; si se desconoce el destino, pedir que se asigne antes de enviar. Tratar 401 como necesidad de autenticarse. Persistir antes de anunciar guardado; elegir almacenamiento apto para adjuntos sin abandonar archivos como autoridad del servidor. Recuperar fallos entre guardar adjunto, ficha y registro de operación.
+- **Criterios de aceptación**:
+  - Respuesta perdida y reenvío, solicitudes concurrentes y reinicio del servidor producen una sola ficha y sus adjuntos.
+  - 401, 409 y validaciones conservan el contenido recuperable; cambio de vault no redirige pendientes.
+  - Cuota agotada o fallo de persistencia no anuncia éxito ni deja una operación susceptible de envío oculto; migración conserva texto y adjuntos.
+  - Fallo parcial no deja pérdidas, duplicados ni adjuntos huérfanos sin recuperación; el registro y su política de retención están documentados.
+- **Verificación**: Tests con respuesta perdida, reinicio, concurrencia, autenticación, cambio de destino, almacenamiento lleno y fallos de escritura; prueba de recuperación en navegador.
+- **Archivos orientativos**: web/src/state/captureQueue.ts, web/src/lib/storage.ts, componentes de pendientes, server/src/capture.ts, server/src/routes/resources.ts, tests, docs/CONTRACT.md.
+- **Contrato**: sí; cuando corresponda, usar la siguiente versión libre.
+- **Depende de**: R1 (#45).
+- **Bloque / rama**: `hoja/r-integridad`.
+
+<a id="r3"></a>
+### R3 · Conservar recursos al moverlos y resolver adjuntos correctamente
+
+**Issue**: [#47](https://github.com/JavierLoro/estudio-tfg/issues/47)
+
+- **Objetivo**: Conservar recursos al moverlos y resolver adjuntos correctamente.
+- **Contexto**: listResources solo enumera .md directos. Mover una ficha a Recursos/subcarpeta la hace desaparecer del listado (reproducido). attachmentPath resuelve respecto a RESOURCES_SUBDIR, aunque las fichas pueden guardar adjuntos relativos a su propia carpeta.
+- **Alcance**: Enumeración recursiva segura bajo la raíz configurada, coherente con las reglas de enlaces y exclusiones. Resolver adjuntos relativos a la ficha y admitir el formato histórico relativo al vault sin ambigüedad documentada. Hacer visibles errores parciales de lectura. Mantener coherencia tras movimientos externos y operaciones de la app. No introducir todavía el nuevo modelo de L1.
+- **Criterios de aceptación**:
+  - Una ficha movida a una subcarpeta sigue listada y abre sus adjuntos; los recursos actuales siguen funcionando.
+  - No se siguen enlaces que escapen de la raíz ni ciclos; un archivo ilegible produce aviso y no oculta los demás.
+  - Mover o renombrar desde la app y desde disco refresca listado, ficha y enlaces sin pérdida.
+- **Verificación**: Tests de carpetas anidadas, rutas históricas, ciclos/enlaces, permisos y eventos; navegador con traslado y apertura de un adjunto ficticio.
+- **Archivos orientativos**: server/src/resources.ts, server/src/routes/resources.ts, web/src/state/resources.ts, web/src/panels/ResourcePanel.tsx, tests, docs/CONTRACT.md.
+- **Contrato**: sí; cuando corresponda, usar la siguiente versión libre.
+- **Depende de**: R1 (#45).
+- **Bloque / rama**: `hoja/r-recursos`.
+
+<a id="r4"></a>
+### R4 · Contener el foco y restaurarlo en los diálogos
+
+**Issue**: [#48](https://github.com/JavierLoro/estudio-tfg/issues/48)
+
+- **Objetivo**: Contener el foco y restaurarlo en los diálogos.
+- **Contexto**: En Chrome/macOS, Tab desde Cancelar del formulario vacío sale del modal; el siguiente Tab enfoca Abrir o buscar de la aplicación subyacente. Modal declara aria-modal, pero no contiene el foco.
+- **Alcance**: Corregir el componente compartido: foco inicial, ciclo Tab/Mayús+Tab, fondo no interactivo mientras hay modal, cierre con Escape cuando proceda y restauración al invocador. Cubrir contenido dinámico, controles deshabilitados y diálogos superpuestos si se admiten. Reutilizar patrones/dependencias existentes cuando basten.
+- **Criterios de aceptación**:
+  - Tab y Mayús+Tab nunca alcanzan controles del fondo con el modal abierto; Escape y botones mantienen sus restricciones de operación en curso.
+  - Al cerrar se restaura un foco válido; título, etiquetas y errores son accesibles.
+- **Verificación**: Prueba de navegador de captura, ajustes y otro diálogo compartido; teclado en ambos sentidos y comprobación del elemento enfocado. Automatizar con la infraestructura de L5 cuando exista.
+- **Archivos orientativos**: web/src/components/ui.tsx, web/src/components/CaptureModal.tsx, componentes afectados y tests, docs/CONTRACT.md.
+- **Contrato**: sí; cuando corresponda, usar la siguiente versión libre.
+- **Depende de**: D (completada).
+- **Bloque / rama**: `hoja/r-recursos`.
+
+<a id="r5"></a>
+### R5 · Proteger la importación de metadatos desde URLs
+
+**Issue**: [#49](https://github.com/JavierLoro/estudio-tfg/issues/49)
+
+- **Objetivo**: Proteger la importación de metadatos desde URLs.
+- **Contexto**: fetchTitle acepta HTTP/HTTPS y sigue redirecciones sin política de destinos. La auditoría obtuvo un título de un servidor ficticio de loopback. Al ampliar importadores, las peticiones del servidor no deben alcanzar servicios privados por una URL externa.
+- **Alcance**: Centralizar las peticiones externas para metadatos. Validar protocolos, credenciales, DNS e IPs IPv4/IPv6; bloquear destinos privados, loopback y link-local, también después de redirecciones y ante cambios DNS. Limitar redirecciones, bytes, duración y concurrencia; no reenviar credenciales a otros hosts. Permitir guardar una URL bloqueada como referencia manual sin consultarla. Documentar la política y usar transporte/resolución inyectables para tests sin abrir una excepción de producción.
+- **Criterios de aceptación**:
+  - URLs públicas válidas permiten extraer metadatos; destinos internos, redirecciones a ellos y cambios DNS se rechazan antes de la conexión protegida.
+  - Contenido excesivo, timeout y error remoto dejan un recurso manual utilizable con aviso en español; nunca se requieren servicios privados reales para probar.
+  - Los futuros importadores DOI y web usan la misma política y no descargan adjuntos automáticamente.
+- **Verificación**: Tests deterministas con DNS/transporte simulados: IPv4/IPv6, direcciones mixtas, redirecciones, límites y rebinding; smoke de URL pública con datos ficticios.
+- **Archivos orientativos**: server/src/capture.ts, módulo HTTP seguro nuevo, server/test/capture.test.ts, web/src/components/CaptureModal.tsx, docs/CONTRACT.md.
+- **Contrato**: sí; cuando corresponda, usar la siguiente versión libre.
+- **Depende de**: D (completada).
+- **Bloque / rama**: `hoja/r-recursos`.
+
+<a id="r6"></a>
+### R6 · Definir y aplicar la seguridad de la compilación
+
+**Issue**: [#50](https://github.com/JavierLoro/estudio-tfg/issues/50)
+
+- **Objetivo**: Definir y aplicar la seguridad de la compilación.
+- **Contexto**: worker/server.mjs ejecuta latexmk sin -norc y hereda process.env. -no-shell-escape no impide ejecutar configuraciones rc de latexmk (Perl). Al pasar a TeX del sistema se pierde el aislamiento del contenedor. Referencia: https://www.cantab.net/users/johncollins/latexmk/latexmk-487.pdf.
+- **Alcance**: Documentar el modelo de confianza para fuentes propias/importadas y Docker/local; impedir ejecución implícita de configuraciones del proyecto o del usuario no permitidas (evaluar -norc y configuración propia explícita). Mantener -no-shell-escape; controlar entorno heredado, directorio temporal, lectura/escritura fuera del trabajo y límites de recursos/procesos. Aplicar las medidas al worker actual y dejar requisitos verificables para E2. Distinguir mitigaciones de aislamiento real: el motor nativo no debe anunciarse como sandbox.
+- **Criterios de aceptación**:
+  - Fixtures con latexmkrc/.latexmkrc no ejecutan su marcador inocuo; ambos perfiles compilan con cero avisos y SyncTeX se conserva.
+  - Se documentan entorno permitido, límites de acceso y riesgo residual; los tests no leen ni escriben datos del usuario.
+  - E2 dispone de criterios explícitos sobre temporales, configuración, entorno, timeout y confianza que deberá implementar y comprobar.
+- **Verificación**: Tests worker y compilaciones en contenedor aislado con fixtures inocuos; revisar la política con el manual del motor; aplicar comprobaciones nativas al implementar E2.
+- **Archivos orientativos**: worker/server.mjs, worker/Dockerfile, worker/*.test.mjs, worker/README.md, docs/SEGURIDAD-COMPILACION.md (nuevo), docs/CONTRACT.md.
+- **Contrato**: sí; cuando corresponda, usar la siguiente versión libre.
+- **Depende de**: D (completada).
+- **Bloque / rama**: `hoja/r-compilacion`.
+
+<a id="r7"></a>
+### R7 · Documentar copias de seguridad y probar una restauración
+
+**Issue**: [#51](https://github.com/JavierLoro/estudio-tfg/issues/51)
+
+- **Objetivo**: Documentar copias de seguridad y probar una restauración.
+- **Contexto**: fsutil.ts conserva 20 versiones por archivo. Historial, papelera y Git no equivalen a una copia independiente de notas, adjuntos y memoria; la futura biblioteca debe poder recuperarse completa.
+- **Alcance**: Definir qué respaldar, dónde vive cada dato y cómo obtener una copia consistente (por ejemplo, cerrar la app y detener escrituras externas durante la copia). Documentar restauración en otra ubicación, ajuste de raíces y comprobación de integridad. Distinguir contenido duradero de builds/cachés regenerables y tratamiento privado de configuración/credenciales. Añadir prueba reproducible con fixtures e interrupción simulada; no añadir servicio cloud ni copias automáticas del contenido real.
+- **Criterios de aceptación**:
+  - Una copia de fixtures se restaura en otra ubicación y permite abrir notas, adjuntos y memoria conservando sus bytes y enlaces.
+  - La guía cubre fallos de disco, borrado accidental, límites del historial y traslado; ninguna restauración de prueba sobrescribe el origen.
+  - Existe inventario/manifiesto verificable y procedimiento de recuperación ante copia incompleta; L1/L5 ampliarán la prueba al formato de biblioteca.
+- **Verificación**: Script o test de copia/restauración aislada, comparación de hashes y apertura en instancia aparte.
+- **Archivos orientativos**: docs/RESPALDO.md (nuevo), README.md, scripts/ o server/test/ para restauración.
+- **Contrato**: no; cuando corresponda, usar la siguiente versión libre.
+- **Depende de**: R1 (#45), R2 (#46), R3 (#47).
+- **Bloque / rama**: `hoja/r-recuperacion`.
+
+<a id="r8"></a>
+### R8 · Fijar la versión de TeX y controlar sus actualizaciones
+
+**Issue**: [#52](https://github.com/JavierLoro/estudio-tfg/issues/52)
+
+- **Objetivo**: Fijar la versión de TeX y controlar sus actualizaciones.
+- **Contexto**: worker/Dockerfile usa texlive/texlive:latest-full. La CI comprueba ambos perfiles, pero el mismo commit puede compilar con una distribución distinta en el futuro.
+- **Alcance**: Fijar una imagen verificable por versión/digest compatible con las arquitecturas soportadas; registrar versiones de TeX, latexmk y biber en diagnóstico de build o logs. Documentar actualización explícita mediante PR y comprobación de perfiles. Mantener CI de compilación; no publicar imágenes ni añadir CD en esta tarea.
+- **Criterios de aceptación**:
+  - La imagen base queda fijada sin latest mutable; se documentan arquitecturas y versiones utilizadas.
+  - Ambos perfiles compilan sin avisos; procedimiento de actualización y vuelta a la versión anterior reproducible.
+  - Los logs permiten identificar el motor/distribución de una compilación; no se promete identidad binaria de PDFs si hay fechas u otros datos variables.
+- **Verificación**: Construcción limpia del worker, comprobación de digest/plataformas, CI y compilación de todos los perfiles.
+- **Archivos orientativos**: worker/Dockerfile, worker/README.md, .github/workflows/ci.yml, scripts/compile-template.mjs.
+- **Contrato**: solo si cambia la API; cuando corresponda, usar la siguiente versión libre.
+- **Depende de**: R6 (#50).
+- **Bloque / rama**: `hoja/r-compilacion`.
+
+---
+
+<a id="fase-l"></a>
+## Fase L — Biblioteca de recursos y bibliografía
+
+Resultado: sustituir el concepto principal de «captura» por **Biblioteca**, con el recorrido **Añadir → Organizar → Consultar → Usar en la memoria**. Referencias, páginas web, imágenes y documentos pueden compartir ficha, adjuntos y notas. Captura rápida queda como acceso a Añadir y «Sin revisar» como filtro opcional.
+
+Se mantienen archivos abiertos, compatibilidad con Obsidian, contenido personal fuera del repo, tokens visuales y cargas diferidas. La implementación de L1 fija el contrato y la autoridad bibliográfica antes de crear importadores; este plan no cambia todavía el contrato vigente. Fuera de esta fase: sincronización bidireccional con Zotero, extensión de navegador, descarga automática masiva de PDFs y almacenamiento cloud.
+
+<a id="l1"></a>
+### L1 · Modelo de biblioteca y migración reversible de recursos
+
+**Issue**: [#53](https://github.com/JavierLoro/estudio-tfg/issues/53)
+
+- **Objetivo**: Modelo de biblioteca y migración reversible de recursos.
+- **Contexto**: Los recursos actuales son notas Markdown con URL, estado, etiquetas y un adjunto; las citas viven por separado en los .bib de la memoria. El usuario quiere una biblioteca de referencias, imágenes, webs y documentos, fácil de alimentar y usar al escribir.
+- **Alcance**: Definir primero contrato y decisión de almacenamiento en docs/BIBLIOTECA.md: ID estable independiente de ruta, versión de esquema, tipo, colecciones/etiquetas, procedencia, varias URLs/adjuntos/notas y vínculo bibliográfico. Archivos abiertos como fuente de verdad, sin base de datos autoritativa; índices regenerables. Elegir explícitamente una única autoridad para campos bibliográficos y política para .bib manuales/generados; evitar copias editables divergentes. Implementar lectura compatible del formato antiguo y migración con vista previa, copia, comprobaciones de revisión y deshacer sin pisar cambios posteriores. Importación de lote recuperable; fichas y adjuntos no deben quedar a medias tras fallos.
+- **Criterios de aceptación**:
+  - Renombrar/mover conserva identidad y asociaciones; un artículo puede tener PDF, URL, referencia y notas en una sola ficha.
+  - Los recursos antiguos se leen sin migración forzada; migrar y deshacer preserva contenidos, campos desconocidos y adjuntos.
+  - Repetir o interrumpir una migración no duplica ni pierde datos; conflicto externo detiene la operación con información recuperable.
+  - Contrato define fuente de verdad, rutas relativas, varios adjuntos, versiones, transacciones recuperables, borrado/papelera y adaptación de la cola R2.
+- **Verificación**: Tests de ida/vuelta antiguo/nuevo, fallo parcial, cambio externo, IDs y mudanza de biblioteca; ampliar restauración de R7.
+- **Archivos orientativos**: docs/BIBLIOTECA.md (nuevo), docs/CONTRACT.md, server/src/resources.ts, server/src/capture.ts, rutas y tests de biblioteca, web/src/api.ts.
+- **Contrato**: sí; cuando corresponda, usar la siguiente versión libre.
+- **Depende de**: R2 (#46), R3 (#47), R5 (#49), R7 (#51).
+- **Bloque / rama**: `hoja/l-biblioteca`.
+
+<a id="l2"></a>
+### L2 · Vista Biblioteca y alta sencilla de enlaces y archivos
+
+**Issue**: [#54](https://github.com/JavierLoro/estudio-tfg/issues/54)
+
+- **Objetivo**: Vista Biblioteca y alta sencilla de enlaces y archivos.
+- **Contexto**: La interfaz actual confina Recursos a la barra lateral y prioriza Bandeja/Revisado/Descartado. Capturar recurso pide URL, nota y un archivo; no ofrece una vista amplia de exploración.
+- **Alcance**: Crear Biblioteca como vista principal siguiendo tokens y patrones existentes. Sustituir Capturar por Añadir conservando el atajo y adaptando accesos en Inicio/búsqueda. Entrada por pegar URL, arrastrar/seleccionar varios archivos o ficha manual; inferir tipo con corrección manual. Lista general, filtros por tipo/etiqueta/colección, búsqueda, ordenación, cuadrícula para imágenes y ficha con varios adjuntos, metadatos, notas y procedencia. Sin revisar es filtro opcional. Integrar pendientes/fallidos R2 y progreso por elemento. Los controles de citas/figuras se incorporan cuando L4 los haga funcionales.
+- **Criterios de aceptación**:
+  - Añadir una web, un PDF y varias imágenes funciona por los caminos soportados y deja claro qué se guardó y qué falló.
+  - Se puede encontrar, consultar, editar y organizar una ficha sin manejar rutas ni YAML; no se exige clasificar antes de guardar.
+  - Archivos, enlaces, cambios externos, estados vacíos, errores y navegación por teclado funcionan; carga pesada diferida y textos en español.
+  - Biblioteca y captura antigua convergen en los mismos datos; no quedan dos interfaces de creación desconectadas.
+- **Verificación**: Navegador en instancia aparte: alta individual/lote, búsqueda, filtros, imagen/PDF, pendientes, errores y teclado; tests de componentes/lógica relevantes.
+- **Archivos orientativos**: web/src/panels/BibliotecaPanel.tsx (nuevo), web/src/components/CaptureModal.tsx, Sidebar/Inicio/navegación, ResourcePanel.tsx, estado/API, docs/CONTRACT.md.
+- **Contrato**: sí; cuando corresponda, usar la siguiente versión libre.
+- **Depende de**: L1 (#53), R4 (#48).
+- **Bloque / rama**: `hoja/l-biblioteca`.
+
+<a id="l3"></a>
+### L3 · Importar y revisar bibliografía: BibTeX, DOI y RIS
+
+**Issue**: [#55](https://github.com/JavierLoro/estudio-tfg/issues/55)
+
+- **Objetivo**: Importar y revisar bibliografía: BibTeX, DOI y RIS.
+- **Contexto**: refs.ts es un lector aproximado para autocompletado, no un serializador sin pérdida. Se necesita importar bibliografía existente y asociarla a los PDFs y webs de la biblioteca.
+- **Alcance**: Implementar primero BibTeX/BibLaTeX desde archivo o texto pegado, después DOI y RIS con servicios documentados y política HTTP R5. Vista previa editable de entradas con autores, título, año, tipo e identificadores; conservar originales/campos desconocidos y no inventar metadatos ausentes. Detectar duplicados por DOI normalizado, identidad de archivo y coincidencias bibliográficas como sugerencia; decidir explícitamente conservar, asociar o combinar. Resolver colisiones de claves sin romper citas existentes. Respetar autoridad definida por L1 y .bib manuales; no añadir sincronización bidireccional con gestores externos ni descargar PDFs automáticamente.
+- **Criterios de aceptación**:
+  - Fixtures BibTeX/BibLaTeX y RIS, pegado y DOI producen fichas revisables; fallo de red o dato incompleto admite corrección manual.
+  - Reimportación idéntica no duplica; combinación conserva adjuntos y notas, y una coincidencia ambigua nunca se fusiona sin decisión.
+  - Claves, macros, caracteres LaTeX, comentarios y campos desconocidos se preservan donde se reescribe/exporta; los .bib ajenos no se reformatean.
+  - Importar un lote con entradas inválidas informa resultados por elemento y permite recuperar/reintentar sin repetir éxitos.
+- **Verificación**: Tests de importación/exportación sin pérdida, DOI simulado, colisiones y duplicados; navegador con revisión de lote; sin datos bibliográficos personales.
+- **Archivos orientativos**: server/src/refs.ts y módulos bibliográficos nuevos, rutas/tests, componentes de importación y ficha, docs/BIBLIOTECA.md, docs/CONTRACT.md.
+- **Contrato**: sí; cuando corresponda, usar la siguiente versión libre.
+- **Depende de**: L1 (#53), L2 (#54), R5 (#49).
+- **Bloque / rama**: `hoja/l-referencias`.
+
+<a id="l4"></a>
+### L4 · Usar la biblioteca en la memoria: citas, figuras y usos
+
+**Issue**: [#56](https://github.com/JavierLoro/estudio-tfg/issues/56)
+
+- **Objetivo**: Usar la biblioteca en la memoria: citas, figuras y usos.
+- **Contexto**: La ficha actual permite revisar/descartar/editar nota, pero no insertar una cita o figura. Ya existen autocompletado bibliográfico e inserción de figuras desde diagramas que pueden reutilizarse.
+- **Alcance**: Insertar cita en el editor conservando su borrador y deshacer, con clave estable y bibliografía resoluble. Definir salida .bib gestionada según L1 y su incorporación explícita al proyecto sin sobrescribir bibliografía manual; actualizarla con revisión/vista previa cuando cambien metadatos. Insertar imagen como copia dentro de la memoria, con nombre seguro, pie, etiqueta y procedencia/atribución; comprobar formatos LaTeX soportados y dar alternativa clara para los demás. Registrar/ver usos de citas y figuras; antes de borrar mostrar referencias y conservar copias ya incorporadas. Actualizar fuentes utilizadas de forma explícita, sin cambiar una memoria silenciosamente.
+- **Criterios de aceptación**:
+  - Una referencia importada se cita y compila con biber; una imagen se inserta y compila sin avisos nuevos en ambos perfiles.
+  - La memoria copiada a otra ubicación compila sin acceder a la biblioteca original; sus .bib manuales siguen intactos.
+  - Inserción con editor sucio se puede deshacer sin perder edición; revisión obsoleta no sobrescribe archivos.
+  - Ver usos lleva al apartado correcto; borrar/actualizar el recurso no rompe silenciosamente citas o figuras ya incluidas.
+- **Verificación**: Tests de bibliografía/figuras y conflictos; navegador desde importar hasta insertar; compilación real de ambos perfiles y memoria trasladada.
+- **Archivos orientativos**: server/src/refs.ts, servicios/rutas de biblioteca y memoria, web/src/panels/LatexPanel.tsx y Biblioteca/ResourcePanel, helpers de inserción, tests, docs/CONTRACT.md.
+- **Contrato**: sí; cuando corresponda, usar la siguiente versión libre.
+- **Depende de**: L3 (#55).
+- **Bloque / rama**: `hoja/l-referencias`.
+
+<a id="l5"></a>
+### L5 · Automatizar recorridos de biblioteca y recuperación en CI
+
+**Issue**: [#57](https://github.com/JavierLoro/estudio-tfg/issues/57)
+
+- **Objetivo**: Automatizar recorridos de biblioteca y recuperación en CI.
+- **Contexto**: La CI actual cubre tests, tipos, build y plantillas, pero no recorridos de navegador. La auditoría detectó fallos funcionales que las comprobaciones existentes no cubrían.
+- **Alcance**: Añadir una suite E2E pequeña con navegador automatizado, API y datos temporales propios. Cubrir añadir/buscar/consultar, lote parcial, duplicados/reintento, 401 y recuperación, cambio de vault, conflicto externo, teclado del modal, citas/figuras y migración/restauración. CI inicialmente Chromium/Linux, smoke multiplataforma cuando sea viable y límites de cobertura explícitos. Usar metadatos externos simulados y compilación real del worker donde corresponda; publicar trazas/logs al fallar con fixtures, nunca contenido real. Documentar comando local.
+- **Criterios de aceptación**:
+  - La suite reproduce las regresiones R1–R4 relevantes antes del arreglo y pasa con el comportamiento nuevo; fixtures aislados y limpieza de procesos.
+  - Recorrido biblioteca → cita/figura → PDF y restauración en otra ubicación quedan verificados, combinando navegador y compilación real.
+  - Un fallo produce evidencias depurables; workflow y comando local están documentados, sin depender de webs públicas ni puertos del usuario.
+- **Verificación**: Ejecutar suite local y en PR; enlazar ejecución CI, especificar navegador/SO y verificaciones manuales pendientes.
+- **Archivos orientativos**: test/e2e/ (nuevo), configuración y scripts de navegador, .github/workflows/ci.yml, package.json, docs/RESPALDO.md, README.md.
+- **Contrato**: no; cuando corresponda, usar la siguiente versión libre.
+- **Depende de**: L2 (#54), L3 (#55), L4 (#56), R7 (#51).
+- **Bloque / rama**: `hoja/l-validacion`.
+
+---
+
 <a id="fase-e"></a>
 ## Fase E — Motores de compilación intercambiables
 
@@ -417,14 +680,14 @@ Resultado: el servidor compila con el motor que elija el usuario: **Docker** (el
 - **Objetivo**: que el servidor no dependa de «un worker HTTP» sino de una interfaz de motor, con el worker actual como primera implementación.
 - **Contexto**: hoy todo pasa por `cfg.workerUrl`: `fetch(.../compile)` en `server/src/compile.ts` (tar de fuentes + cabecera `x-main`; respuesta `{ ok, buildId, durationMs, pdf, log, diagnostics }`; artefactos en `buildDir/<id>/main.{pdf,log,synctex.gz}` porque el worker escribe en la carpeta compartida), `fetch(.../svg2pdf)` en `server/src/diagramas.ts`, `/health` en `server/src/routes/status.ts`. Worker: `worker/server.mjs`. Worker falso de tests en `server/test/compile.test.ts`.
 - **Alcance**:
-  - Contrato v0.9 «Motores»: `health() → { ok, version, capacidades }`, `compile(fuentes, main) → resultado` con artefactos en `buildDir/<id>/`, `svg2pdf(svg) → pdf`.
+  - Contrato (siguiente versión libre) «Motores»: `health() → { ok, version, capacidades }`, `compile(fuentes, main) → resultado` con artefactos en `buildDir/<id>/`, `svg2pdf(svg) → pdf`.
   - `server/src/engine/` con el tipo `Engine` y la implementación `docker` (HTTP al worker, exactamente lo que se hace hoy); `compile.ts`, `diagramas.ts` y `status.ts` pasan a usarla.
   - `/api/status` añade `motor: { tipo, estado, version }` (manteniendo `worker` por compatibilidad hasta que la interfaz lo use).
   - No hace: el motor local (E2).
 - **Criterios de aceptación**: comportamiento idéntico (todos los tests existentes en verde sin tocarlos, salvo imports); tests nuevos de la interfaz con el worker falso; compilar y exportar diagramas funcionan en el navegador (instancia aparte).
 - **Verificación**: `npm test`, typecheck, navegador.
 - **Archivos**: `server/src/engine/*`, `server/src/compile.ts`, `server/src/diagramas.ts`, `server/src/routes/status.ts`, `server/src/config.ts`, `web/src/api.ts`, `docs/CONTRACT.md`.
-- **Contrato**: sí (v0.9). **Depende de**: A. **Modelo**: Opus. **Esfuerzo**: M.
+- **Contrato**: sí (siguiente versión libre). **Depende de**: A y L5 (#57, puerta de entrega de producto; completar la biblioteca antes de retomar motores). **Modelo**: Opus. **Esfuerzo**: M.
 
 <a id="e2"></a>
 ### E2 · Motor «TeX del sistema»
@@ -438,11 +701,12 @@ Resultado: el servidor compila con el motor que elija el usuario: **Docker** (el
   - Matar procesos de forma portable (grupo en POSIX, `taskkill /pid <pid> /T /F` en win32).
   - Motor `local` en `server/src/engine/`: escribe directamente en `buildDir/<id>/`; detecta `latexmk`, `biber` y `rsvg-convert` en el PATH y su versión.
   - Ajustes: selector de motor (Automático / Docker / TeX del sistema) con el resultado de la detección; «Automático» prefiere Docker si responde y si no TeX del sistema.
-  - `-no-shell-escape` siempre.
-- **Criterios de aceptación**: con TeX Live/MacTeX instalado, la plantilla compila con el motor local con los mismos diagnósticos que en Docker; SyncTeX funciona; el worker Docker sigue pasando sus tests y compilando; si falta `latexmk`, Ajustes lo dice con un mensaje claro.
+  - Aplicar la política de R6 (#50): fuentes temporales aisladas del original, configuración explícita, entorno controlado y límites de procesos/acceso. `-no-shell-escape` siempre; el motor local no se presenta como sandbox. La extracción del motor conserva las protecciones del worker.
+  - Registrar distribución/versiones detectadas y contrastarlas con la referencia fijada por R8 (#52); diagnosticar diferencias sin exigir que el TeX instalado sea idéntico a Docker.
+- **Criterios de aceptación**: con TeX Live/MacTeX instalado, la plantilla compila con el motor local con los mismos diagnósticos que en Docker; SyncTeX funciona; el worker Docker sigue pasando sus tests y compilando; si falta `latexmk`, Ajustes lo dice con un mensaje claro; pruebas de R6 adaptadas al motor local verifican configuraciones no permitidas, entorno, temporales y cancelación.
 - **Verificación**: `npm test`, `node --test worker/*.test.mjs`, compilación real con ambos motores (si el equipo no tiene TeX instalado, usar el worker como referencia y marcar el local «a verificar»).
 - **Archivos**: `worker/server.mjs`, `worker/engine.mjs` (nuevo), `server/src/engine/local.ts`, Ajustes (server y web), `docs/CONTRACT.md`.
-- **Contrato**: sí. **Depende de**: E1; en Windows también C1. **Modelo**: Opus. **Esfuerzo**: L.
+- **Contrato**: sí. **Depende de**: E1, R6 (#50) y R8 (#52); en Windows también C1. **Modelo**: Opus. **Esfuerzo**: L.
 
 <a id="e3"></a>
 ### E3 · Validar la plantilla con TeX del sistema
