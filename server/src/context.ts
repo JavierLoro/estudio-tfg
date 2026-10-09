@@ -5,7 +5,10 @@ import type { Settings } from './settings.ts';
 import type { KeyedLock } from './fsutil.ts';
 import type { OutlineService } from './outline.ts';
 
+import type { MetadataFetcher } from './metadataHttp.ts';
+
 export interface Ctx {
+  fetchMetadata?: MetadataFetcher;
   cfg: Config;
   bus: EventBus;
   compiler: Compiler;

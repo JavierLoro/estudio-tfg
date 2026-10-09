@@ -32,6 +32,7 @@ import statusRoutes from './routes/status.ts';
 import synctexRoutes from './routes/synctex.ts';
 
 export interface BuildOptions {
+  fetchMetadata?: Ctx['fetchMetadata'];
   logger?: boolean;
   bus?: EventBus;
   /** Serve web/dist if present (default true). */
@@ -68,7 +69,7 @@ export async function buildApp(cfg: Config, opts: BuildOptions = {}): Promise<{ 
   settings.load();
   const outline = new OutlineService(cfg, compiler, bus);
   app.addHook('onClose', async () => outline.close());
-  const ctx: Ctx = { cfg, bus, compiler, locks: new KeyedLock(), settings, watcher, outline };
+  const ctx: Ctx = { fetchMetadata: opts.fetchMetadata, cfg, bus, compiler, locks: new KeyedLock(), settings, watcher, outline };
   await compiler.load();
   const captureProblems = await recoverCaptures({ ...cfg });
   for (const problem of captureProblems) app.log.warn({ problem }, 'Captura pendiente de recuperación');

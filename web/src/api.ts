@@ -490,7 +490,7 @@ export const api = {
 
   backlinks: (path: string) => json<{ items: Backlink[] }>(`/api/notes/backlinks?${qs({ path })}`),
 
-  capture: (form: FormData) => json<{ path: string; title: string }>('/api/capture', { method: 'POST', body: form }),
+  capture: (form: FormData) => json<{ path: string; title: string; warning?: string }>('/api/capture', { method: 'POST', body: form }),
 
   captureOperation: (operationId: string, libraryId: string) =>
     json<{ state: 'unknown' | 'prepared' | 'done' }>(`/api/capture/operation?${qs({ operationId, libraryId })}`),

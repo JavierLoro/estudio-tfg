@@ -60,7 +60,7 @@ export default async function resourcesRoutes(app: FastifyInstance, { ctx }: { c
     const destination = { ...cfg };
     const input = await readCaptureInput(req, destination);
     try {
-      return await capture(destination, input);
+      return await capture(destination, input, undefined, ctx.fetchMetadata);
     } finally {
       if (input.file) await fs.rm(input.file.tmpAbs, { force: true });
     }

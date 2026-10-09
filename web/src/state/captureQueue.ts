@@ -62,7 +62,7 @@ function form(item: QueuedCapture) {
   return fd;
 }
 
-async function send(item: QueuedCapture): Promise<{ path: string; title: string } | null> {
+async function send(item: QueuedCapture): Promise<{ path: string; title: string; warning?: string } | null> {
   let confirmed = false;
   try {
     const status = await api.status();
@@ -86,7 +86,7 @@ async function send(item: QueuedCapture): Promise<{ path: string; title: string 
 }
 
 export type CaptureOutcome =
-  | { kind: 'ok'; path: string; title: string }
+  | { kind: 'ok'; path: string; title: string; warning?: string }
   | { kind: 'queued' }
   | { kind: 'error'; message: string };
 
@@ -122,7 +122,7 @@ export async function flushCaptureQueue(id?: string): Promise<void> {
       for (const item of items) {
         if ((id && item.id !== id) || (!id && item.blocked)) continue;
         const result = await send(item);
-        if (result) toast({ kind: 'ok', text: `Captura pendiente guardada: ${result.path}` });
+        if (result) toast({ kind: result.warning ? 'warn' : 'ok', text: `Captura pendiente guardada: ${result.path}${result.warning ? `. ${result.warning}` : ''}` });
       }
     } catch (e) { useCaptureQueue.setState({ error: storageError(e) }); }
     scheduleRetry();

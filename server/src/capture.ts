@@ -5,13 +5,13 @@ import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import type { Readable } from 'node:stream';
 import type { Config } from './config.ts';
+import { fetchPublicMetadata, type MetadataFetcher } from './metadataHttp.ts';
 import { HttpError, badRequest } from './errors.ts';
 import { yamlScalar } from './frontmatter.ts';
 import { isReservedName, resolveSafe } from './paths.ts';
 
 export const MAX_UPLOAD = 50 * 1024 * 1024;
-const TITLE_TIMEOUT_MS = 4000;
-const TITLE_MAX_BYTES = 1024 * 1024;
+
 
 function pad(n: number, w = 2) {
   return String(n).padStart(w, '0');
@@ -95,43 +95,15 @@ function hostOf(url: string): string | null {
   }
 }
 
-/** Fetch the page title (og:title or <title>), 4 s timeout, 1 MB max. Falls back to the host. */
-export async function fetchTitle(url: string): Promise<string> {
-  const fallback = hostOf(url) ?? url.slice(0, 80);
-  let u: URL;
+/** Si la consulta falla, conservar un recurso manual con aviso. */
+export async function fetchTitle(url: string, fetchMetadata: MetadataFetcher = fetchPublicMetadata): Promise<{ title: string; warning?: string }> {
+  const fallback = hostOf(url) ?? 'Recurso';
   try {
-    u = new URL(url);
-  } catch {
-    return fallback;
-  }
-  if (u.protocol !== 'http:' && u.protocol !== 'https:') return fallback;
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), TITLE_TIMEOUT_MS);
-  try {
-    const res = await fetch(u, {
-      signal: ctrl.signal,
-      redirect: 'follow',
-      headers: { 'user-agent': 'Mozilla/5.0 (EstudioTFG capture)', accept: 'text/html,application/xhtml+xml' },
-    });
-    if (!res.ok || !res.body) return fallback;
-    const reader = res.body.getReader();
-    const chunks: Uint8Array[] = [];
-    let total = 0;
-    while (total < TITLE_MAX_BYTES) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      chunks.push(value);
-      total += value.byteLength;
-      // Stop early once the head has been read.
-      if (/<\/head>/i.test(Buffer.from(value).toString('latin1'))) break;
-    }
-    reader.cancel().catch(() => {});
-    const html = Buffer.concat(chunks).subarray(0, TITLE_MAX_BYTES).toString('utf8');
-    return extractTitle(html) ?? fallback;
-  } catch {
-    return fallback;
-  } finally {
-    clearTimeout(timer);
+    const response = await fetchMetadata(url);
+    const title = extractTitle(response.body.toString('utf8'));
+    return title ? { title } : { title: fallback, warning: 'No se encontró un título; completa el recurso manualmente' };
+  } catch (e) {
+    return { title: fallback, warning: `Recurso guardado sin consultar sus metadatos: ${e instanceof Error ? e.message : 'Error de conexión'}` };
   }
 }
 
@@ -194,16 +166,17 @@ async function attachmentsDir(cfg: Config): Promise<string> {
   return r.abs;
 }
 
-export async function prepareCapture(input: CaptureInput): Promise<{ title: string; url?: string; note?: string }> {
+export async function prepareCapture(input: CaptureInput, fetchMetadata?: MetadataFetcher): Promise<{ title: string; url?: string; note?: string; warning?: string }> {
   const url = input.url?.trim() || undefined;
   const note = input.note?.trim() ? input.note : undefined;
   if (!url && !note && !input.file) throw badRequest('Indica al menos una URL, una nota o un archivo');
 
   let title = input.title?.replace(/\s+/g, ' ').trim() || '';
-  if (!title && url) title = await fetchTitle(url);
+  let warning: string | undefined;
+  if (!title && url) ({ title, warning } = await fetchTitle(url, fetchMetadata));
   if (!title && input.file) title = input.file.filename.replace(/\.[^.]+$/, '').trim();
   if (!title && note) title = note.trim().split(/\r?\n/)[0].replace(/^#+\s*/, '').slice(0, 80).trim();
   if (!title) title = 'Recurso';
 
-  return { title, url, note };
+  return { title, url, note, warning };
 }
