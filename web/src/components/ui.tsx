@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { useId, useLayoutEffect, useRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
@@ -63,6 +63,8 @@ export function Spinner({ size = 14 }: { size?: number }) {
   );
 }
 
+const modalStack: HTMLDialogElement[] = [];
+
 export function Modal({
   open,
   onClose,
@@ -80,41 +82,73 @@ export function Modal({
   footer?: ReactNode;
   labelledBy?: string;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const prev = document.activeElement as HTMLElement | null;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        onClose();
+  const ref = useRef<HTMLDialogElement>(null);
+  const generatedId = useId();
+  const titleId = labelledBy ?? generatedId;
+  useLayoutEffect(() => {
+    if (!open || !ref.current) return;
+    const dialog = ref.current;
+    const previous = document.activeElement as HTMLElement | null;
+    dialog.showModal();
+    modalStack.push(dialog);
+    const initial = dialog.querySelector<HTMLElement>('[autofocus], input:not([type="hidden"]):not(:disabled), textarea:not(:disabled), select:not(:disabled)');
+    initial?.focus();
+    return () => {
+      modalStack.splice(modalStack.indexOf(dialog), 1);
+      dialog.close();
+      // El invocador puede desaparecer al guardar, mover o cerrar un diálogo padre.
+      if (previous?.isConnected && previous.getClientRects().length && !previous.closest('dialog:not([open]), [inert]') && !previous.matches(':disabled')) previous.focus();
+      else {
+        const remaining = modalStack.at(-1);
+        (remaining?.querySelector<HTMLElement>('button:not(:disabled), input:not(:disabled)') ?? document.querySelector<HTMLElement>('#root button:not(:disabled)'))?.focus();
       }
     };
-    window.addEventListener('keydown', onKey, true);
-    return () => {
-      window.removeEventListener('keydown', onKey, true);
-      prev?.focus?.();
-    };
-  }, [open, onClose]);
+  }, [open]);
+  useLayoutEffect(() => {
+    const dialog = ref.current;
+    if (!open || !dialog || modalStack.at(-1) !== dialog) return;
+    // Deshabilitar el botón pulsado puede mandar el foco a body durante una operación.
+    const active = document.activeElement;
+    if (dialog.contains(active) && !(active as HTMLElement)?.matches(':disabled')) return;
+    const target = [...dialog.querySelectorAll<HTMLElement>('input, textarea, select, button, [tabindex]')]
+      .find((el) => el.tabIndex >= 0 && !el.matches(':disabled') && el.getClientRects().length > 0);
+    (target ?? dialog).focus();
+  });
   if (!open) return null;
   return createPortal(
+    <dialog
+      ref={ref}
+      aria-modal="true"
+      aria-labelledby={title != null ? titleId : undefined}
+      aria-label={title == null ? 'Diálogo' : undefined}
+      className="et-modal fixed inset-0 m-0 h-full max-h-none w-full max-w-none border-0 bg-transparent p-0 text-fg"
+      onCancel={(e) => { e.preventDefault(); onClose(); }}
+      onKeyDown={(e) => {
+        // Los atajos globales no deben operar sobre el fondo mientras se edita un diálogo.
+        e.stopPropagation();
+        if (e.key !== 'Tab') return;
+        const controls = [...e.currentTarget.querySelectorAll<HTMLElement>('button, a[href], input, textarea, select, [tabindex]')]
+          .filter((el) => el.tabIndex >= 0 && !el.matches(':disabled') && el.getClientRects().length > 0 && !el.closest('[inert]'));
+        const first = controls[0];
+        const last = controls.at(-1);
+        if (!first) { e.preventDefault(); e.currentTarget.focus(); }
+        else if (e.shiftKey && (document.activeElement === first || document.activeElement === e.currentTarget)) { e.preventDefault(); last?.focus(); }
+        else if (!e.shiftKey && (document.activeElement === last || document.activeElement === e.currentTarget)) { e.preventDefault(); first.focus(); }
+      }}
+    >
     <div
-      className="fixed inset-0 z-[1000] flex items-start justify-center bg-black/30 p-4 pt-[10vh]"
+      className="flex h-full items-start justify-center bg-black/30 p-4 pt-[10vh]"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
-        ref={ref}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={labelledBy}
         className="flex max-h-[80vh] max-w-full flex-col overflow-hidden rounded-lg border border-line bg-bg shadow-pop"
         style={{ width }}
       >
         {title != null && (
           <div className="flex h-10 shrink-0 items-center justify-between border-b border-line px-3">
-            <div id={labelledBy} className="text-[13px] font-semibold">
+            <div id={titleId} className="text-[13px] font-semibold">
               {title}
             </div>
             <IconButton label="Cerrar" onClick={onClose}>
@@ -125,7 +159,8 @@ export function Modal({
         <div className="min-h-0 flex-1 overflow-auto">{children}</div>
         {footer && <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-3 py-2">{footer}</div>}
       </div>
-    </div>,
+    </div>
+    </dialog>,
     document.body,
   );
 }

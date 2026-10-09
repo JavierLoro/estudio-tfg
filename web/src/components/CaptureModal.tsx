@@ -32,7 +32,7 @@ export function CaptureModal() {
   useEffect(() => {
     if (!open) return;
     setError(null);
-    setTimeout(() => urlRef.current?.focus(), 0);
+
   }, [open]);
 
   const reset = () => {

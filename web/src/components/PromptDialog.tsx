@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { useUI } from '../state/ui';
 import { Button, Modal } from './ui';
 
 /** Diálogo de texto genérico (nombre de archivo, token…). */
 export function PromptDialog() {
+  const fieldId = useId();
   const prompt = useUI((s) => s.prompt);
   const close = useUI((s) => s.closePrompt);
   const [value, setValue] = useState('');
@@ -40,8 +41,9 @@ export function PromptDialog() {
           else if (value.trim()) close(value);
         }}
       >
-        {prompt?.label && <label className={prompt.confirm ? 'block text-[13px]' : 'mb-1 block text-[12px] text-muted'}>{prompt.label}</label>}
+        {prompt?.label && <label htmlFor={prompt.confirm ? undefined : fieldId} className={prompt.confirm ? 'block text-[13px]' : 'mb-1 block text-[12px] text-muted'}>{prompt.label}</label>}
         {!prompt?.confirm && <input
+          id={fieldId}
           autoFocus
           type={prompt?.password ? 'password' : 'text'}
           value={value}
