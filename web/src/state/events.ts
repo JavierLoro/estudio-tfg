@@ -52,6 +52,8 @@ export function connectEvents() {
       useUI.getState().refreshStatus();
       useCompile.getState().fetchLast();
       void useOutline.getState().refresh();
+      void useUI.getState().refreshTree('notes');
+      void useUI.getState().refreshResources();
     }
   };
   es.onerror = () => useConnection.setState({ connected: false });
@@ -72,7 +74,7 @@ export function connectEvents() {
       refreshRefsSoon(ev.path);
     }
     const sub = useUI.getState().status?.resourcesSubdir ?? 'Recursos';
-    if (ev.root === 'notes' && (ev.path === sub || ev.path.startsWith(sub + '/'))) refreshResourcesSoon();
+    if (ev.root === 'notes' && ([ev.path, ev.from].some((p) => p === sub || p?.startsWith(sub + '/')))) refreshResourcesSoon();
     if (ev.path.includes('.sync-conflict-')) refreshStatusSoon();
     void handleExternalChange(ev);
     for (const l of listeners) l(ev);

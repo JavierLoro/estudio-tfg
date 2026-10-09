@@ -495,7 +495,9 @@ export const api = {
   captureOperation: (operationId: string, libraryId: string) =>
     json<{ state: 'unknown' | 'prepared' | 'done' }>(`/api/capture/operation?${qs({ operationId, libraryId })}`),
 
-  resources: () => json<{ items: Resource[] }>('/api/resources'),
+  resourceFile: (path: string) => json<FileResponse & { attachmentPath: string | null; attachmentWarning?: string }>(`/api/resources/file?${qs({ path })}`),
+
+  resources: () => json<{ items: Resource[]; warnings?: { path: string; message: string }[] }>('/api/resources'),
 
   patchResource: (body: { path: string; status?: string; tags?: string[]; baseRev: string }) =>
     json<Resource & { rev: string; mtime: number }>('/api/resources', jsonBody('PATCH', body)),

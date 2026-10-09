@@ -212,7 +212,7 @@ async function rewriteLinks(ctx: Ctx, root: RootName, mm: MoveMap): Promise<{ up
 
   let rewrite: (content: string, oldPath: string, newPath: string) => string;
   if (root === 'notes') {
-    const c = noteLinkCtx(mm);
+    const c = noteLinkCtx({ ...mm, resourcesSubdir: ctx.cfg.resourcesSubdir });
     rewrite = (content, oldPath, newPath) => rewriteNote(content, oldPath, newPath, c);
   } else {
     const gp: string[] = [];

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { api, ConflictError, errorMessage, type Resource } from '../api';
+import { api, ConflictError, errorMessage } from '../api';
 import { toast, useUI } from './ui';
 
 export const STATUS_LABEL: Record<string, string> = {
@@ -68,11 +68,4 @@ export async function reapplyResourceConflict() {
     return;
   }
   await updateResource(pending.path, pending.changes, pending.rev, true);
-}
-
-/** Ruta del adjunto relativa a la raíz `notes`. */
-export function attachmentPath(r: Pick<Resource, 'attachment'>, resourcesSubdir: string): string | null {
-  if (!r.attachment) return null;
-  const a = r.attachment.replace(/^\.?\//, '');
-  return a.startsWith(resourcesSubdir + '/') ? a : `${resourcesSubdir}/${a}`;
 }

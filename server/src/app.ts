@@ -46,7 +46,7 @@ const pickRoot = (v: unknown): RootName[] | null => (v === 'notes' || v === 'mem
 function rootsFor(method: string, url: string, query: any, body: any): RootName[] | null {
   const p = url.split('?')[0];
   if (p === '/api/tree' || p === '/api/file' || p === '/api/raw') return pickRoot(query?.root ?? body?.root) ?? [];
-  if (p.startsWith('/api/notes/') || p === '/api/resources' || p === '/api/capture') return ['notes'];
+  if (p.startsWith('/api/notes/') || p.startsWith('/api/resources') || p === '/api/capture') return ['notes'];
   if (p === '/api/dir' || p === '/api/move' || p === '/api/trash/restore') return pickRoot(body?.root) ?? [];
   if (p === '/api/search') return pickRoot(query?.root) ?? ROOTS;
   if (p === '/api/compile' && method === 'POST') return ['memoria'];

@@ -1,3 +1,4 @@
+import { attachmentCandidates } from './attachments.ts';
 import path from 'node:path';
 import YAML from 'yaml';
 import { splitFrontmatter } from './frontmatter.ts';
@@ -43,6 +44,7 @@ const baseName = (p: string) => p.slice(p.lastIndexOf('/') + 1);
 
 /** Contexto común de una operación de mover. */
 export interface MoveMap {
+  resourcesSubdir?: string;
   /** Ruta anterior → ruta nueva de cada archivo movido. */
   map: Map<string, string>;
   /** Archivos de la raíz antes de mover. */
@@ -211,15 +213,11 @@ function relinkMd(decoded: string, oldPath: string, newPath: string, c: NoteLink
 /** Valor nuevo del campo `attachment:` (relativo a la carpeta de la nota, o desde la raíz). */
 function relinkAttachment(val: string, oldPath: string, newPath: string, c: NoteLinkCtx): string | null {
   if (!val || val.includes('[[') || /^[a-z][a-z0-9+.-]*:/i.test(val) || val.startsWith('/')) return null;
-  const oldDir = posixDir(oldPath);
-  const rel = path.posix.normalize(oldDir ? `${oldDir}/${val}` : val);
-  let old: string;
-  let relForm: boolean;
-  if (c.preSet.has(rel)) [old, relForm] = [rel, true];
-  else if (c.preSet.has(path.posix.normalize(val))) [old, relForm] = [path.posix.normalize(val), false];
-  else if (c.prePaths.has(rel.normalize('NFC'))) [old, relForm] = [c.prePaths.get(rel.normalize('NFC'))!, true];
-  else if (c.prePaths.has(path.posix.normalize(val).normalize('NFC'))) [old, relForm] = [c.prePaths.get(path.posix.normalize(val).normalize('NFC'))!, false];
-  else return null;
+  const candidates = attachmentCandidates(oldPath, val, c.resourcesSubdir);
+  const candidate = candidates.find((p) => c.preSet.has(p.path) || c.prePaths.has(p.path.normalize('NFC')));
+  if (!candidate) return null;
+  const old = c.prePaths.get(candidate.path.normalize('NFC')) ?? candidate.path;
+  const relForm = candidate.form !== 'vault';
   const target = c.map.get(old) ?? old;
   const next = relForm ? path.posix.relative(posixDir(newPath) || '.', target) : target;
   return next === val ? null : next;

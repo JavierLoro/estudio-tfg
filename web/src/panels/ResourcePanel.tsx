@@ -7,7 +7,7 @@ import { Banner, Button, Spinner, cx } from '../components/ui';
 import { openActions } from '../components/OpenActions';
 import { ext, formatDate, hostOf, basename } from '../lib/paths';
 import { onFileChange } from '../state/events';
-import { STATUS_LABEL, attachmentPath, setResourceStatus, setResourceTags } from '../state/resources';
+import { STATUS_LABEL, setResourceStatus, setResourceTags } from '../state/resources';
 import { useUI } from '../state/ui';
 import { openFile, type FileParams } from '../state/workspace';
 
@@ -16,27 +16,32 @@ export function ResourcePanel({ params }: IDockviewPanelProps<FileParams>) {
   const [content, setContent] = useState<string | null>(null);
   const [revision, setRevision] = useState<string>();
   const [error, setError] = useState<string | null>(null);
-  const sub = useUI((s) => s.status?.resourcesSubdir ?? 'Recursos');
+  const [attachment, setAttachment] = useState<{ path: string | null; warning?: string }>({ path: null });
   const listItem = useUI((s) => s.resources?.find((r) => r.path === path));
 
   useEffect(() => {
     let alive = true;
-    const load = () =>
-      api
-        .readFile('notes', path)
-        .then((f) => alive && (setContent(f.content), setRevision(f.rev), setError(null)))
-        .catch((e) => alive && setError(errorMessage(e)));
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const load = () => api.resourceFile(path)
+      .then((f) => { if (alive) { setContent(f.content); setRevision(f.rev); setError(null); setAttachment({ path: f.attachmentPath, warning: f.attachmentWarning }); } })
+      .catch((e) => { if (alive) setError(errorMessage(e)); });
+    setContent(null);
+    setError(null);
     void load();
     const off = onFileChange((ev) => {
-      if (ev.root === 'notes' && ev.path === path && ev.kind !== 'unlink') void load();
+      if (ev.root !== 'notes') return;
+      // Cambiar un adjunto o mover su carpeta también puede cambiar la resolución.
+      clearTimeout(timer);
+      timer = setTimeout(load, 200);
     });
     return () => {
       alive = false;
       off();
+      clearTimeout(timer);
     };
   }, [path]);
 
-  if (error) return <Banner kind="danger">No se pudo abrir el recurso: {error}</Banner>;
+  if (error) return <Banner kind="danger">No se pudo abrir el recurso: {error}. Si cambió de ruta fuera de la app, ábrelo desde el listado actualizado.</Banner>;
   if (content == null)
     return (
       <div className="flex h-full items-center justify-center text-muted">
@@ -51,7 +56,7 @@ export function ResourcePanel({ params }: IDockviewPanelProps<FileParams>) {
   const status = String(fm.status ?? listItem?.status ?? 'inbox');
   const tags: string[] = Array.isArray(fm.tags) ? fm.tags.map(String) : listItem?.tags ?? [];
   const captured = (fm.captured as string | undefined) ?? listItem?.captured;
-  const att = attachmentPath({ attachment: (fm.attachment as string | undefined) ?? listItem?.attachment }, sub);
+  const att = attachment.path;
 
   return (
     <div className="h-full overflow-auto bg-bg">
@@ -88,7 +93,8 @@ export function ResourcePanel({ params }: IDockviewPanelProps<FileParams>) {
           </Button>
         </div>
         <TagEditor tags={tags} onChange={(t) => setResourceTags(path, t, revision)} />
-        {att && <Attachment path={att} />}
+        {attachment.warning && <Banner kind="warn">{attachment.warning}</Banner>}
+        {att && <Attachment path={att} key={`${att}:${revision}`} />}
         <div className="mt-4">
           {split.body.trim() ? (
             <MarkdownView content={split.body} path={path} showFrontmatter={false} />

@@ -190,6 +190,7 @@ type StatusFilter = 'inbox' | 'revisado' | 'descartado' | 'all';
 function ResourcesSection() {
   const resources = useUI((s) => s.resources);
   const error = useUI((s) => s.resourcesError);
+  const warnings = useUI((s) => s.resourcesWarnings);
   const [status, setStatus] = useState<StatusFilter>('inbox');
   const [tag, setTag] = useState('');
   const [text, setText] = useState('');
@@ -273,7 +274,8 @@ function ResourcesSection() {
         </select>
       </div>
       <div className="min-h-0 flex-1 overflow-auto pb-2">
-        {error && <div className="px-3 py-1 text-[12px] text-danger">{error}</div>}
+        {error && <div role="alert" className="px-3 py-1 text-[12px] text-danger">{error}</div>}
+        {warnings.map((w) => <p role="status" key={w.path} className="break-words px-3 py-1 text-[12px] text-warn">{w.path}: {w.message}</p>)}
         {!resources && !error && (
           <div className="flex justify-center py-4 text-muted">
             <Spinner />
