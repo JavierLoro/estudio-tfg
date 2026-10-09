@@ -1,25 +1,29 @@
 import fs from 'node:fs/promises';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Ctx } from '../context.ts';
-import { capture, parseTags, receiveUpload, type CaptureInput } from '../capture.ts';
+import { parseTags, receiveUpload, type CaptureInput } from '../capture.ts';
+import { capture, captureOperationState } from '../captureOperations.ts';
 import { HttpError, badRequest, notFound } from '../errors.ts';
 import { setFrontmatterKeys } from '../frontmatter.ts';
 import { atomicWrite, backup, rev } from '../fsutil.ts';
 import { resolveSafe } from '../paths.ts';
 import { itemFromContent, listResources } from '../resources.ts';
 
-async function readCaptureInput(req: FastifyRequest, ctx: Ctx): Promise<CaptureInput> {
+async function readCaptureInput(req: FastifyRequest, cfg: Ctx['cfg']): Promise<CaptureInput> {
   const input: CaptureInput = {};
   const set = (k: string, v: unknown) => {
+    if ((k === 'operationId' || k === 'libraryId') && v !== undefined && typeof v !== 'string') throw badRequest(`${k} no válido`);
     if (typeof v !== 'string') return;
-    if (k === 'url') input.url = v;
+    if (k === 'operationId') input.operationId = v;
+    else if (k === 'libraryId') input.libraryId = v;
+    else if (k === 'url') input.url = v;
     else if (k === 'title') input.title = v;
     else if (k === 'note') input.note = v;
     else if (k === 'tags') input.tags = parseTags(v);
   };
   if (!req.isMultipart()) {
     const b = (req.body ?? {}) as Record<string, unknown>;
-    for (const k of ['url', 'title', 'note']) set(k, b[k]);
+    for (const k of ['url', 'title', 'note', 'operationId', 'libraryId']) set(k, b[k]);
     if (b.tags !== undefined) input.tags = parseTags(b.tags);
     return input;
   }
@@ -31,7 +35,7 @@ async function readCaptureInput(req: FastifyRequest, ctx: Ctx): Promise<CaptureI
           if (input.file) throw badRequest('Solo se admite un archivo');
           continue;
         }
-        const tmpAbs = await receiveUpload(ctx.cfg, part.file);
+        const tmpAbs = await receiveUpload(cfg, part.file);
         if ((part.file as any).truncated) {
           await fs.rm(tmpAbs, { force: true });
           throw new HttpError(413, 'Adjunto demasiado grande (máx. 50 MB)');
@@ -52,12 +56,19 @@ export default async function resourcesRoutes(app: FastifyInstance, { ctx }: { c
   const { cfg, locks } = ctx;
 
   app.post('/api/capture', async (req) => {
-    const input = await readCaptureInput(req, ctx);
+    // Ajustes puede cambiar cfg durante una subida; toda la operación usa la misma raíz.
+    const destination = { ...cfg };
+    const input = await readCaptureInput(req, destination);
     try {
-      return await capture(cfg, input);
+      return await capture(destination, input);
     } finally {
       if (input.file) await fs.rm(input.file.tmpAbs, { force: true });
     }
+  });
+
+  app.get('/api/capture/operation', async (req) => {
+    const q = req.query as Record<string, unknown>;
+    return captureOperationState({ ...cfg }, q.operationId, q.libraryId);
   });
 
   app.get('/api/resources', async () => ({ items: await listResources(cfg) }));
