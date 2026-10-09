@@ -14,6 +14,7 @@ import { openFile, type FileParams } from '../state/workspace';
 export function ResourcePanel({ params }: IDockviewPanelProps<FileParams>) {
   const { path } = params;
   const [content, setContent] = useState<string | null>(null);
+  const [revision, setRevision] = useState<string>();
   const [error, setError] = useState<string | null>(null);
   const sub = useUI((s) => s.status?.resourcesSubdir ?? 'Recursos');
   const listItem = useUI((s) => s.resources?.find((r) => r.path === path));
@@ -23,7 +24,7 @@ export function ResourcePanel({ params }: IDockviewPanelProps<FileParams>) {
     const load = () =>
       api
         .readFile('notes', path)
-        .then((f) => alive && (setContent(f.content), setError(null)))
+        .then((f) => alive && (setContent(f.content), setRevision(f.rev), setError(null)))
         .catch((e) => alive && setError(errorMessage(e)));
     void load();
     const off = onFileChange((ev) => {
@@ -68,17 +69,17 @@ export function ResourcePanel({ params }: IDockviewPanelProps<FileParams>) {
         )}
         <div className="mb-4 flex flex-wrap items-center gap-1.5">
           {status !== 'revisado' && (
-            <Button onClick={() => setResourceStatus(path, 'revisado')}>
+            <Button onClick={() => setResourceStatus(path, 'revisado', revision)}>
               <Check size={12} /> Revisado
             </Button>
           )}
           {status !== 'descartado' && (
-            <Button onClick={() => setResourceStatus(path, 'descartado')}>
+            <Button onClick={() => setResourceStatus(path, 'descartado', revision)}>
               <Archive size={12} /> Descartar
             </Button>
           )}
           {status !== 'inbox' && (
-            <Button onClick={() => setResourceStatus(path, 'inbox')}>
+            <Button onClick={() => setResourceStatus(path, 'inbox', revision)}>
               <Inbox size={12} /> A la bandeja
             </Button>
           )}
@@ -86,7 +87,7 @@ export function ResourcePanel({ params }: IDockviewPanelProps<FileParams>) {
             <Pencil size={12} /> Editar nota
           </Button>
         </div>
-        <TagEditor tags={tags} onChange={(t) => setResourceTags(path, t)} />
+        <TagEditor tags={tags} onChange={(t) => setResourceTags(path, t, revision)} />
         {att && <Attachment path={att} />}
         <div className="mt-4">
           {split.body.trim() ? (

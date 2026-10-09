@@ -492,7 +492,7 @@ export const api = {
 
   resources: () => json<{ items: Resource[] }>('/api/resources'),
 
-  patchResource: (body: { path: string; status?: string; tags?: string[]; baseRev?: string }) =>
+  patchResource: (body: { path: string; status?: string; tags?: string[]; baseRev: string }) =>
     json<Resource & { rev: string; mtime: number }>('/api/resources', jsonBody('PATCH', body)),
 
   search: (q: string, root: Root | 'all' = 'all', signal?: AbortSignal) =>

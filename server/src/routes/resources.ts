@@ -75,7 +75,7 @@ export default async function resourcesRoutes(app: FastifyInstance, { ctx }: { c
       if (!Array.isArray(b.tags) && typeof b.tags !== 'string') throw badRequest('tags no válido');
       updates.tags = parseTags(b.tags);
     }
-    if (b.baseRev !== undefined && typeof b.baseRev !== 'string') throw badRequest('baseRev no válido');
+    if (typeof b.baseRev !== 'string' || !/^[a-f0-9]{16}$/.test(b.baseRev)) throw badRequest('baseRev obligatorio (revisión de 16 caracteres)');
     return locks.run(`notes:${r.rel}`, async () => {
       let current: Buffer;
       try {
@@ -85,7 +85,7 @@ export default async function resourcesRoutes(app: FastifyInstance, { ctx }: { c
         throw e;
       }
       const curRev = rev(current);
-      if (typeof b.baseRev === 'string' && b.baseRev !== curRev) {
+      if (b.baseRev !== curRev) {
         reply.code(409);
         return { error: 'conflict', content: current.toString('utf8'), rev: curRev };
       }

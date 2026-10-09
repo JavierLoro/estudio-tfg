@@ -89,7 +89,7 @@ Si `AUTH_TOKEN` está definido: cabecera `Authorization: Bearer <token>` o cooki
   - Adjunto en `RESOURCES_SUBDIR/adjuntos/` (nombre saneado, sin sobrescribir). Máx 50 MB.
   - → `{ path, title }`
 - `GET /api/resources` → `{ items: { path, title, url?, captured, status, tags, attachment? }[] }` (frontmatter de los `.md` de `RESOURCES_SUBDIR`, recientes primero).
-- `PATCH /api/resources` body `{ path, status?, tags?, baseRev? }` → actualiza solo esas claves del frontmatter, preservando el resto del archivo.
+- `PATCH /api/resources` body `{ path, status?, tags?, baseRev }` → actualiza solo esas claves del frontmatter, preservando el resto del archivo.
 
 ### Búsqueda
 - `GET /api/search?q&root=notes|memoria|all` → `{ items: { root, path, line, snippet }[] }` (máx 200, insensible a mayúsculas y tildes, también por nombre de archivo).
@@ -528,3 +528,9 @@ Los diagramas viven en la memoria: fuente en `diagramas/<nombre>.mmd` (Mermaid) 
 - En Windows, las comprobaciones de pertenencia equiparan una ruta de unidad o UNC con su variante extendida `\\?\` antes de calcular la relativa, manteniendo los límites de carpeta y de unidad.
 - El lanzador de desarrollo y el comprobador de plantilla reconocen su punto de entrada comparando las dos rutas canónicas, también cuando Windows utiliza un alias corto o cambia la capitalización.
 - Si Git rechaza un commit durante la actualización de plantilla, los avisos de conversión LF/CRLF se omiten del resumen cuando hay otras líneas de error, para conservar el motivo del rechazo. Si solo hay avisos, se mantienen.
+
+
+## Integridad de recursos (v0.15)
+
+- `PATCH /api/resources` exige `baseRev`: sha256 de los bytes actuales, truncado a 16 caracteres hexadecimales. Ausente o inválido: **400**, sin escritura ni historial. Obsoleto: **409** `{ error:"conflict", content, rev }`; válido: conserva el resto del archivo, crea historial y escribe atómicamente bajo el bloqueo de la nota.
+- La interfaz conserva el estado o las etiquetas pendientes en un diálogo de conflicto. «Recargar versión actual» muestra el archivo actual; «Reaplicar mi cambio» envía explícitamente la edición con esa revisión. Un nuevo conflicto vuelve a exigir revisión. «Descartar mi cambio» es explícito. Las acciones no restauran instantáneas antiguas de la lista ni reintentan sobrescrituras automáticamente.

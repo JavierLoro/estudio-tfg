@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { matchesShortcut } from './lib/shortcuts';
 import { registerTokenPrompt, type Status } from './api';
+import { ResourceConflictDialog } from './components/ResourceConflictDialog';
 import { CaptureModal } from './components/CaptureModal';
 import { ContextMenuHost } from './components/ContextMenu';
 import { Header } from './components/Header';
@@ -178,6 +179,7 @@ export function App() {
         </main>
       </div>
       <CaptureModal />
+      <ResourceConflictDialog />
       <QuickOpen />
       <MoveDialog />
       <NewDiagramDialog />
