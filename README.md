@@ -217,6 +217,10 @@ Este repositorio es **solo la herramienta**: código, la plantilla de la memoria
 - El servidor **se niega a arrancar** si `NOTES_DIR` o `MEMORIA_DIR` apuntan a una carpeta versionada del repo; dentro del repo solo se permite `workspace/`, que está ignorada.
 - Las mejoras a la plantilla se hacen en `templates/base/` (clase `estilo/memoria.cls` y archivos comunes) o en el perfil que toque. No se propagan solas a una memoria ya creada: para eso está «Actualizar plantilla».
 
+## Copias de seguridad
+
+Consulta [docs/RESPALDO.md](docs/RESPALDO.md) para respaldar notas, adjuntos, memoria y datos duraderos, verificar sus manifiestos SHA-256 y restaurarlos en otra ubicación. El historial, Git y la papelera no sustituyen una copia independiente. Los borradores y capturas pendientes del navegador necesitan atención aparte.
+
 ## Contribuir
 
 Lee antes [AGENTS.md](AGENTS.md) (reglas del proyecto) y [docs/CONTRACT.md](docs/CONTRACT.md) (especificación vinculante: cualquier cambio de API, eventos o comportamiento visible se refleja ahí, en una sección versionada).

@@ -240,7 +240,8 @@ it('publica eventos del traslado externo y mantiene la ficha anidada', async () 
   await fs.mkdir(R('externo'));
   const events: any[] = [];
   t.ctx.bus.on('change', (e) => events.push(e));
-  const watcher = startWatcher(t.cfg, t.ctx.bus);
+  // El sondeo evita la carrera del watcher nativo de macOS justo después de ready.
+  const watcher = startWatcher({ ...t.cfg, watchPolling: 'on' }, t.ctx.bus);
   await new Promise<void>((r) => watcher.once('ready', r));
   try {
     await fs.rename(R('new.md'), R('externo/ficha.md'));
