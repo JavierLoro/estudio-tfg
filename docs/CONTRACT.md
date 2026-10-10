@@ -571,6 +571,7 @@ Los diagramas viven en la memoria: fuente en `diagramas/<nombre>.mmd` (Mermaid) 
 
 ## Compilación con configuración controlada (v0.20)
 
+- La imagen TeX y el binario Node se fijan por digest multi-arquitectura. El inventario real de herramientas se registra al construir, al arrancar el worker y en `latexmk.txt` de cada compilación ejecutada, sin cambiar la respuesta HTTP ni los diagnósticos LaTeX. La referencia y su actualización mediante PR figuran en [worker/README.md](../worker/README.md).
 - El worker conserva su API de compilación por tar y SyncTeX. Desactiva los rc implícitos con `latexmk -norc`; solo configura biber con una asignación constante para usar `--noconf`. pdfLaTeX mantiene `-no-shell-escape`. No se admiten opciones ni configuraciones desde la petición.
 - Cada trabajo separa fuentes y runtime en un temporal propio, con entorno mínimo sin secretos ni configuración heredada. Usa `openout_any=p` para restringir escrituras de Kpathsea; no promete limitar lecturas con `openin_any` en TeX Live 2026 ni confinar todos los auxiliares. El contenedor no monta memoria/notas; los originales nunca se modifican.
 - Una compilación a la vez, máximo cuatro trabajos admitidos (incluyendo subida/extracción/cola); el exceso responde **503** `{ error: "El worker está ocupado; vuelve a intentarlo" }`. Timeout de proceso de 120 s por defecto, cancelación de descendientes y limpieza antes de devolver el resultado. Los límites de memoria/procesos/tmpfs dependen del despliegue.

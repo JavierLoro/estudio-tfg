@@ -30,6 +30,11 @@ test('seguridad de la compilación en el contenedor', { skip: !url || !output },
       const syn = zlib.gunzipSync(await fs.readFile(path.join(output, body.buildId, 'main.synctex.gz'))).toString();
       assert.match(syn, /Input:\d+:main\.tex/);
       assert.doesNotMatch(syn, /Input:\d+:\/tmp\/build-/);
+      const log = await fs.readFile(path.join(output, body.buildId, 'latexmk.txt'), 'utf8');
+      assert.match(log, /^Herramientas de esta imagen:/);
+      assert.match(log, /pdfTeX [^\n]+\(TeX Live \d{4}\)/);
+      assert.match(log, /Latexmk, [^\n]+Version [\d.]+/);
+      assert.match(log, /biber version: [\d.]+/);
     });
   }
   await t.test('shell-escape está desactivado', async () => {
@@ -55,5 +60,13 @@ test('seguridad de la compilación en el contenedor', { skip: !url || !output },
     assert.deepEqual(body.diagnostics, []);
     const log = await fs.readFile(path.join(output, body.buildId, 'latexmk.txt'), 'utf8');
     assert.match(log, /biber --noconf/);
+  });
+  await t.test('un bucle se cancela por timeout y el siguiente trabajo funciona', async () => {
+    const body = await compile({ 'main.tex': document.replace('Documento ficticio.', '\\def\\bucle{\\bucle}\\bucle') });
+    assert.equal(body.ok, false);
+    assert.equal(body.pdf, null);
+    assert.ok(body.diagnostics.some((d) => /Compilación cancelada: superó/.test(d.message)));
+    const next = await compile({});
+    assert.equal(next.ok, true, JSON.stringify(next.diagnostics));
   });
 });

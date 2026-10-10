@@ -32,6 +32,8 @@ El worker habitual tiene red para recibir HTTP. `-no-shell-escape` y `--noconf` 
 
 ## Verificación
 
+La CI limita el proceso a 30 s para comprobar un bucle inocuo, su cancelación y la recuperación del siguiente trabajo; el valor por defecto fuera de CI sigue siendo 120 s.
+
 `node --test worker/*.test.mjs` comprueba entorno, argumentos, admisión, cancelación y limpieza sin TeX. Contra un worker **de pruebas** con `/out` ficticio:
 
 ```sh

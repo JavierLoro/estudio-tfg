@@ -34,6 +34,10 @@ const SVG_TIMEOUT_MS = Number(process.env.SVG_TIMEOUT_MS || 20_000);
 const MAX_PDF_BYTES = 50 * 1024 * 1024;
 
 const BUILD_ID_RE = /^\d{8}-\d{6}-[0-9a-f]{6}$/;
+const toolchain = await fs.readFile(new URL('./toolchain.txt', import.meta.url), 'utf8').catch((err) => {
+  if (err.code !== 'ENOENT') throw err;
+  return 'Sin inventario de imagen (ejecución fuera de Docker).\n';
+});
 
 /** Entorno propio por trabajo: ningún ajuste del usuario/proyecto llega a las herramientas. */
 export function compileEnvironment(runtimeDir) {
@@ -177,7 +181,7 @@ async function compile(main, workDir, started = Date.now()) {
     );
 
     // Salida de latexmk (qué reglas corrió, bibtex/biber…), útil para depurar.
-    await fs.writeFile(path.join(outDir, 'latexmk.txt'), res.output.split(workDir + '/').join(''));
+    await fs.writeFile(path.join(outDir, 'latexmk.txt'), `Herramientas de esta imagen:\n${toolchain}\n${res.output.split(workDir + '/').join('')}`);
 
     const opts = { rootDir: workDir, mainFile: main };
     diagnostics.push(...parseLog(logText, opts));
@@ -376,6 +380,7 @@ export const server = http.createServer(async (req, res) => {
 // Solo arrancar si se ejecuta directamente (permite importar validateMain en tests).
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   if (!fss.existsSync(OUT_DIR)) fss.mkdirSync(OUT_DIR, { recursive: true });
+  console.log(`[worker] herramientas:\n${toolchain.trim()}`);
   server.requestTimeout = TIMEOUT_MS + 60_000;
   server.listen(PORT, '0.0.0.0', () => console.log(`[worker] escuchando en :${PORT} (out=${OUT_DIR}, tar máx. ${Math.round(MAX_TAR_BYTES / 1024 / 1024)} MB)`));
   for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => server.close(() => process.exit(0)));

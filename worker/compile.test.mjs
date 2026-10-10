@@ -85,6 +85,7 @@ test('compilar ignora rc, aísla temporales, conserva PDF/SyncTeX y borra el tra
   assert.deepEqual(options.env, compileEnvironment(path.join(path.dirname(options.cwd), 'runtime')));
   assert.equal(fs.existsSync(path.dirname(options.cwd)), false);
   assert.equal(fs.readFileSync(path.join(process.env.OUT_DIR, body.pdf), 'utf8').slice(0, 5), '%PDF-');
+  assert.match(fs.readFileSync(path.join(process.env.OUT_DIR, body.buildId, 'latexmk.txt'), 'utf8'), /^Herramientas de esta imagen:\n/);
   const syn = zlib.gunzipSync(fs.readFileSync(path.join(process.env.OUT_DIR, body.buildId, 'main.synctex.gz'))).toString();
   assert.equal(syn, 'Input:1:main.tex\n');
   assert.ok(kills.some(({ pid, signal }) => pid === -123456 && signal === 'SIGKILL'));

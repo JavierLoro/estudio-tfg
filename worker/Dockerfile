@@ -1,8 +1,9 @@
 # syntax=docker/dockerfile:1.7
 # Worker de compilación LaTeX (Estudio TFG)
-FROM node:24-slim AS node
+FROM node:24-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20 AS node
 
-FROM texlive/texlive:latest-full
+# TeX Live 2026; índice para linux/amd64 y linux/arm64, ver README (R8).
+FROM texlive/texlive@sha256:a7ae4dfa9d521b5db14446872fa488b839021d1f604d0a3c74461784895f2a67
 
 # Node: solo el binario (el worker no tiene dependencias npm).
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
@@ -46,6 +47,11 @@ RUN (getent passwd 1000 >/dev/null && userdel -r "$(getent passwd 1000 | cut -d:
 
 WORKDIR /app
 COPY server.mjs parse-log.mjs untar.mjs svg.mjs ./
+RUN { printf 'Distribución: ' && kpsewhich -var-value=TEXMFROOT \
+      && pdflatex --version && latexmk -norc -v && biber --noconf --version \
+      && printf 'Node: ' && node --version && rsvg-convert --version; \
+    } > /app/toolchain.txt \
+ && cat /app/toolchain.txt
 
 # Con raíz de solo lectura todo lo escribible vive en /tmp (tmpfs).
 ENV NODE_ENV=production \
