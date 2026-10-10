@@ -1,38 +1,29 @@
 import fs from 'node:fs/promises';
-import http from 'node:http';
-import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 import YAML from 'yaml';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { createMetadataFetcher } from '../src/metadataHttp.ts';
 import { extractTitle, localDate, sanitizeTitle } from '../src/capture.ts';
 import { parseFrontmatter } from '../src/frontmatter.ts';
 import { multipart, setup, type TestEnv } from './helpers.ts';
 
 let t: TestEnv;
-let site: http.Server;
-let siteUrl: string;
+const siteUrl = 'https://public.example';
 
-beforeAll(async () => {
-  site = http.createServer((req, res) => {
-    if (req.url === '/og') {
-      res.setHeader('content-type', 'text/html');
-      res.end('<html><head><title>Fallback</title><meta property="og:title" content="Artículo &amp; OG"></head><body></body></html>');
-    } else if (req.url === '/slow') {
-      setTimeout(() => res.end('<title>tarde</title>'), 6000);
-    } else {
-      res.setHeader('content-type', 'text/html; charset=utf-8');
-      res.end('<html><head><title>\n  Página de prueba: TFG  \n</title></head></html>');
-    }
-  });
-  await new Promise<void>((r) => site.listen(0, '127.0.0.1', r));
-  siteUrl = `http://127.0.0.1:${(site.address() as AddressInfo).port}`;
-});
-afterAll(async () => {
-  site.closeAllConnections();
-  await new Promise((r) => site.close(r));
-});
 beforeEach(async () => {
-  t = await setup();
+  const fetchMetadata = createMetadataFetcher({
+    lookup: async () => [{address:'8.8.8.8',family:4}],
+    request: async (url, _address, signal) => {
+      if (url.pathname === '/slow') await new Promise<void>((resolve,reject) => {
+        const timer = setTimeout(resolve,6000);
+        signal.addEventListener('abort', () => { clearTimeout(timer); reject(signal.reason); }, {once:true});
+      });
+      const body = url.pathname === '/og' ? '<html><head><title>Fallback</title><meta property="og:title" content="Artículo &amp; OG"></head></html>'
+        : '<html><head><title>\n  Página de prueba: TFG  \n</title></head></html>';
+      return {status:200,headers:{'content-type':'text/html'},body:Buffer.from(body)};
+    },
+  });
+  t = await setup({}, {fetchMetadata});
 });
 afterEach(async () => t.close());
 
@@ -98,7 +89,8 @@ describe('POST /api/capture', () => {
     const t0 = Date.now();
     const res = await post({ url: `${siteUrl}/slow` });
     expect(Date.now() - t0).toBeLessThan(5500);
-    expect(res.json().title).toBe('127.0.0.1');
+    expect(res.json().title).toBe('public.example');
+    expect(res.json().warning).toContain('4 segundos');
   }, 10000);
 
   it('explicit title skips the fetch', async () => {
@@ -166,4 +158,22 @@ describe('POST /api/capture', () => {
     const res = await t.app.inject({ method: 'POST', url: '/api/capture', payload: { note: 'json', title: 'J' } });
     expect(res.statusCode).toBe(200);
   });
+});
+
+
+it('conserva una URL privada como recurso manual con aviso, sin consultar el servidor', async () => {
+  const response = await post({url:'http://127.0.0.1/privado',note:'Referencia ficticia privada'});
+  expect(response.statusCode).toBe(200);
+  expect(response.json().warning).toContain('Destino privado');
+  expect(parseFrontmatter(await read(response.json().path)).data.url).toBe('http://127.0.0.1/privado');
+});
+
+it('el recibo conserva el aviso de metadatos al reintentar', async () => {
+  const {libraryId} = await import('../src/captureOperations.ts');
+  const input={url:'http://127.0.0.1/privado',operationId:'metadatos-privados',libraryId:libraryId(t.cfg)};
+  const first=await t.app.inject({method:'POST',url:'/api/capture',payload:input});
+  const second=await t.app.inject({method:'POST',url:'/api/capture',payload:input});
+  expect(first.statusCode).toBe(200);
+  expect(second.json()).toEqual(first.json());
+  expect(second.json().warning).toContain('Destino privado');
 });

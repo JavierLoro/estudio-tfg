@@ -18,7 +18,7 @@ export interface TestEnv {
 }
 
 /** Copy test/fixtures (notes) and the template (templates/base + perfil esi-uclm, as memoria) into a fresh temp dir and build an app pointing there. Never touches the real vault. */
-export async function setup(env: Record<string, string> = {}, opts: { watch?: boolean; before?: (dir: string) => Promise<void> } = {}): Promise<TestEnv> {
+export async function setup(env: Record<string, string> = {}, opts: { fetchMetadata?: Ctx['fetchMetadata']; watch?: boolean; before?: (dir: string) => Promise<void> } = {}): Promise<TestEnv> {
   const dir = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'estudio-tfg-test-')));
   await fs.cp(FIXTURES, path.join(dir, 'fixtures'), { recursive: true });
   await fs.mkdir(path.join(dir, 'fixtures', 'memoria'), { recursive: true });
@@ -41,7 +41,7 @@ export async function setup(env: Record<string, string> = {}, opts: { watch?: bo
     if (!p.startsWith(dir)) throw new Error(`Test config escapes temp dir: ${p}`);
   }
   await opts.before?.(dir);
-  const { app, ctx } = await buildApp(cfg, { serveWeb: false, watch: opts.watch });
+  const { app, ctx } = await buildApp(cfg, { serveWeb: false, watch: opts.watch, fetchMetadata: opts.fetchMetadata });
   await app.ready();
   return {
     dir,

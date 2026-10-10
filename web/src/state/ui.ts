@@ -77,6 +77,7 @@ interface UIState {
 
   resources: Resource[] | null;
   resourcesError: string | null;
+  resourcesWarnings: { path: string; message: string }[];
   refreshResources: () => Promise<void>;
 
   /** Se incrementa cada vez que se aplican ajustes nuevos (recargar búsquedas, listas…). */
@@ -192,10 +193,11 @@ export const useUI = create<UIState>((set, get) => ({
 
   resources: null,
   resourcesError: null,
+  resourcesWarnings: [],
   refreshResources: async () => {
     try {
       const r = await api.resources();
-      set({ resources: r.items, resourcesError: null });
+      set({ resources: r.items, resourcesError: null, resourcesWarnings: r.warnings ?? [] });
     } catch (e) {
       set({ resourcesError: errorMessage(e) });
     }

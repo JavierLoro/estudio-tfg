@@ -32,6 +32,7 @@ import statusRoutes from './routes/status.ts';
 import synctexRoutes from './routes/synctex.ts';
 
 export interface BuildOptions {
+  fetchMetadata?: Ctx['fetchMetadata'];
   logger?: boolean;
   bus?: EventBus;
   /** Serve web/dist if present (default true). */
@@ -46,7 +47,7 @@ const pickRoot = (v: unknown): RootName[] | null => (v === 'notes' || v === 'mem
 function rootsFor(method: string, url: string, query: any, body: any): RootName[] | null {
   const p = url.split('?')[0];
   if (p === '/api/tree' || p === '/api/file' || p === '/api/raw') return pickRoot(query?.root ?? body?.root) ?? [];
-  if (p.startsWith('/api/notes/') || p === '/api/resources' || p === '/api/capture') return ['notes'];
+  if (p.startsWith('/api/notes/') || p.startsWith('/api/resources') || p === '/api/capture') return ['notes'];
   if (p === '/api/dir' || p === '/api/move' || p === '/api/trash/restore') return pickRoot(body?.root) ?? [];
   if (p === '/api/search') return pickRoot(query?.root) ?? ROOTS;
   if (p === '/api/compile' && method === 'POST') return ['memoria'];
@@ -68,7 +69,7 @@ export async function buildApp(cfg: Config, opts: BuildOptions = {}): Promise<{ 
   settings.load();
   const outline = new OutlineService(cfg, compiler, bus);
   app.addHook('onClose', async () => outline.close());
-  const ctx: Ctx = { cfg, bus, compiler, locks: new KeyedLock(), settings, watcher, outline };
+  const ctx: Ctx = { fetchMetadata: opts.fetchMetadata, cfg, bus, compiler, locks: new KeyedLock(), settings, watcher, outline };
   await compiler.load();
   const captureProblems = await recoverCaptures({ ...cfg });
   for (const problem of captureProblems) app.log.warn({ problem }, 'Captura pendiente de recuperación');

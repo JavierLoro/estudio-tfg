@@ -5,6 +5,7 @@ import { buildResourceMarkdown, localDate, localIso, prepareCapture, sanitizeFil
 import { realpathLoose, type Config } from './config.ts';
 import { badRequest, HttpError } from './errors.ts';
 import { atomicWrite, createExclusive, KeyedLock } from './fsutil.ts';
+import type { MetadataFetcher } from './metadataHttp.ts';
 import { resolveSafe } from './paths.ts';
 
 const locks = new KeyedLock();
@@ -15,7 +16,7 @@ const OP_ID = /^[A-Za-z0-9-]{8,100}$/;
 interface Operation {
   version: 1;
   fingerprint: string;
-  result: { path: string; title: string };
+  result: { path: string; title: string; warning?: string };
   state: 'prepared' | 'done';
   markdown?: string;
   attachment?: { path: string; hash: string };
@@ -100,7 +101,7 @@ async function finish(cfg: Config, dir: string, op: Operation): Promise<Operatio
   return op.result;
 }
 
-export async function capture(cfg: Config, input: CaptureInput, now = new Date()): Promise<Operation['result']> {
+export async function capture(cfg: Config, input: CaptureInput, now = new Date(), fetchMetadata?: MetadataFetcher): Promise<Operation['result']> {
   const target = libraryId(cfg);
   if (input.operationId !== undefined && !OP_ID.test(input.operationId)) throw badRequest('operationId no válido');
   if (input.operationId && !input.libraryId) throw badRequest('libraryId es obligatorio con operationId');
@@ -124,7 +125,7 @@ export async function capture(cfg: Config, input: CaptureInput, now = new Date()
     }
     // Los nombres interrumpidos siguen reservados aunque falte la ficha.
     const reserved = await reservedPaths(cfg);
-    const prepared = await prepareCapture(input);
+    const prepared = await prepareCapture(input, fetchMetadata);
     const res = await resolveSafe(cfg, 'notes', cfg.resourcesSubdir);
     await fs.mkdir(res.abs, { recursive: true });
     let attachment: Operation['attachment'];
@@ -136,7 +137,7 @@ export async function capture(cfg: Config, input: CaptureInput, now = new Date()
     }
     const rel = await unusedPath(cfg, `${res.rel}/${localDate(now)} ${sanitizeTitle(prepared.title)}`, '.md', reserved);
     op = {
-      version: 1, fingerprint, state: 'prepared', result: { path: rel, title: prepared.title }, attachment,
+      version: 1, fingerprint, state: 'prepared', result: { path: rel, title: prepared.title, ...(prepared.warning ? {warning: prepared.warning} : {}) }, attachment,
       markdown: buildResourceMarkdown({ ...prepared, captured: localIso(now), tags: input.tags ?? [], attachment: attachment?.path.slice(res.rel.length + 1) }),
     };
     await fs.mkdir(dir, { recursive: true });

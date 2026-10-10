@@ -360,3 +360,6 @@ body.et-resizing, body.et-resizing * {
   stroke: #185fa5 !important;
   stroke-width: 2px !important;
 }
+
+/* El fondo del modal lo dibuja el componente; el navegador aplica la inactividad. */
+.et-modal::backdrop { background: transparent; }

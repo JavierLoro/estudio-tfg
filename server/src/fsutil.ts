@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileInUse } from './errors.ts';
 import type { Config } from './config.ts';
 import { isIgnoredName } from './ignore.ts';
-import { isInside, rootDir, type RootName } from './paths.ts';
+import { isInside, resolveSafe, rootDir, type RootName } from './paths.ts';
 
 export const TEXT_EXTS = new Set([
   '.md', '.tex', '.bib', '.sty', '.cls', '.txt', '.mmd', '.bst', '.json', '.yml', '.yaml',
@@ -199,18 +199,21 @@ export interface WalkedFile {
  * Recursively list non-ignored files of a root. Symlinks are followed only if
  * they stay inside the root; directory cycles are avoided.
  */
-export async function walkFiles(cfg: Config, root: RootName, opts: { includeSyncConflicts?: boolean } = {}): Promise<WalkedFile[]> {
-  const base = await fs.realpath(rootDir(cfg, root));
+export async function walkFiles(cfg: Config, root: RootName, opts: { includeSyncConflicts?: boolean; subdir?: string; onError?: (rel: string, error: unknown) => void } = {}): Promise<WalkedFile[]> {
+  const start = opts.subdir ? await resolveSafe(cfg, root, opts.subdir) : null;
+  if (start && !start.exists) return [];
+  const base = await fs.realpath(start?.abs ?? rootDir(cfg, root));
   const out: WalkedFile[] = [];
   const seen = new Set<string>();
   async function rec(dirAbs: string, dirRel: string) {
-    const real = await fs.realpath(dirAbs).catch(() => null);
+    const real = await fs.realpath(dirAbs).catch((e) => { opts.onError?.(dirRel, e); return null; });
     if (!real || !isInside(base, real) || seen.has(real)) return;
     seen.add(real);
     let ents;
     try {
       ents = await fs.readdir(dirAbs, { withFileTypes: true });
-    } catch {
+    } catch (e) {
+      opts.onError?.(dirRel, e);
       return;
     }
     for (const ent of ents) {
@@ -219,9 +222,9 @@ export async function walkFiles(cfg: Config, root: RootName, opts: { includeSync
       let isDir = ent.isDirectory();
       let isFile = ent.isFile();
       if (ent.isSymbolicLink()) {
-        const target = await fs.realpath(abs).catch(() => null);
+        const target = await fs.realpath(abs).catch((e) => { opts.onError?.(rel, e); return null; });
         if (!target || !isInside(base, target)) continue;
-        const st = await fs.stat(target).catch(() => null);
+        const st = await fs.stat(target).catch((e) => { opts.onError?.(rel, e); return null; });
         if (!st) continue;
         isDir = st.isDirectory();
         isFile = st.isFile();
@@ -235,6 +238,6 @@ export async function walkFiles(cfg: Config, root: RootName, opts: { includeSync
       else if (isFile && !opts.includeSyncConflicts) out.push({ rel, abs });
     }
   }
-  await rec(base, '');
+  await rec(base, start?.rel ?? '');
   return out;
 }

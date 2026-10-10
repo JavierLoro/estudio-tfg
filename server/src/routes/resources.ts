@@ -7,7 +7,7 @@ import { HttpError, badRequest, notFound } from '../errors.ts';
 import { setFrontmatterKeys } from '../frontmatter.ts';
 import { atomicWrite, backup, rev } from '../fsutil.ts';
 import { resolveSafe } from '../paths.ts';
-import { itemFromContent, listResources } from '../resources.ts';
+import { itemFromContent, listResources, readResourceFile } from '../resources.ts';
 
 async function readCaptureInput(req: FastifyRequest, cfg: Ctx['cfg']): Promise<CaptureInput> {
   const input: CaptureInput = {};
@@ -60,7 +60,7 @@ export default async function resourcesRoutes(app: FastifyInstance, { ctx }: { c
     const destination = { ...cfg };
     const input = await readCaptureInput(req, destination);
     try {
-      return await capture(destination, input);
+      return await capture(destination, input, undefined, ctx.fetchMetadata);
     } finally {
       if (input.file) await fs.rm(input.file.tmpAbs, { force: true });
     }
@@ -71,7 +71,11 @@ export default async function resourcesRoutes(app: FastifyInstance, { ctx }: { c
     return captureOperationState({ ...cfg }, q.operationId, q.libraryId);
   });
 
-  app.get('/api/resources', async () => ({ items: await listResources(cfg) }));
+  app.get('/api/resources', async () => listResources({ ...cfg }));
+  app.get('/api/resources/file', async (req) => {
+    try { return await readResourceFile({ ...cfg }, (req.query as Record<string, unknown>).path); }
+    catch (e: any) { if (e?.code === 'ENOENT') throw notFound('Recurso no encontrado'); throw e; }
+  });
 
   app.patch('/api/resources', async (req, reply) => {
     const b = (req.body ?? {}) as Record<string, unknown>;

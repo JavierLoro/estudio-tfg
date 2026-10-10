@@ -32,7 +32,7 @@ export function CaptureModal() {
   useEffect(() => {
     if (!open) return;
     setError(null);
-    setTimeout(() => urlRef.current?.focus(), 0);
+
   }, [open]);
 
   const reset = () => {
@@ -60,7 +60,7 @@ export function CaptureModal() {
     const r = await submitCapture({ url, note, title, tags, file });
     setBusy(false);
     if (r.kind === 'ok') {
-      toast({ kind: 'ok', text: `Guardado en ${r.path}`, action: { label: 'Abrir', run: () => openResource(r.path) } });
+      toast({ kind: r.warning ? 'warn' : 'ok', text: `Guardado en ${r.path}${r.warning ? `. ${r.warning}` : ''}`, action: { label: 'Abrir', run: () => openResource(r.path) } });
       reset();
       setOpen(false);
     } else if (r.kind === 'queued') {
