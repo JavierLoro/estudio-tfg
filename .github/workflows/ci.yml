@@ -66,11 +66,13 @@ jobs:
           echo "TEMPLATE_OUT=$RUNNER_TEMP/estudio-tfg-template" >> "$GITHUB_ENV"
           mkdir -p "$RUNNER_TEMP/estudio-tfg-template"
       - name: Construir el worker
-        run: docker build --tag estudio-tfg-worker:ci worker
+        run: docker build --pull --tag estudio-tfg-worker:ci worker
       - name: Arrancar el worker aislado
         run: |
           mkdir -p "$TEMPLATE_OUT"
-          docker run --detach --name estudio-tfg-ci-worker --user "$(id -u):$(id -g)" --publish 127.0.0.1:8097:8090 --volume "$TEMPLATE_OUT:/out" estudio-tfg-worker:ci
+          docker run --detach --init --name estudio-tfg-ci-worker --user "$(id -u):$(id -g)" --publish 127.0.0.1:8097:8090 --volume "$TEMPLATE_OUT:/out" --env COMPILE_TIMEOUT_MS=30000 --read-only --tmpfs /tmp:rw,exec,nosuid,size=1g,mode=1777 --cap-drop ALL --security-opt no-new-privileges --memory 2g --pids-limit 256 estudio-tfg-worker:ci
+      - name: Verificar configuraciones y límites de acceso con fuentes ficticias
+        run: WORKER_SECURITY_URL=http://127.0.0.1:8097 WORKER_SECURITY_OUT="$TEMPLATE_OUT" node --test worker/security.integration.test.mjs
       - name: Compilar todos los perfiles y exigir cero avisos
         run: node scripts/compile-template.mjs --worker-url http://127.0.0.1:8097 --output-dir "$TEMPLATE_OUT"
       - name: Guardar log del worker y detenerlo

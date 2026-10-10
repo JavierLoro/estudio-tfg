@@ -1,6 +1,6 @@
 # Worker LaTeX — Estudio TFG
 
-Servicio HTTP mínimo (Node 24, sin dependencias npm) sobre `texlive/texlive:latest-full`.
+Servicio HTTP mínimo (Node 24, sin dependencias npm) sobre TeX Live 2026 fijado por digest.
 Contrato: `docs/CONTRACT.md` → «Worker».
 
 | Archivo | Qué es |
@@ -40,10 +40,32 @@ docker build -t estudio-tfg-worker worker
 docker run -d --init -p 127.0.0.1:8090:8090 \
   -v "$PWD/data/builds:/out" \
   --read-only --tmpfs /tmp:rw,exec,size=1g --cap-drop ALL \
-  --security-opt no-new-privileges --memory 2g estudio-tfg-worker
+  --security-opt no-new-privileges --memory 2g --pids-limit 256 estudio-tfg-worker
 ```
 
 Variables: `PORT` (8090), `OUT_DIR` (/out), `COMPILE_TIMEOUT_MS` (120000), `KEEP_BUILDS` (10), `MAX_TAR_BYTES` (200 MB), `SVG_TIMEOUT_MS` (20000).
+
+## Referencia de compilación y actualizaciones (R8)
+
+Verificada el 10-10-2026 en el registro y mediante construcción limpia. `worker/Dockerfile` fija el **índice multi-arquitectura**, no una etiqueta mutable:
+
+| Base | Digest del índice | Plataformas del worker |
+| --- | --- | --- |
+| `texlive/texlive` (TeX Live 2026 full) | `sha256:a7ae4dfa9d521b5db14446872fa488b839021d1f604d0a3c74461784895f2a67` | `linux/amd64`, `linux/arm64` |
+| `node:24-slim` (solo binario, 24.21.0) | `sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20` | Ambas plataformas anteriores |
+
+Manifiestos TeX: amd64 `sha256:f1c4d2c23f297caee8654dc23eed022c854ca59e899e40666abbd45bab70dceb`; arm64 `sha256:edfd6b7f6096846ee26364c363d237ca041828bac8daaa9ceb1040f4891db323`. Docker Desktop ejecuta estas imágenes Linux; no son imágenes Windows nativas.
+
+Referencia: **pdfTeX 1.40.29, Kpathsea 6.4.2, latexmk 4.88, biber 2.22, TeX Live 2026**. Al construir se genera `/app/toolchain.txt` con las versiones reales, también Node y rsvg-convert. El worker lo imprime al arrancar y lo incluye en `latexmk.txt` de cada compilación ejecutada. Fuera de la imagen se indica explícitamente la ausencia de inventario. No cambia la respuesta HTTP ni se añaden avisos LaTeX.
+
+Actualizar requiere un **PR explícito**:
+
+1. Resolver la referencia candidata con `docker buildx imagetools inspect texlive/texlive:<etiqueta-candidata>` y comprobar amd64/arm64. Guardar su digest de índice en `FROM`; actualizar esta tabla. Node se actualiza de la misma forma si procede.
+2. Construir desde cero: `docker build --pull --no-cache -t estudio-tfg-worker:revision worker`. Revisar `/app/toolchain.txt` y las versiones obtenidas en ambos hosts/runners.
+3. Arrancar un worker de pruebas con carpeta `/out` ficticia y los límites del ejemplo. Ejecutar tests unitarios, integración de seguridad y `scripts/compile-template.mjs` con esa carpeta. Exigir ambos perfiles con **0 avisos LaTeX/biber**, SyncTeX y CI completa en verde; adjuntar versiones/resultados al PR.
+4. Para volver atrás, revertir el commit que cambió los digests **en una rama** y abrir un PR con las mismas verificaciones. Se recupera la distribución anterior mientras el registro conserve sus blobs; conservar la imagen construida si se necesita recuperación sin registro. No se ejecuta `tlmgr update` al arrancar.
+
+La CI compila todos los perfiles y conserva `latexmk.txt` y el log del worker con su inventario. No publica imágenes ni añade CD. Fijar TeX/Node no promete una imagen idéntica byte a byte: los paquetes auxiliares de Debian instalados con apt siguen su repositorio. Tampoco se promete identidad binaria de PDFs con fechas/metadatos variables. El futuro motor local E2 deberá registrar y contrastar sus versiones con esta referencia, sin exigir una instalación idéntica.
 
 ## Qué hace `POST /compile`
 
@@ -51,8 +73,8 @@ Petición: `Content-Type: application/x-tar` (si no, **415**), cabecera `X-Main:
 
 1. Valida `main` (`X-Main`): relativa, termina en `.tex`, sin `..`, sin `/` inicial, sin segmentos que empiecen por `-` (evita que se cuele como opción de latexmk) → si no, **400**.
 2. Extrae el tar en streaming en `/tmp/build-XXXX` (`untar.mjs`, sin usar el binario `tar`). Se aceptan solo archivos regulares y carpetas (ustar, prefijo, PAX `path`/`size`, nombres largos GNU). Se **rechaza con 400** (y se borra el temporal) cualquier entrada absoluta, con `..`, `\` o NUL, enlaces simbólicos o duros, dispositivos, FIFOs u otros tipos, checksums incorrectos o tars truncados; más de 50 000 entradas también. Más de 200 MB (por `Content-Length` o contando bytes) → **413**. Como solo se crean carpetas y archivos regulares, ninguna escritura puede seguir un symlink.
-3. Cola: una compilación a la vez; las peticiones concurrentes esperan su turno (la extracción ocurre antes de entrar en la cola).
-4. `latexmk -pdf -interaction=nonstopmode -file-line-error -synctex=1 -no-shell-escape <main>` en su propio grupo de procesos; al pasar el timeout se mata el grupo (SIGTERM, y SIGKILL a los 2 s). Con `max_print_line=10000` para que el log no se corte a 79 columnas.
+3. Cola: una compilación a la vez y cuatro trabajos admitidos entre subida, extracción, cola y ejecución; el exceso responde **503**. Las fuentes se extraen en `/tmp/build-XXXX/sources` y HOME/temporales/cachés se crean aparte en `runtime`, con entorno mínimo sin heredar configuración ni secretos.
+4. `latexmk -norc -e '$biber = "biber --noconf %O %B";' -pdf -interaction=nonstopmode -file-line-error -synctex=1 -no-shell-escape <main>` en su propio grupo de procesos; al pasar el timeout se mata el grupo (SIGTERM, y SIGKILL a los 2 s). Con `max_print_line=10000` para que el log no se corte a 79 columnas. Política y límites reales: [SEGURIDAD-COMPILACION.md](../docs/SEGURIDAD-COMPILACION.md).
 5. Escribe en `/out/<buildId>/` (`buildId` = `AAAAMMDD-HHMMSS-xxxxxx`, UTC):
    - `main.log` (siempre), `main.pdf` y `main.synctex.gz` (solo si `ok`), `latexmk.txt` (salida de latexmk; extra para depurar).
    - Los nombres son fijos aunque `main` se llame distinto. En el synctex se reescriben las rutas del temporal a rutas relativas al proyecto (`Input:1:main.tex`).
