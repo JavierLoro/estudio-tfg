@@ -40,7 +40,7 @@ docker build -t estudio-tfg-worker worker
 docker run -d --init -p 127.0.0.1:8090:8090 \
   -v "$PWD/data/builds:/out" \
   --read-only --tmpfs /tmp:rw,exec,size=1g --cap-drop ALL \
-  --security-opt no-new-privileges --memory 2g estudio-tfg-worker
+  --security-opt no-new-privileges --memory 2g --pids-limit 256 estudio-tfg-worker
 ```
 
 Variables: `PORT` (8090), `OUT_DIR` (/out), `COMPILE_TIMEOUT_MS` (120000), `KEEP_BUILDS` (10), `MAX_TAR_BYTES` (200 MB), `SVG_TIMEOUT_MS` (20000).
@@ -51,8 +51,8 @@ Petición: `Content-Type: application/x-tar` (si no, **415**), cabecera `X-Main:
 
 1. Valida `main` (`X-Main`): relativa, termina en `.tex`, sin `..`, sin `/` inicial, sin segmentos que empiecen por `-` (evita que se cuele como opción de latexmk) → si no, **400**.
 2. Extrae el tar en streaming en `/tmp/build-XXXX` (`untar.mjs`, sin usar el binario `tar`). Se aceptan solo archivos regulares y carpetas (ustar, prefijo, PAX `path`/`size`, nombres largos GNU). Se **rechaza con 400** (y se borra el temporal) cualquier entrada absoluta, con `..`, `\` o NUL, enlaces simbólicos o duros, dispositivos, FIFOs u otros tipos, checksums incorrectos o tars truncados; más de 50 000 entradas también. Más de 200 MB (por `Content-Length` o contando bytes) → **413**. Como solo se crean carpetas y archivos regulares, ninguna escritura puede seguir un symlink.
-3. Cola: una compilación a la vez; las peticiones concurrentes esperan su turno (la extracción ocurre antes de entrar en la cola).
-4. `latexmk -pdf -interaction=nonstopmode -file-line-error -synctex=1 -no-shell-escape <main>` en su propio grupo de procesos; al pasar el timeout se mata el grupo (SIGTERM, y SIGKILL a los 2 s). Con `max_print_line=10000` para que el log no se corte a 79 columnas.
+3. Cola: una compilación a la vez y cuatro trabajos admitidos entre subida, extracción, cola y ejecución; el exceso responde **503**. Las fuentes se extraen en `/tmp/build-XXXX/sources` y HOME/temporales/cachés se crean aparte en `runtime`, con entorno mínimo sin heredar configuración ni secretos.
+4. `latexmk -norc -e '$biber = "biber --noconf %O %B";' -pdf -interaction=nonstopmode -file-line-error -synctex=1 -no-shell-escape <main>` en su propio grupo de procesos; al pasar el timeout se mata el grupo (SIGTERM, y SIGKILL a los 2 s). Con `max_print_line=10000` para que el log no se corte a 79 columnas. Política y límites reales: [SEGURIDAD-COMPILACION.md](../docs/SEGURIDAD-COMPILACION.md).
 5. Escribe en `/out/<buildId>/` (`buildId` = `AAAAMMDD-HHMMSS-xxxxxx`, UTC):
    - `main.log` (siempre), `main.pdf` y `main.synctex.gz` (solo si `ok`), `latexmk.txt` (salida de latexmk; extra para depurar).
    - Los nombres son fijos aunque `main` se llame distinto. En el synctex se reescriben las rutas del temporal a rutas relativas al proyecto (`Input:1:main.tex`).

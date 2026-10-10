@@ -35,6 +35,23 @@ const MAX_PDF_BYTES = 50 * 1024 * 1024;
 
 const BUILD_ID_RE = /^\d{8}-\d{6}-[0-9a-f]{6}$/;
 
+/** Entorno propio por trabajo: ningún ajuste del usuario/proyecto llega a las herramientas. */
+export function compileEnvironment(runtimeDir) {
+  return {
+    PATH: '/usr/local/bin:/usr/bin:/bin',
+    LANG: 'C.UTF-8', LC_ALL: 'C.UTF-8',
+    HOME: path.join(runtimeDir, 'home'),
+    TMPDIR: path.join(runtimeDir, 'tmp'),
+    TEXMFHOME: path.join(runtimeDir, 'texmf-home'),
+    TEXMFVAR: path.join(runtimeDir, 'texmf-var'),
+    TEXMFCONFIG: path.join(runtimeDir, 'texmf-config'),
+    TEXMFCACHE: path.join(runtimeDir, 'texmf-cache'),
+    // Kpathsea limita escrituras; openin_any ya no protege lecturas en TeX Live 2026.
+    openout_any: 'p', shell_escape: '0',
+    max_print_line: '10000', error_line: '254', half_error_line: '238',
+  };
+}
+
 /** Valida `main`: relativa, sin "..", sin opciones disfrazadas, .tex. Devuelve la ruta normalizada o null. */
 export function validateMain(main) {
   if (typeof main !== 'string' || !main || main.length > 255) return null;
@@ -70,13 +87,15 @@ function run(cmd, args, { cwd, timeoutMs, env, input }) {
     child.stdout.on('data', onData);
     child.stderr.on('data', onData);
     let timedOut = false;
+    let killTimer;
     const killGroup = (sig) => {
       try { process.kill(-child.pid, sig); } catch { /* ya terminó */ }
     };
     const timer = setTimeout(() => {
       timedOut = true;
       killGroup('SIGTERM');
-      setTimeout(() => killGroup('SIGKILL'), 2000).unref();
+      killTimer = setTimeout(() => killGroup('SIGKILL'), 2000);
+      killTimer.unref();
     }, timeoutMs);
     child.on('error', (err) => {
       clearTimeout(timer);
@@ -84,6 +103,7 @@ function run(cmd, args, { cwd, timeoutMs, env, input }) {
     });
     child.on('close', (code, signal) => {
       clearTimeout(timer);
+      clearTimeout(killTimer);
       killGroup('SIGKILL'); // por si quedó algún nieto
       resolve({ code: code ?? (signal ? 128 : -1), timedOut, output });
     });
@@ -117,7 +137,7 @@ async function pruneBuilds() {
   }
 }
 
-/** Compila `main` dentro de `workDir` (fuentes ya extraídas). Borra `workDir` al terminar. */
+/** Compila `main` dentro de `workDir` (fuentes ya extraídas). */
 async function compile(main, workDir, started = Date.now()) {
   const buildId = newBuildId();
   const outDir = path.join(OUT_DIR, buildId);
@@ -135,19 +155,16 @@ async function compile(main, workDir, started = Date.now()) {
       return { ok, buildId, durationMs: Date.now() - started, pdf, log: `${buildId}/main.log`, diagnostics };
     }
 
+    const env = compileEnvironment(path.join(path.dirname(workDir), 'runtime'));
+    await Promise.all(['HOME', 'TMPDIR', 'TEXMFHOME', 'TEXMFVAR', 'TEXMFCONFIG', 'TEXMFCACHE']
+      .map((key) => fs.mkdir(env[key], { recursive: true })));
     const res = await run(
       'latexmk',
-      ['-pdf', '-interaction=nonstopmode', '-file-line-error', '-synctex=1', '-no-shell-escape', main],
+      ['-norc', '-e', '$biber = "biber --noconf %O %B";', '-pdf', '-interaction=nonstopmode', '-file-line-error', '-synctex=1', '-no-shell-escape', main],
       {
         cwd: workDir,
         timeoutMs: TIMEOUT_MS,
-        env: {
-          ...process.env,
-          // Logs sin cortar a 79 columnas: parseo más fiable.
-          max_print_line: '10000',
-          error_line: '254',
-          half_error_line: '238',
-        },
+        env,
       },
     );
 
@@ -192,7 +209,6 @@ async function compile(main, workDir, started = Date.now()) {
     diagnostics.unshift({ severity: 'error', file: main, line: null, message: `Error interno del worker: ${err.message}` });
     await fs.writeFile(path.join(outDir, 'main.log'), String(err.stack || err)).catch(() => {});
   } finally {
-    await fs.rm(workDir, { recursive: true, force: true }).catch(() => {});
     await pruneBuilds().catch((e) => console.error(`[worker] prune: ${e.message}`));
   }
 
@@ -208,6 +224,8 @@ async function compile(main, workDir, started = Date.now()) {
 
 // Cola: una compilación a la vez.
 let queue = Promise.resolve();
+let pendingCompiles = 0;
+const MAX_PENDING_COMPILES = 4;
 function enqueue(fn) {
   const p = queue.then(fn, fn);
   queue = p.catch(() => {});
@@ -240,16 +258,24 @@ export async function handleCompile(req, res) {
   if (Number.isFinite(len) && len > MAX_TAR_BYTES) {
     return reject(req, res, 413, `El tar supera el máximo de ${Math.round(MAX_TAR_BYTES / 1024 / 1024)} MB`);
   }
+  if (pendingCompiles >= MAX_PENDING_COMPILES) return reject(req, res, 503, 'El worker está ocupado; vuelve a intentarlo');
+  pendingCompiles++;
   const started = Date.now();
-  const workDir = await fs.mkdtemp(path.join(os.tmpdir(), 'build-'));
+  let jobDir;
+  let result;
   try {
+    jobDir = await fs.mkdtemp(path.join(os.tmpdir(), 'build-'));
+    const workDir = path.join(jobDir, 'sources');
+    await fs.mkdir(workDir);
     await extractTar(req, workDir, { maxBytes: MAX_TAR_BYTES });
+    result = await enqueue(() => compile(main, workDir, started));
   } catch (err) {
-    await fs.rm(workDir, { recursive: true, force: true }).catch(() => {});
     if (err?.status) return reject(req, res, err.status, err.message);
     throw err;
+  } finally {
+    if (jobDir) await fs.rm(jobDir, { recursive: true, force: true }).catch(() => {});
+    pendingCompiles--;
   }
-  const result = await enqueue(() => compile(main, workDir, started));
   console.log(`[worker] ${result.buildId} ok=${result.ok} ${result.durationMs} ms, ${result.diagnostics.length} diagnósticos`);
   return send(res, 200, result);
 }
