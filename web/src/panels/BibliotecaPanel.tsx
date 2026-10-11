@@ -10,6 +10,7 @@ import { formatDate } from '../lib/paths';
 import { useUI } from '../state/ui';
 import { useCaptureQueue } from '../state/captureQueue';
 import { openResource } from '../state/workspace';
+import BibliographyImportDialog from '../components/BibliographyImportDialog';
 
 export default function BibliotecaPanel() {
   const resources = useUI((s) => s.resources),
@@ -22,6 +23,7 @@ export default function BibliotecaPanel() {
   const [filters, setFilters] = useState<LibraryFilters>(() => load(key, DEFAULT_FILTERS));
   const [grid, setGrid] = useState(() => load('et:library-grid', false)),
     [migration, setMigration] = useState(false);
+  const [importing,setImporting]=useState(false);
   useEffect(() => {
     setFilters(load(key, DEFAULT_FILTERS));
     void useUI.getState().refreshResources();
@@ -46,6 +48,7 @@ export default function BibliotecaPanel() {
             <p className="mt-1 text-[12px] text-muted">Referencias, documentos, imágenes y webs para tus trabajos.</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Button onClick={()=>setImporting(true)}>Importar bibliografía</Button>
             <Button onClick={() => setMigration(true)}>Formato y recuperación</Button>
             <Button onClick={() => void useUI.getState().refreshResources()} title="Recargar Biblioteca">
               <RefreshCw size={13} />
@@ -224,6 +227,7 @@ export default function BibliotecaPanel() {
         </ul>
       </div>
       <LibraryMigrationDialog open={migration} onClose={() => setMigration(false)} />
+      {importing&&<BibliographyImportDialog onClose={()=>setImporting(false)}/>}
     </div>
   );
 }

@@ -7,7 +7,8 @@ import { parseFrontmatter, setFrontmatterKeys, splitFrontmatter } from './frontm
 export const RESOURCE_KINDS = ['article', 'book', 'document', 'image', 'web', 'note', 'other'] as const;
 export type ResourceKind = typeof RESOURCE_KINDS[number];
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-export type Bibliography = { authority: 'library'; entryType: string; key?: string; fields: Record<string, string> }
+export interface BibliographyOrigin { format:'bibtex'|'ris'|'doi'; hash:string; index:number }
+export type Bibliography = { authority: 'library'; entryType: string; key?: string; fields: Record<string, string>; source?:BibliographyOrigin; sources?:BibliographyOrigin[] }
   | { authority: 'manual'; path: string; key: string };
 export interface LibraryData {
   version: 1;
@@ -49,6 +50,8 @@ export function validateBibliography(value: unknown): Bibliography | undefined {
   if (value === undefined) return undefined;
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw badRequest('Referencia bibliográfica no válida');
   const b = value as any;
+  const origin=(s:any)=>s&&['bibtex','ris','doi'].includes(s.format)&&typeof s.hash==='string'&&/^[a-f0-9]{64}$/.test(s.hash)&&Number.isInteger(s.index)&&s.index>=0&&s.index<100;
+  if((b.source!==undefined&&!origin(b.source))||(b.sources!==undefined&&(!Array.isArray(b.sources)||b.sources.length>100||b.sources.some((s:any)=>!origin(s))))) throw badRequest('Vínculo al original bibliográfico no válido');
   if (b.authority === 'manual' && typeof b.path === 'string' && /\.bib$/i.test(b.path) && typeof b.key === 'string' && b.key && !b.fields && !b.entryType) {
     if (!relativeAttachment(b.path) || b.path.split('/').includes('..')) throw badRequest('Ruta de bibliografía manual no válida');
     return b;

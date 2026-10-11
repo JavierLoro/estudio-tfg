@@ -111,7 +111,8 @@ export interface Resource {
 }
 
 export type ResourceKind = 'article' | 'book' | 'document' | 'image' | 'web' | 'note' | 'other';
-export type Bibliography = { authority: 'library'; entryType: string; key?: string; fields: Record<string, string> }
+export interface BibliographyOrigin { format:'bibtex'|'ris'|'doi'; hash:string; index:number }
+export type Bibliography = { authority: 'library'; entryType: string; key?: string; fields: Record<string, string>;source?:BibliographyOrigin;sources?:BibliographyOrigin[] }
   | { authority: 'manual'; path: string; key: string };
 export interface ResourceChanges {
   status?: string; tags?: string[]; title?: string; kind?: ResourceKind; note?: string;
@@ -133,6 +134,15 @@ export interface MigrationPreview {
   warnings: { path: string; message: string }[];
   operations: MigrationOperation[];
 }
+export interface BibliographySource { format:'bibtex'|'ris'|'doi'; text:string }
+export interface ImportChoice {
+  index:number; action:'create'|'associate'|'merge'|'skip'; title:string; key:string; entryType:string; fields:Record<string,string>; targetId?:string; baseRev?:string;
+}
+export interface ImportCandidate { id:string; path:string; title:string; baseRev:string; reason:string; exact:boolean; manual:boolean }
+export interface ImportPreview { libraryId:string; source:BibliographySource; warning?:string; items:(Omit<ImportChoice,'action'> & {error?:string;candidates:ImportCandidate[]})[] }
+export interface ImportResult {index:number;state:'done'|'error'|'skipped';path?:string;id?:string;error?:string;duplicate?:boolean}
+export interface ImportRequest {operationId:string;libraryId:string;source:BibliographySource;items:ImportChoice[]}
+export interface ImportOperation extends ImportRequest {results:ImportResult[]}
 
 export interface SearchItem {
   root: Root;
@@ -533,6 +543,9 @@ export const api = {
 
   resourceFile: (path: string) => json<ResourceFile>(`/api/resources/file?${qs({ path })}`),
   migrationPreview: () => json<MigrationPreview>('/api/library/migration'),
+  importPreview: (input:BibliographySource|{format:'doi';doi:string})=>json<ImportPreview>('/api/library/import/preview',jsonBody('POST',input)),
+  importBibliography: (input:ImportRequest)=>json<{operationId:string;results:ImportResult[]}>('/api/library/import',jsonBody('POST',input)),
+  importOperations: ()=>json<{libraryId:string;items:ImportOperation[]}>('/api/library/import/operations'),
   migrate: (operationId: string, items: MigrationSelection[], libraryId: string) => json<MigrationOperation>('/api/library/migration', jsonBody('POST', { operationId, libraryId, items: items.map(({path,baseRev,id,proposalRev}) => ({path,baseRev,id,proposalRev})) })),
   retryMigration: (id: string) => json<MigrationOperation>(`/api/library/migration/${encodeURIComponent(id)}/retry`, { method: 'POST' }),
   undoMigration: (id: string) => json<MigrationOperation>(`/api/library/migration/${encodeURIComponent(id)}/undo`, { method: 'POST' }),

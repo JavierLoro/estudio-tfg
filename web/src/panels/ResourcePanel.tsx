@@ -8,7 +8,7 @@ import { openActions } from '../components/OpenActions';
 import { ext, formatDate, basename } from '../lib/paths';
 import { ResourceEditor } from '../components/ResourceEditor';
 import { LibraryMigrationDialog } from '../components/LibraryMigrationDialog';
-import { KIND_LABEL, resourceKind, safeUrl } from '../lib/library';
+import { BIB_FIELD_LABEL, KIND_LABEL, resourceKind, safeUrl } from '../lib/library';
 import { onFileChange } from '../state/events';
 import { STATUS_LABEL, useResourceEdit } from '../state/resources';
 import { useUI } from '../state/ui';
@@ -121,6 +121,19 @@ export function ResourcePanel({ params }: IDockviewPanelProps<FileParams>) {
           {item.bibliography && (
             <section className="my-4 rounded border border-line bg-soft p-3 text-[12px]">
               <h2 className="mb-1 font-semibold">Referencia bibliográfica</h2>
+              {item.bibliography.authority === 'library' && item.bibliography.source && (
+                <a
+                  className="text-accent hover:underline"
+                  target="_blank"
+                  rel="noreferrer"
+                  href={api.rawUrl(
+                    'notes',
+                    `${useUI.getState().status?.resourcesSubdir ?? 'Recursos'}/originales/${item.bibliography.source.hash}.${item.bibliography.source.format === 'bibtex' ? 'bib' : item.bibliography.source.format === 'ris' ? 'ris' : 'json'}`,
+                  )}
+                >
+                  Abrir original bibliográfico
+                </a>
+              )}
               {item.bibliography.authority === 'manual' ? (
                 <p>
                   {item.bibliography.path} · {item.bibliography.key}
@@ -131,9 +144,7 @@ export function ResourcePanel({ params }: IDockviewPanelProps<FileParams>) {
                     .filter(([, value]) => value)
                     .map(([key, value]) => (
                       <div key={key}>
-                        <dt className="inline font-medium">
-                          {({ author: 'Autor/es', year: 'Año', doi: 'DOI' } as Record<string, string>)[key] ?? key}:{' '}
-                        </dt>
+                        <dt className="inline font-medium">{BIB_FIELD_LABEL[key] ?? `Campo: ${key}`}: </dt>
                         <dd className="inline break-words">{value}</dd>
                       </div>
                     ))}
@@ -159,10 +170,13 @@ export function ResourcePanel({ params }: IDockviewPanelProps<FileParams>) {
             <p className="mt-6 text-[11px] text-faint">
               Procedencia:{' '}
               {(
-                { file: 'Archivo añadido', url: 'Enlace añadido', manual: 'Ficha manual', legacy: 'Recurso anterior' } as Record<
-                  string,
-                  string
-                >
+                {
+                  file: 'Archivo añadido',
+                  url: 'Enlace añadido',
+                  manual: 'Ficha manual',
+                  legacy: 'Recurso anterior',
+                  bibliography: 'Bibliografía importada',
+                } as Record<string, string>
               )[String(item.provenance.method)] ?? String(item.provenance.method)}
             </p>
           )}
@@ -211,9 +225,13 @@ function Attachment({ path }: { path: string }) {
       {isImg && <img src={url} alt={basename(path)} className="max-h-[480px] w-full object-contain p-2" />}
       {e === 'pdf' && (
         <div role="region" aria-label={`PDF: ${basename(path)}`} className="relative h-[520px]">
-          <Suspense fallback={
-            <div className="flex h-full items-center justify-center"><Spinner /></div>
-          }>
+          <Suspense
+            fallback={
+              <div className="flex h-full items-center justify-center">
+                <Spinner />
+              </div>
+            }
+          >
             <PdfViewer url={url} synctex={false} />
           </Suspense>
         </div>
