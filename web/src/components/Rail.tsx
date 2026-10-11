@@ -1,4 +1,4 @@
-import { BookMarked, FileCode2, Home, Inbox, Plus, Search, Settings, Workflow } from 'lucide-react';
+import { BookMarked, FileCode2, Home, Plus, Search, Settings, Workflow } from 'lucide-react';
 import { useUI, type Section } from '../state/ui';
 import { openHome, openSettings, useActivePanel } from '../state/workspace';
 import { kbd } from '../lib/kbd';
@@ -9,7 +9,7 @@ const ITEMS: { id: Section; label: string; icon: React.ReactNode }[] = [
   { id: 'memoria', label: 'Memoria', icon: <FileCode2 size={19} /> },
   { id: 'diagramas', label: 'Diagramas', icon: <Workflow size={19} /> },
   { id: 'notes', label: 'Notas', icon: <BookMarked size={19} /> },
-  { id: 'resources', label: 'Recursos', icon: <Inbox size={19} /> },
+  { id: 'resources', label: 'Biblioteca', icon: <BookMarked size={19} /> },
   { id: 'search', label: 'Buscar', icon: <Search size={19} /> },
 ];
 
@@ -42,6 +42,7 @@ export function Rail() {
   const open = useUI((s) => s.sidebarOpen);
   const setSection = useUI((s) => s.setSection);
   const homeView = useUI((s) => s.homeView);
+  const libraryView = useUI((s) => s.libraryView);
   const inbox = useUI((s) => s.resources?.filter((r) => r.status === 'inbox').length ?? 0);
   const settingsActive = useActivePanel((s) => s.id === 'settings');
   const unconfigured = useUI((s) => s.status?.configured === false);
@@ -58,7 +59,7 @@ export function Rail() {
         <RailButton
           key={it.id}
           label={it.label}
-          active={!homeView && open && section === it.id}
+          active={it.id==='resources' ? libraryView : !homeView && !libraryView && open && section === it.id}
           onClick={() => setSection(it.id)}
         >
           {it.icon}
@@ -70,7 +71,7 @@ export function Rail() {
         </RailButton>
       ))}
       <div className="flex-1" />
-      <RailButton label={`Capturar (${kbd(shortcutFor('capture'))})`} onClick={() => useUI.getState().setCaptureOpen(true)}>
+      <RailButton label={`Añadir (${kbd(shortcutFor('capture'))})`} onClick={() => useUI.getState().setCaptureOpen(true)}>
         <Plus size={19} />
       </RailButton>
       <RailButton label="Ajustes" active={settingsActive} onClick={() => openSettings()}>

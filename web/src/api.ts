@@ -5,6 +5,7 @@ export type Root = 'notes' | 'memoria';
 export interface Status {
   /** v0.16: identidad del vault y su carpeta de recursos. */
   libraryId?: string;
+  libraryError?: string;
   notesDir: string;
   memoriaDir: string;
   memoriaMain: string;
@@ -96,6 +97,41 @@ export interface Resource {
   tags: string[];
   attachment?: string;
   rev?: string;
+  id?: string | null;
+  schemaVersion?: 0 | 1;
+  kind?: ResourceKind;
+  urls?: string[];
+  attachments?: string[];
+  collections?: string[];
+  bibliography?: Bibliography;
+  provenance?: Record<string, unknown>;
+  note?: string;
+  libraryError?: string;
+  thumbnailPath?: string;
+}
+
+export type ResourceKind = 'article' | 'book' | 'document' | 'image' | 'web' | 'note' | 'other';
+export type Bibliography = { authority: 'library'; entryType: string; key?: string; fields: Record<string, string> }
+  | { authority: 'manual'; path: string; key: string };
+export interface ResourceChanges {
+  status?: string; tags?: string[]; title?: string; kind?: ResourceKind; note?: string;
+  urls?: string[]; collections?: string[]; attachments?: string[]; bibliography?: Bibliography;
+}
+export interface ResourceFile extends FileResponse {
+  item: Resource;
+  attachmentPath: string | null;
+  attachmentWarning?: string;
+  attachments: { name: string; value: string; path: string | null; warning?: string }[];
+}
+export interface MigrationOperation {
+  id: string; createdAt: string; state: 'prepared' | 'done' | 'undoing' | 'undone'; total: number; applied: number; error?: string;
+}
+export interface MigrationSelection { path: string; baseRev: string; id: string; proposalRev: string }
+export interface MigrationPreview {
+  libraryId: string;
+  items: (MigrationSelection & { title: string; after: string; warnings: string[] })[];
+  warnings: { path: string; message: string }[];
+  operations: MigrationOperation[];
 }
 
 export interface SearchItem {
@@ -490,16 +526,20 @@ export const api = {
 
   backlinks: (path: string) => json<{ items: Backlink[] }>(`/api/notes/backlinks?${qs({ path })}`),
 
-  capture: (form: FormData) => json<{ path: string; title: string; warning?: string }>('/api/capture', { method: 'POST', body: form }),
+  capture: (form: FormData) => json<{ path: string; title: string; id?: string; warning?: string }>('/api/capture', { method: 'POST', body: form }),
 
   captureOperation: (operationId: string, libraryId: string) =>
     json<{ state: 'unknown' | 'prepared' | 'done' }>(`/api/capture/operation?${qs({ operationId, libraryId })}`),
 
-  resourceFile: (path: string) => json<FileResponse & { attachmentPath: string | null; attachmentWarning?: string }>(`/api/resources/file?${qs({ path })}`),
+  resourceFile: (path: string) => json<ResourceFile>(`/api/resources/file?${qs({ path })}`),
+  migrationPreview: () => json<MigrationPreview>('/api/library/migration'),
+  migrate: (operationId: string, items: MigrationSelection[], libraryId: string) => json<MigrationOperation>('/api/library/migration', jsonBody('POST', { operationId, libraryId, items: items.map(({path,baseRev,id,proposalRev}) => ({path,baseRev,id,proposalRev})) })),
+  retryMigration: (id: string) => json<MigrationOperation>(`/api/library/migration/${encodeURIComponent(id)}/retry`, { method: 'POST' }),
+  undoMigration: (id: string) => json<MigrationOperation>(`/api/library/migration/${encodeURIComponent(id)}/undo`, { method: 'POST' }),
 
   resources: () => json<{ items: Resource[]; warnings?: { path: string; message: string }[] }>('/api/resources'),
 
-  patchResource: (body: { path: string; status?: string; tags?: string[]; baseRev: string }) =>
+  patchResource: (body: ResourceChanges & { path: string; baseRev: string; libraryId?: string }) =>
     json<Resource & { rev: string; mtime: number }>('/api/resources', jsonBody('PATCH', body)),
 
   search: (q: string, root: Root | 'all' = 'all', signal?: AbortSignal) =>

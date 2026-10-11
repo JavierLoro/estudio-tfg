@@ -47,6 +47,8 @@ interface UIState {
 
   /** Vista Inicio a pantalla completa en el área central (el espacio de trabajo se conserva oculto). */
   homeView: boolean;
+  libraryView: boolean;
+  showLibrary: () => void;
   showHome: () => void;
   hideHome: () => void;
 
@@ -108,12 +110,14 @@ export const useUI = create<UIState>((set, get) => ({
   section: sidebarSaved.section,
   sidebarOpen: sidebarSaved.open,
   setSection: (s) => {
-    const { section, sidebarOpen, homeView } = get();
+    if (s === 'resources') { get().showLibrary(); return; }
+    const { section, sidebarOpen, homeView, libraryView } = get();
     // Clic en la sección activa: pliega/despliega (salvo si se vuelve desde Inicio).
-    const open = s === section && !homeView ? !sidebarOpen : true;
-    set({ section: s, sidebarOpen: open, homeView: false });
+    const open = s === section && !homeView && !libraryView ? !sidebarOpen : true;
+    set({ section: s, sidebarOpen: open, homeView: false, libraryView: false });
     save(SIDEBAR_KEY, { section: s, open });
     save(HOME_KEY, false);
+    save('et:library-view', false);
   },
   sidebarWidth: clampWidth(load<number>(SIDEBAR_WIDTH_KEY, SIDEBAR_DEFAULT)),
   setSidebarWidth: (w, persist = true) => {
@@ -123,13 +127,17 @@ export const useUI = create<UIState>((set, get) => ({
   },
 
   homeView: load<boolean>(HOME_KEY, false),
+  libraryView: !load<boolean>(HOME_KEY, false) && load<boolean>('et:library-view', sidebarSaved.section === 'resources'),
+  showLibrary: () => { set({ libraryView: true, homeView: false }); save('et:library-view',true); save(HOME_KEY,false); },
   showHome: () => {
-    set({ homeView: true });
+    set({ homeView: true, libraryView: false });
+    save('et:library-view',false);
     save(HOME_KEY, true);
   },
   hideHome: () => {
-    if (!get().homeView) return;
-    set({ homeView: false });
+    if (!get().homeView && !get().libraryView) return;
+    set({ homeView: false, libraryView: false });
+    save('et:library-view',false);
     save(HOME_KEY, false);
   },
   toggleSidebar: () => {

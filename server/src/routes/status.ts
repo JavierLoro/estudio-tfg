@@ -25,6 +25,9 @@ export default async function statusRoutes(app: FastifyInstance, { ctx }: { ctx:
         (await walkFiles(cfg, root, { includeSyncConflicts: true }).catch(() => [])).map((f) => `${root}/${f.rel}`),
       ),
     ]);
+    let captureIdentity: { libraryId?: string; libraryError?: string };
+    try { captureIdentity = { libraryId: libraryId(cfg) }; }
+    catch (e) { captureIdentity = { libraryError: e instanceof Error ? e.message : 'Identidad de biblioteca no válida' }; }
     return {
       notesDir: cfg.notesDir,
       memoriaDir: cfg.memoriaDir,
@@ -35,7 +38,7 @@ export default async function statusRoutes(app: FastifyInstance, { ctx }: { ctx:
       ...(ctx.watcher?.status ?? { watcher: 'ok' }),
       configured: isConfigured(cfg),
       instanceId: instanceId(cfg),
-      libraryId: libraryId(cfg),
+      ...captureIdentity,
     };
   });
 }

@@ -30,6 +30,8 @@ import searchRoutes from './routes/search.ts';
 import settingsRoutes from './routes/settings.ts';
 import statusRoutes from './routes/status.ts';
 import synctexRoutes from './routes/synctex.ts';
+import libraryRoutes from './routes/library.ts';
+import { recoverMigrations } from './libraryMigration.ts';
 
 export interface BuildOptions {
   fetchMetadata?: Ctx['fetchMetadata'];
@@ -47,7 +49,7 @@ const pickRoot = (v: unknown): RootName[] | null => (v === 'notes' || v === 'mem
 function rootsFor(method: string, url: string, query: any, body: any): RootName[] | null {
   const p = url.split('?')[0];
   if (p === '/api/tree' || p === '/api/file' || p === '/api/raw') return pickRoot(query?.root ?? body?.root) ?? [];
-  if (p.startsWith('/api/notes/') || p.startsWith('/api/resources') || p === '/api/capture') return ['notes'];
+  if (p.startsWith('/api/notes/') || p.startsWith('/api/resources') || p.startsWith('/api/library/') || p === '/api/capture') return ['notes'];
   if (p === '/api/dir' || p === '/api/move' || p === '/api/trash/restore') return pickRoot(body?.root) ?? [];
   if (p === '/api/search') return pickRoot(query?.root) ?? ROOTS;
   if (p === '/api/compile' && method === 'POST') return ['memoria'];
@@ -71,6 +73,7 @@ export async function buildApp(cfg: Config, opts: BuildOptions = {}): Promise<{ 
   app.addHook('onClose', async () => outline.close());
   const ctx: Ctx = { fetchMetadata: opts.fetchMetadata, cfg, bus, compiler, locks: new KeyedLock(), settings, watcher, outline };
   await compiler.load();
+  for (const problem of await recoverMigrations({ ...ctx, cfg: { ...cfg } })) app.log.warn({ problem }, 'Biblioteca pendiente de recuperación');
   const captureProblems = await recoverCaptures({ ...cfg });
   for (const problem of captureProblems) app.log.warn({ problem }, 'Captura pendiente de recuperación');
   if (watcher) {
@@ -79,7 +82,7 @@ export async function buildApp(cfg: Config, opts: BuildOptions = {}): Promise<{ 
   }
 
   await app.register(multipart, {
-    limits: { fileSize: MAX_UPLOAD, files: 1, fields: 20, fieldSize: 5 * 1024 * 1024 },
+    limits: { fileSize: MAX_UPLOAD, files: 20, fields: 20, fieldSize: 5 * 1024 * 1024 },
   });
 
   app.addHook('onRequest', async (req, reply) => {
@@ -116,7 +119,7 @@ export async function buildApp(cfg: Config, opts: BuildOptions = {}): Promise<{ 
     reply.code(status).send({ error: message });
   });
 
-  for (const plugin of [statusRoutes, filesRoutes, fileopsRoutes, notesRoutes, resourcesRoutes, searchRoutes, compileRoutes, synctexRoutes, memoriaRoutes, refsRoutes, diagramasRoutes, datosRoutes, plantillaRoutes, eventsRoutes, settingsRoutes]) {
+  for (const plugin of [statusRoutes, filesRoutes, fileopsRoutes, notesRoutes, resourcesRoutes, libraryRoutes, searchRoutes, compileRoutes, synctexRoutes, memoriaRoutes, refsRoutes, diagramasRoutes, datosRoutes, plantillaRoutes, eventsRoutes, settingsRoutes]) {
     await app.register(plugin, { ctx });
   }
 

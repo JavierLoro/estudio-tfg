@@ -1,200 +1,289 @@
 import { useEffect, useRef, useState } from 'react';
-import { Paperclip, Upload, X } from 'lucide-react';
-import { submitCapture } from '../state/captureQueue';
-import { toast, useUI } from '../state/ui';
+import { Upload, X } from 'lucide-react';
+import type { ResourceKind } from '../api';
+import { submitCaptureBatch, useCaptureQueue, type CaptureOutcome } from '../state/captureQueue';
+import { useUI } from '../state/ui';
 import { openResource } from '../state/workspace';
-import { kbd } from '../lib/kbd';
-import { shortcutFor } from '../lib/shortcuts';
+import { KIND_LABEL, kinds } from '../lib/library';
 import { Button, Modal, Spinner, cx } from './ui';
 
-const MAX_FILE = 50 * 1024 * 1024;
-
-function formatSize(n: number) {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
-}
-
 export function CaptureModal() {
-  const open = useUI((s) => s.captureOpen);
-  const setOpen = useUI((s) => s.setCaptureOpen);
-  const [url, setUrl] = useState('');
-  const [note, setNote] = useState('');
-  const [title, setTitle] = useState('');
-  const [tags, setTags] = useState('');
-  const [file, setFile] = useState<File | null>(null);
-  const [drag, setDrag] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const urlRef = useRef<HTMLInputElement>(null);
+  const open = useUI((s) => s.captureOpen),
+    setOpen = useUI((s) => s.setCaptureOpen);
+  const pending = useCaptureQueue((s) => s.items);
+  const [url, setUrl] = useState(''),
+    [title, setTitle] = useState(''),
+    [note, setNote] = useState('');
+  const [tags, setTags] = useState(''),
+    [collections, setCollections] = useState(''),
+    [kind, setKind] = useState('');
+  const [files, setFiles] = useState<File[]>([]),
+    [group, setGroup] = useState(false),
+    [drag, setDrag] = useState(false);
+  const [busy, setBusy] = useState(false),
+    [error, setError] = useState(''),
+    [progress, setProgress] = useState({ done: 0, total: 0 });
+  const [report, setReport] = useState<{ label: string; result: CaptureOutcome }[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
-
   useEffect(() => {
-    if (!open) return;
-    setError(null);
-
-  }, [open]);
-
-  const reset = () => {
-    setUrl('');
-    setNote('');
-    setTitle('');
-    setTags('');
-    setFile(null);
-    setError(null);
-  };
-
-  const canSave = !!(url.trim() || note.trim() || file) && !busy;
-
-  const submit = async () => {
-    if (!canSave) {
-      if (!busy) setError('Indica al menos una URL, una nota o un adjunto.');
-      return;
+    if (open) {
+      setError('');
+      setReport([]);
     }
-    if (file && file.size > MAX_FILE) {
-      setError('El adjunto supera el máximo de 50 MB.');
+  }, [open]);
+  const canSave = !!(url.trim() || title.trim() || note.trim() || files.length) && !busy;
+  const take = (next: File[]) => {
+    setFiles((previous) => [...previous, ...next]);
+    setError(next.some((file) => file.size > 50 * 1024 * 1024) ? 'Cada archivo debe ser menor de 50 MB.' : '');
+  };
+  const submit = async () => {
+    if (!canSave) return;
+    if (files.some((file) => file.size > 50 * 1024 * 1024)) {
+      setError('Cada archivo debe ser menor de 50 MB.');
       return;
     }
     setBusy(true);
-    setError(null);
-    const r = await submitCapture({ url, note, title, tags, file });
+    setError('');
+    const common = { url, title, note, tags, collections, kind: kind ? (kind as ResourceKind) : undefined, libraryVersion: 1 as const };
+    const inputs =
+      files.length > 1 && !group
+        ? files.map((file) => ({ ...common, title: title.trim() ? `${title} — ${file.name}` : undefined, files: [file] }))
+        : [{ ...common, files }];
+    const labels =
+      files.length > 1 && !group ? files.map((file) => file.name) : [title.trim() || url.trim() || files[0]?.name || 'Ficha manual'];
+    setProgress({ done: 0, total: inputs.length });
+    const response = await submitCaptureBatch(inputs, (done, total) => setProgress({ done, total }));
     setBusy(false);
-    if (r.kind === 'ok') {
-      toast({ kind: r.warning ? 'warn' : 'ok', text: `Guardado en ${r.path}${r.warning ? `. ${r.warning}` : ''}`, action: { label: 'Abrir', run: () => openResource(r.path) } });
-      reset();
-      setOpen(false);
-    } else if (r.kind === 'queued') {
-      toast({ kind: 'warn', text: 'Captura conservada en este navegador. Abre Pendientes para revisar el envío.' });
-      reset();
-      setOpen(false);
-    } else {
-      setError(r.message);
+    if (response.error) {
+      setError(response.error);
+      return;
     }
+    setReport(response.outcomes.map((result, i) => ({ label: labels[i], result })));
+    setFiles([]);
+    setTitle('');
+    setUrl('');
+    setNote('');
+    setTags('');
+    setCollections('');
+    setKind('');
+    if (fileRef.current) fileRef.current.value = '';
   };
-
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key !== 'Enter' || e.nativeEvent.isComposing) return;
-    const isTextarea = (e.target as HTMLElement).tagName === 'TEXTAREA';
-    // Enter guarda; en la nota, Shift-Enter hace salto de línea.
-    if (isTextarea && e.shiftKey) return;
-    e.preventDefault();
-    void submit();
-  };
-
-  const takeFile = (f: File | null | undefined) => {
-    if (!f) return;
-    setFile(f);
-    setError(f.size > MAX_FILE ? 'El adjunto supera el máximo de 50 MB.' : null);
-  };
-
-  const input = 'h-8 w-full rounded-md border border-line-strong bg-bg px-2 text-[13px] outline-none focus:border-accent';
-
+  const input = 'w-full rounded-md border border-line-strong bg-bg px-2 py-1.5 text-[13px] outline-none focus:border-accent';
   return (
     <Modal
       open={open}
-      onClose={() => !busy && setOpen(false)}
-      title="Capturar recurso"
-      labelledBy="et-capture-title"
-      width={540}
+      onClose={() => {
+        if (!busy) setOpen(false);
+      }}
+      title="Añadir a Biblioteca"
+      width={660}
       footer={
         <>
-          <span className="mr-auto text-[11px] text-faint">{kbd('Enter')} guarda · {kbd('Shift-Enter')} salto de línea en la nota · {kbd(shortcutFor('capture'))} abre</span>
-          <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
-            Cancelar
+          <span className="mr-auto text-[11px] text-faint">La clasificación es opcional.</span>
+          <Button disabled={busy} onClick={() => setOpen(false)}>
+            {report.length ? 'Listo' : 'Cancelar'}
           </Button>
-          <Button variant="primary" onClick={() => void submit()} disabled={!canSave}>
-            {busy && <Spinner size={11} />} Guardar
+          <Button variant="primary" disabled={!canSave} onClick={() => void submit()}>
+            {busy && <Spinner size={12} />} Añadir
           </Button>
         </>
       }
     >
       <div
-        className={cx('space-y-2.5 p-3', drag && 'bg-active')}
-        onKeyDown={onKeyDown}
+        className={cx('space-y-3 p-4', drag && 'bg-active')}
         onDragOver={(e) => {
           if (e.dataTransfer.types.includes('Files')) {
             e.preventDefault();
             setDrag(true);
           }
         }}
-        onDragLeave={(e) => {
-          if (e.currentTarget === e.target) setDrag(false);
-        }}
+        onDragLeave={() => setDrag(false)}
         onDrop={(e) => {
           e.preventDefault();
           setDrag(false);
-          takeFile(e.dataTransfer.files?.[0]);
+          if (!busy) take(Array.from(e.dataTransfer.files));
         }}
         onPaste={(e) => {
-          const f = e.clipboardData.files?.[0];
-          if (f) {
+          if (e.clipboardData.files.length && !busy) {
             e.preventDefault();
-            takeFile(f);
+            take(Array.from(e.clipboardData.files));
+          }
+        }}
+        onKeyDown={(e) => {
+          if (
+            e.key === 'Enter' &&
+            !e.nativeEvent.isComposing &&
+            (e.target as HTMLElement).tagName === 'INPUT' &&
+            !['checkbox', 'file'].includes((e.target as HTMLInputElement).type)
+          ) {
+            e.preventDefault();
+            void submit();
           }
         }}
       >
-        <div>
-          <label htmlFor="cap-url" className="mb-0.5 block text-[11.5px] font-medium text-muted">
-            URL
+        <p className="text-[12px] text-muted">
+          Pega una URL, añade archivos o crea una ficha con un título. Puedes completar sus datos después.
+        </p>
+        <label className="block text-[12px]">
+          URL
+          <input
+            className={input}
+            disabled={busy}
+            type="url"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://…"
+          />
+        </label>
+        <label className="block text-[12px]">
+          Título
+          <input
+            className={input}
+            disabled={busy}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Opcional para webs y archivos"
+          />
+        </label>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => fileRef.current?.click()}
+          className="flex min-h-20 w-full items-center justify-center gap-2 rounded-lg border border-dashed border-line-strong bg-soft text-[12px] text-muted hover:border-accent"
+        >
+          <Upload size={18} /> Arrastra archivos, pégalos o haz clic para elegirlos
+        </button>
+        <input
+          type="file"
+          multiple
+          tabIndex={-1}
+          ref={fileRef}
+          aria-label="Seleccionar archivos para Biblioteca"
+          className="sr-only"
+          disabled={busy}
+          onChange={(e) => {
+            take(Array.from(e.target.files ?? []));
+            e.target.value = '';
+          }}
+        />
+        {!!files.length && (
+          <ul className="max-h-36 overflow-auto space-y-1 text-[12px]">
+            {files.map((file, i) => (
+              <li key={i} className="flex items-center gap-2 rounded bg-soft p-2">
+                <span className="min-w-0 flex-1 truncate">{file.name}</span>
+                <span className="text-faint">{(file.size / 1024).toFixed(0)} KB</span>
+                <button
+                  type="button"
+                  disabled={busy}
+                  aria-label={`Quitar ${file.name}`}
+                  onClick={() => setFiles(files.filter((_, index) => index !== i))}
+                >
+                  <X size={13} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {files.length > 1 && (
+          <label className="flex gap-2 text-[12px]">
+            <input type="checkbox" disabled={busy} checked={group} onChange={(e) => setGroup(e.target.checked)} /> Agrupar estos archivos en
+            una sola ficha (por defecto, un recurso por archivo)
           </label>
-          <input id="cap-url" ref={urlRef} type="url" inputMode="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" className={input} />
-        </div>
-        <div>
-          <label htmlFor="cap-note" className="mb-0.5 block text-[11.5px] font-medium text-muted">
-            Nota
-          </label>
+        )}
+        <label className="block text-[12px]">
+          Notas
           <textarea
-            id="cap-note"
+            className={input}
+            disabled={busy}
+            rows={3}
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            rows={4}
-            placeholder="Por qué es útil, qué capítulo, cita…"
-            className={cx(input, 'h-auto resize-y py-1.5 leading-snug')}
+            placeholder="Ideas, por qué es útil, qué quieres recordar…"
           />
-        </div>
-        <div>
-          <span className="mb-0.5 block text-[11.5px] font-medium text-muted">Adjunto</span>
-          {file ? (
-            <div className="flex h-9 items-center gap-2 rounded-md border border-line bg-soft px-2 text-[12.5px]">
-              <Paperclip size={13} className="text-muted" />
-              <span className="min-w-0 flex-1 truncate">{file.name}</span>
-              <span className="text-[11px] text-faint">{formatSize(file.size)}</span>
-              <button type="button" aria-label="Quitar adjunto" className="text-faint hover:text-danger" onClick={() => setFile(null)}>
-                <X size={14} />
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              className={cx(
-                'flex h-14 w-full items-center justify-center gap-2 rounded-md border border-dashed text-[12px] text-muted hover:border-accent hover:text-fg',
-                drag ? 'border-accent text-accent' : 'border-line-strong',
-              )}
-            >
-              <Upload size={14} /> Arrastra un archivo aquí, pégalo o haz clic para elegirlo
-            </button>
-          )}
-          <input ref={fileRef} type="file" className="hidden" onChange={(e) => takeFile(e.target.files?.[0])} />
-        </div>
-        <div className="grid grid-cols-[1fr_160px] gap-2">
-          <div>
-            <label htmlFor="cap-title" className="mb-0.5 block text-[11.5px] font-medium text-muted">
-              Título <span className="font-normal text-faint">(opcional)</span>
+        </label>
+        <details>
+          <summary className="cursor-pointer text-[12px] text-accent">Tipo y organización opcionales</summary>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            <label className="text-[12px]">
+              Tipo
+              <select className={input} disabled={busy} value={kind} onChange={(e) => setKind(e.target.value)}>
+                <option value="">Detectar automáticamente</option>
+                {kinds.map((value) => (
+                  <option value={value} key={value}>
+                    {KIND_LABEL[value]}
+                  </option>
+                ))}
+              </select>
             </label>
-            <input id="cap-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Se toma de la página si lo dejas vacío" className={input} />
-          </div>
-          <div>
-            <label htmlFor="cap-tags" className="mb-0.5 block text-[11.5px] font-medium text-muted">
-              Etiquetas <span className="font-normal text-faint">(coma)</span>
+            <label className="text-[12px]">
+              Colecciones
+              <input
+                className={input}
+                disabled={busy}
+                value={collections}
+                onChange={(e) => setCollections(e.target.value)}
+                placeholder="Separadas por coma"
+              />
             </label>
-            <input id="cap-tags" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="cap2, estado-arte" className={input} />
+            <label className="text-[12px]">
+              Etiquetas
+              <input
+                className={input}
+                disabled={busy}
+                value={tags}
+                onChange={(e) => setTags(e.target.value)}
+                placeholder="Separadas por coma"
+              />
+            </label>
           </div>
-        </div>
+        </details>
+        {busy && (
+          <p role="status" className="text-[12px] text-accent">
+            Guardando {progress.done} de {progress.total}… El lote se conserva antes de enviarlo.
+          </p>
+        )}
         {error && (
           <p role="alert" className="text-[12px] text-danger">
             {error}
           </p>
+        )}
+        {!!report.length && (
+          <section aria-label="Resultado del alta" className="space-y-2 rounded border border-line bg-soft p-3 text-[12px]">
+            {report.map(({ label, result }, i) => (
+              <div key={i}>
+                <p className="font-medium">
+                  {label}: {result.kind === 'ok' ? 'Guardado' : 'Conservado en Pendientes'}
+                </p>
+                {result.kind === 'ok' ? (
+                  <>
+                    <Button
+                      onClick={() => {
+                        setOpen(false);
+                        openResource(result.path);
+                      }}
+                    >
+                      Abrir ficha
+                    </Button>
+                    {result.warning && <p className="text-warn">{result.warning}</p>}
+                  </>
+                ) : (
+                  <p className="text-warn">
+                    {pending.find((item) => item.id === ('operationId' in result ? result.operationId : undefined))?.lastError}
+                  </p>
+                )}
+              </div>
+            ))}
+            {report.some(({ result }) => result.kind !== 'ok') && (
+              <Button
+                onClick={() => {
+                  setOpen(false);
+                  useCaptureQueue.setState({ open: true });
+                }}
+              >
+                Revisar pendientes y reintentar
+              </Button>
+            )}
+          </section>
         )}
       </div>
     </Modal>

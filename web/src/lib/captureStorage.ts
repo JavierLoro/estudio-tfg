@@ -10,6 +10,11 @@ export interface QueuedCapture {
   note?: string;
   tags?: string;
   file?: { name: string; type: string; blob: Blob };
+  files?: { name: string; type: string; blob: Blob }[];
+  libraryVersion?: 1;
+  kind?: import('../api').ResourceKind;
+  collections?: string;
+  batchId?: string;
   lastError?: string;
   blocked?: boolean;
 }
@@ -52,6 +57,9 @@ function legacyBlob(dataUrl: string, type: string): Blob {
 }
 
 export const captureStorage = {
+  putMany: (items: QueuedCapture[]) => transaction<void>('readwrite', (tx) => {
+    for (const item of items) tx.objectStore('items').add(item);
+  }),
   read: () => transaction<QueuedCapture[]>('readonly', (tx, done) => {
     const r = tx.objectStore('items').getAll();
     r.onsuccess = () => done((r.result as QueuedCapture[]).sort((a, b) => a.createdAt - b.createdAt));

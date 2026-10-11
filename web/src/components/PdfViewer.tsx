@@ -1,4 +1,4 @@
-// Visor PDF basado en PDF.js (v0.4). Se carga en diferido desde PdfPanel para no
+// Visor PDF basado en PDF.js (v0.4). Se carga en diferido desde los paneles para no
 // engordar el bundle inicial; el worker de PDF.js va en su propio archivo.
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import * as pdfjs from 'pdfjs-dist';
@@ -25,7 +25,7 @@ const PERCENTS = [50, 75, 100, 125, 150, 200, 300];
 
 type Target = NonNullable<ReturnType<typeof usePdfView.getState>['target']>;
 
-export default function PdfViewer({ url }: { url: string }) {
+export default function PdfViewer({ url, synctex = true }: { url: string; synctex?: boolean }) {
   const container = useRef<HTMLDivElement>(null);
   const inner = useRef<HTMLDivElement>(null);
   const findInput = useRef<HTMLInputElement>(null);
@@ -105,7 +105,7 @@ export default function PdfViewer({ url }: { url: string }) {
 
     bus.on('pagechanging', ({ pageNumber }: { pageNumber: number }) => {
       setPage(pageNumber);
-      usePdfView.setState({ page: pageNumber });
+      if (synctex) usePdfView.setState({ page: pageNumber });
     });
     bus.on('scalechanging', ({ scale: s, presetValue }: { scale: number; presetValue?: string }) => {
       const value = presetValue && PRESETS.some(([k]) => k === presetValue) ? presetValue : String(s);
@@ -133,6 +133,7 @@ export default function PdfViewer({ url }: { url: string }) {
     let raf = 0;
     const updatePos = () => {
       raf = 0;
+      if (!synctex) return;
       try {
         const n = viewer.pagesCount;
         if (!n || !docRef.current || !hasSize()) return;
@@ -157,7 +158,7 @@ export default function PdfViewer({ url }: { url: string }) {
       if (!raf) raf = requestAnimationFrame(updatePos);
     };
     const onScroll = () => {
-      usePdfView.setState({ scrolledAt: performance.now() });
+      if (synctex) usePdfView.setState({ scrolledAt: performance.now() });
       schedulePos();
     };
     c.addEventListener('scroll', onScroll, { passive: true });
@@ -174,6 +175,7 @@ export default function PdfViewer({ url }: { url: string }) {
 
     // SyncTeX inverso. En captura, antes que los enlaces del PDF.
     const sourceAt = (e: MouseEvent, side: boolean) => {
+      if (!synctex) return;
       const pageEl = (e.target as HTMLElement).closest<HTMLElement>('.page');
       const n = Number(pageEl?.dataset.pageNumber);
       if (!pageEl || !n) return;
@@ -192,9 +194,10 @@ export default function PdfViewer({ url }: { url: string }) {
       if (e.button === 1) sourceAt(e, true);
     };
     const onMouseDown = (e: MouseEvent) => {
-      if (e.button === 1 && (e.target as HTMLElement).closest('.page')) e.preventDefault();
+      if (synctex && e.button === 1 && (e.target as HTMLElement).closest('.page')) e.preventDefault();
     };
     const onContextMenu = (e: MouseEvent) => {
+      if (!synctex) return;
       if (!(e.target as HTMLElement).closest('.page')) return;
       if (isMac && e.ctrlKey && e.shiftKey) {
         sourceAt(e, true);
@@ -214,7 +217,7 @@ export default function PdfViewer({ url }: { url: string }) {
       ro.disconnect();
       cancelAnimationFrame(raf);
       c.removeEventListener('scroll', onScroll);
-      usePdfView.setState({ pos: null });
+      if (synctex) usePdfView.setState({ pos: null });
       c.removeEventListener('wheel', onWheel);
       c.removeEventListener('click', onClick, true);
       c.removeEventListener('auxclick', onAuxClick, true);
@@ -225,7 +228,7 @@ export default function PdfViewer({ url }: { url: string }) {
       docRef.current = null;
       viewerRef.current = null;
     };
-  }, [applyScale, reveal]);
+  }, [applyScale, reveal, synctex]);
 
   // Cargar (o recargar tras compilar) conservando zoom y desplazamiento.
   useEffect(() => {
@@ -255,7 +258,7 @@ export default function PdfViewer({ url }: { url: string }) {
           }
           setLoading(false);
           setPage(viewer.currentPageNumber);
-          usePdfView.setState({ page: viewer.currentPageNumber });
+          if (synctex) usePdfView.setState({ page: viewer.currentPageNumber });
           if (pendingTarget.current) reveal(pendingTarget.current);
           // Si la búsqueda está abierta, rehacerla sobre el nuevo PDF.
           if (findOpen && query) dispatchFind(false, false);
@@ -265,7 +268,7 @@ export default function PdfViewer({ url }: { url: string }) {
         viewer.setDocument(doc);
         linkRef.current!.setDocument(doc, null);
         setPages(doc.numPages);
-        usePdfView.setState({ pages: doc.numPages });
+        if (synctex) usePdfView.setState({ pages: doc.numPages });
         void prev?.loadingTask.destroy();
       },
       (e: unknown) => {
@@ -280,10 +283,10 @@ export default function PdfViewer({ url }: { url: string }) {
       if (!done) void task.destroy();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [url]);
+  }, [url, synctex]);
 
   // Código → PDF: zonas pedidas desde el editor o la vista Documento.
-  const target = usePdfView((s) => s.target);
+  const target = usePdfView((s) => synctex ? s.target : null);
   useEffect(() => {
     if (!target) return;
     try {
@@ -397,9 +400,11 @@ export default function PdfViewer({ url }: { url: string }) {
           <Plus size={13} />
         </IconButton>
         <span className="flex-1" />
-        <span className="min-w-0 truncate text-faint" title={`${kbd('Mod-clic')} abre el código; ${sideHint()}, clic central o menú contextual lo abren al lado`}>
-          {kbd('Mod-clic')}: ir al código
-        </span>
+        {synctex && (
+          <span className="min-w-0 truncate text-faint" title={`${kbd('Mod-clic')} abre el código; ${sideHint()}, clic central o menú contextual lo abren al lado`}>
+            {kbd('Mod-clic')}: ir al código
+          </span>
+        )}
         <IconButton label={`Buscar en el PDF (${kbd('Mod-F')})`} active={findOpen} onClick={() => (findOpen ? closeFind() : openFind())}>
           <Search size={13} />
         </IconButton>

@@ -10,6 +10,10 @@ export interface CaptureInput {
   note?: string;
   tags?: string;
   file?: File | null;
+  files?: File[];
+  libraryVersion?: 1;
+  kind?: import('../api').ResourceKind;
+  collections?: string;
 }
 export const OFFLINE_FILE_LIMIT = 50 * 1024 * 1024;
 export const useCaptureQueue = create<{ items: QueuedCapture[]; open: boolean; busy: boolean; error: string | null }>(() => ({ items: [], open: false, busy: false, error: null }));
@@ -59,6 +63,10 @@ function form(item: QueuedCapture) {
   fd.set('libraryId', item.libraryId!);
   for (const key of ['url', 'title', 'note', 'tags'] as const) if (item[key] !== undefined) fd.set(key, item[key]!);
   if (item.file) fd.set('file', item.file.blob, item.file.name);
+  if (item.libraryVersion) fd.set('libraryVersion', String(item.libraryVersion));
+  if (item.kind) fd.set('kind', item.kind);
+  if (item.collections) fd.set('collections', item.collections);
+  for (const file of item.files ?? []) fd.append('files', file.blob, file.name);
   return fd;
 }
 
@@ -87,7 +95,7 @@ async function send(item: QueuedCapture): Promise<{ path: string; title: string;
 
 export type CaptureOutcome =
   | { kind: 'ok'; path: string; title: string; warning?: string }
-  | { kind: 'queued' }
+  | { kind: 'queued'; operationId?: string }
   | { kind: 'error'; message: string };
 
 export async function submitCapture(input: CaptureInput): Promise<CaptureOutcome> {
@@ -101,6 +109,8 @@ export async function submitCapture(input: CaptureInput): Promise<CaptureOutcome
         id: crypto.randomUUID(), createdAt: Date.now(), libraryId: status.libraryId,
         destination: `${status.notesDir}/${status.resourcesSubdir}`, url: input.url, title: input.title, note: input.note, tags: input.tags,
         file: input.file ? { name: input.file.name, type: input.file.type, blob: input.file } : undefined,
+        libraryVersion: input.libraryVersion, kind: input.kind, collections: input.collections,
+        files: input.files?.map((file) => ({ name: file.name, type: file.type, blob: file })),
       };
       // Si falla el commit, no se envía ni se publica nada en el estado de la cola.
       await put(item);
@@ -111,6 +121,42 @@ export async function submitCapture(input: CaptureInput): Promise<CaptureOutcome
       const message = storageError(e);
       useCaptureQueue.setState({ error: message });
       return { kind: 'error', message };
+    }
+  });
+}
+
+/** Persistir todo el lote en una transacción antes de intentar el primer envío. */
+export async function submitCaptureBatch(inputs: CaptureInput[], onProgress?: (done: number, total: number) => void): Promise<{ outcomes: CaptureOutcome[]; error?: string }> {
+  return exclusive(async () => {
+    try {
+      await initialize();
+      const status = useUI.getState().status;
+      if (!status?.libraryId) throw new Error('Conecta y confirma la biblioteca antes de añadir recursos');
+      const batchId = crypto.randomUUID();
+      const items: QueuedCapture[] = inputs.map((input) => {
+        const files = input.files ?? (input.file ? [input.file] : []);
+        if (files.length > 20 || files.some((file) => file.size > OFFLINE_FILE_LIMIT) || files.reduce((sum, file) => sum + file.size, 0) > 200 * 1024 * 1024) throw new Error('Máximo 20 archivos por ficha, 50 MB por archivo y 200 MB por ficha');
+        return { id: crypto.randomUUID(), batchId, createdAt: Date.now(), libraryId: status.libraryId,
+          destination: `${status.notesDir}/${status.resourcesSubdir}`, url: input.url, title: input.title, note: input.note, tags: input.tags,
+          libraryVersion: 1, kind: input.kind, collections: input.collections,
+          files: files.map((file) => ({name:file.name,type:file.type,blob:file})),
+        };
+      });
+      await captureStorage.putMany(items);
+      await refresh();
+      const outcomes: CaptureOutcome[] = [];
+      onProgress?.(0, items.length);
+      for (const item of items) {
+        const result = await send(item);
+        outcomes.push(result ? {kind:'ok',...result} : {kind:'queued',operationId:item.id});
+        onProgress?.(outcomes.length, items.length);
+      }
+      scheduleRetry();
+      return { outcomes };
+    } catch (e) {
+      const message = storageError(e);
+      useCaptureQueue.setState({ error: message });
+      return { outcomes: [], error: message };
     }
   });
 }
@@ -149,7 +195,7 @@ export async function assignCaptureDestination(id: string): Promise<void> {
   });
 }
 
-export async function editCapture(id: string, changes: Pick<QueuedCapture, 'url' | 'title' | 'note' | 'tags'>): Promise<boolean> {
+export async function editCapture(id: string, changes: Pick<QueuedCapture, 'url' | 'title' | 'note' | 'tags' | 'kind' | 'collections'>): Promise<boolean> {
   return exclusive(async () => {
     try {
       const item = (await initialize()).find((x) => x.id === id);

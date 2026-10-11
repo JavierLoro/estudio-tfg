@@ -93,8 +93,8 @@ export function Header() {
         </span>
       )}
 
-      <Button variant="primary" onClick={() => setCaptureOpen(true)} title={`Capturar (${kbd(shortcutFor('capture'))})`} className="h-7!">
-        <Plus size={13} /> Capturar
+      <Button variant="primary" onClick={() => setCaptureOpen(true)} title={`Añadir (${kbd(shortcutFor('capture'))})`} className="h-7!">
+        <Plus size={13} /> Añadir
       </Button>
     </header>
   );
