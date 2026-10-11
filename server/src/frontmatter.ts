@@ -49,16 +49,10 @@ export function yamlScalar(v: string): string {
  * Surgically set top-level keys in the frontmatter, preserving every other
  * line of the file byte-for-byte. Values may be strings or string arrays.
  */
-export function setFrontmatterKeys(src: string, updates: Record<string, string | string[]>): string {
+export function setFrontmatterKeys(src: string, updates: Record<string, unknown>): string {
   const s = splitFrontmatter(src);
   const eol = s.eol;
-  const render = (key: string, v: string | string[]): string[] => {
-    if (Array.isArray(v)) {
-      if (v.length === 0) return [`${key}: []`];
-      return [`${key}:`, ...v.map((t) => `  - ${yamlScalar(t)}`)];
-    }
-    return [`${key}: ${yamlScalar(v)}`];
-  };
+  const render = (key: string, v: unknown): string[] => YAML.stringify({ [key]: v }, { lineWidth: 0 }).trimEnd().split('\n');
 
   if (s.yaml === null) {
     const lines: string[] = [];

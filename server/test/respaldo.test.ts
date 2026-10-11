@@ -106,14 +106,14 @@ it('restaura una copia íntegra en otra ubicación, detecta interrupciones y abr
     expect((await app.inject('/api/file?root=memoria&path=bibliografia-prueba.bib')).json().content).toContain('@book{ficticio');
     expect((await app.inject('/api/settings')).json().values.notesDir).toBe(cfg.notesDir);
 
-    // Traslado: el registro antiguo se conserva, pero no se reasigna ni reenvía a otra biblioteca.
-    expect(libraryId(cfg)).not.toBe(oldId);
-    expect((await app.inject(`/api/capture/operation?operationId=recibo-pendiente&libraryId=${oldId}`)).statusCode).toBe(409);
+    // La identidad persistida acompaña al respaldo y recupera el destino tras trasladarlo.
+    expect(libraryId(cfg)).toBe(oldId);
+    expect((await app.inject(`/api/capture/operation?operationId=recibo-pendiente&libraryId=${oldId}`)).json().state).toBe('done');
     const journal = path.join(restored, 'datos/captures', oldId, 'recibo-pendiente');
-    expect(JSON.parse(await fs.readFile(path.join(journal, 'operation.json'), 'utf8')).state).toBe('prepared');
-    expect(await fs.readFile(path.join(journal, 'attachment'), 'utf8')).toBe('Adjunto pendiente ficticio');
+    expect(JSON.parse(await fs.readFile(path.join(journal, 'operation.json'), 'utf8')).state).toBe('done');
+    await expect(fs.stat(path.join(journal, 'attachment'))).rejects.toMatchObject({ code: 'ENOENT' });
     const pending = JSON.parse(await fs.readFile(path.join(journal, 'operation.json'), 'utf8'));
-    await expect(fs.stat(path.join(cfg.notesDir, pending.result.path))).rejects.toMatchObject({ code: 'ENOENT' });
+    expect(await fs.readFile(path.join(cfg.notesDir, pending.result.path), 'utf8')).toContain('Texto por recuperar');
   } finally { await app.close(); }
   // La prueba nunca sobrescribe origen ni copia verificada al configurar/abrir la restauración.
   for (const [name, source] of Object.entries(sources)) {

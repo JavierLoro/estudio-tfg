@@ -84,9 +84,9 @@ Sin verificación exitosa, la copia no se usa para reemplazar datos. Un manifies
 
 ### Identidad de capturas al trasladar
 
-`libraryId` deriva de la ruta canónica de `NOTES_DIR/RESOURCES_SUBDIR`. Restaurar en otra ruta canónica puede crear **otra identidad**: los recibos antiguos quedan conservados en `captures/<id-antiguo>`, pero no se recuperan/reenvían automáticamente al destino nuevo. La cola del navegador queda ligada al destino original y responderá 409 o pedirá volver a él. No renombres registros ni reasignes pendientes para saltarte esa protección.
+La Biblioteca preparada conserva su identidad en `<Recursos>/.biblioteca.json`. Incluye ese archivo oculto, las fichas/adjuntos y los registros `data/captures` y `data/library` al trasladar o restaurar. Copiados juntos, el destino conserva su identidad aunque cambie la ruta: se pueden recuperar operaciones interrumpidas y reintentar la misma cola sin duplicar éxitos. Usa un único destino activo; dos clones del mismo respaldo no son bibliotecas independientes.
 
-Para recuperación con pendientes, preserva la misma ruta canónica y subcarpeta **cuando el destino original ya no exista y se haya verificado la copia**; en Docker importa la ruta canónica dentro del contenedor. Así el servidor puede completar los registros `prepared` del destino original. Para un traslado que cambia identidad, resuelve primero los pendientes en la biblioteca original; si ya no está disponible, conserva perfil, registros, texto y adjuntos para recuperación explícita y revisada. La migración de identidad/cola entre ubicaciones no está implementada. Los conflictos de recuperación siguen el procedimiento de [capturas pendientes](../README.md#recuperar-capturas-pendientes).
+Los vaults antiguos **sin archivo de identidad** siguen usando el hash de su ruta canónica. Antes de trasladarlos, prepara la Biblioteca desde su vista previa (también sin convertir fichas); no cambia el ID anterior. Si el origen ya no existe y falta el archivo de identidad, el cambio de ruta crea otro destino y la cola no se reasigna automáticamente: conserva perfil/registros para recuperación explícita y revisada. No renombres recibos para saltarte esa protección. Los conflictos siguen el procedimiento de [capturas pendientes](../README.md#recuperar-capturas-pendientes) y [BIBLIOTECA.md](BIBLIOTECA.md).
 
 ## Elegir la recuperación
 

@@ -296,6 +296,23 @@ export function rewriteNote(src: string, oldPath: string, newPath: string, c: No
 
   const att = attachmentEdit(src, oldPath, newPath, c);
   if (att) edits.push(att);
+  const split = splitFrontmatter(src);
+  if (split.yaml !== null) {
+    const doc = YAML.parseDocument(split.yaml);
+    const library = doc.get('biblioteca', true);
+    if (!doc.errors.length && YAML.isMap(library)) {
+      const attachments = library.get('attachments', true);
+      if (YAML.isSeq(attachments)) for (const node of attachments.items) {
+        if (!YAML.isScalar(node) || typeof node.value !== 'string' || !node.range) continue;
+        // El esquema nuevo solo admite rutas relativas a la ficha, sin las variantes antiguas.
+        const old = path.posix.join(path.posix.dirname(oldPath), node.value);
+        if (!c.preSet.has(old)) continue;
+        const target = c.map.get(old) ?? old;
+        const next = path.posix.relative(path.posix.dirname(newPath), target);
+        if (next !== node.value) edits.push({ start: split.open.length + node.range[0], end: split.open.length + node.range[1], text: JSON.stringify(next) });
+      }
+    }
+  }
   return applyEdits(src, edits);
 }
 

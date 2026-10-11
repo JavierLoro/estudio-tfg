@@ -13,9 +13,10 @@ export function attachmentCandidates(note: string, value: string, resourcesSubdi
   ].filter((c, i, all) => c.path !== '..' && !c.path.startsWith('../') && !all.slice(0, i).some((p) => p.path === c.path));
 }
 
-export async function resolveAttachment(cfg: Config, note: string, value?: string): Promise<{ attachmentPath: string | null; attachmentWarning?: string }> {
+export async function resolveAttachment(cfg: Config, note: string, value?: string, relativeOnly = false): Promise<{ attachmentPath: string | null; attachmentWarning?: string }> {
   if (!value) return { attachmentPath: null };
-  const candidates = attachmentCandidates(note, value, cfg.resourcesSubdir);
+  const all = attachmentCandidates(note, value, cfg.resourcesSubdir);
+  const candidates = relativeOnly ? all.filter((candidate) => candidate.form === 'relative') : all;
   if (!candidates.length) return { attachmentPath: null, attachmentWarning: 'Ruta de adjunto no permitida' };
   const found: { path: string; form: string }[] = [];
   for (const candidate of candidates) {

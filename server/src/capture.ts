@@ -9,6 +9,7 @@ import { fetchPublicMetadata, type MetadataFetcher } from './metadataHttp.ts';
 import { HttpError, badRequest } from './errors.ts';
 import { yamlScalar } from './frontmatter.ts';
 import { isReservedName, resolveSafe } from './paths.ts';
+import type { ResourceKind } from './libraryModel.ts';
 
 export const MAX_UPLOAD = 50 * 1024 * 1024;
 
@@ -118,6 +119,9 @@ export function parseTags(v: unknown): string[] {
 }
 
 export interface CaptureInput {
+  libraryVersion?: 1;
+  kind?: ResourceKind;
+  collections?: string[];
   operationId?: string;
   libraryId?: string;
   url?: string;
@@ -126,6 +130,7 @@ export interface CaptureInput {
   tags?: string[];
   /** Temp file already written to the attachments folder. */
   file?: { tmpAbs: string; filename: string };
+  files?: { tmpAbs: string; filename: string }[];
 }
 
 export function buildResourceMarkdown(o: {
@@ -169,7 +174,7 @@ async function attachmentsDir(cfg: Config): Promise<string> {
 export async function prepareCapture(input: CaptureInput, fetchMetadata?: MetadataFetcher): Promise<{ title: string; url?: string; note?: string; warning?: string }> {
   const url = input.url?.trim() || undefined;
   const note = input.note?.trim() ? input.note : undefined;
-  if (!url && !note && !input.file) throw badRequest('Indica al menos una URL, una nota o un archivo');
+  if (!url && !note && !input.file && !input.files?.length && !(input.libraryVersion === 1 && input.title?.trim())) throw badRequest('Indica al menos una URL, una nota o un archivo');
 
   let title = input.title?.replace(/\s+/g, ' ').trim() || '';
   let warning: string | undefined;

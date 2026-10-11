@@ -15,7 +15,7 @@ import { isInside, normalizeRel, resolveSafe, rootDir, validateNewPath, type Roo
  */
 
 /** Clave de bloqueo para operaciones que cambian el árbol de una raíz (se serializan). */
-const treeKey = (root: RootName) => `${root}:\0tree`;
+export const treeKey = (root: RootName) => `${root}:\0tree`;
 
 const MAX_REWRITE = 2 * 1024 * 1024;
 
