@@ -128,6 +128,7 @@ export interface MigrationOperation {
 }
 export interface MigrationSelection { path: string; baseRev: string; id: string; proposalRev: string }
 export interface MigrationPreview {
+  libraryId: string;
   items: (MigrationSelection & { title: string; after: string; warnings: string[] })[];
   warnings: { path: string; message: string }[];
   operations: MigrationOperation[];
@@ -532,13 +533,13 @@ export const api = {
 
   resourceFile: (path: string) => json<ResourceFile>(`/api/resources/file?${qs({ path })}`),
   migrationPreview: () => json<MigrationPreview>('/api/library/migration'),
-  migrate: (operationId: string, items: MigrationSelection[]) => json<MigrationOperation>('/api/library/migration', jsonBody('POST', { operationId, items: items.map(({path,baseRev,id,proposalRev}) => ({path,baseRev,id,proposalRev})) })),
+  migrate: (operationId: string, items: MigrationSelection[], libraryId: string) => json<MigrationOperation>('/api/library/migration', jsonBody('POST', { operationId, libraryId, items: items.map(({path,baseRev,id,proposalRev}) => ({path,baseRev,id,proposalRev})) })),
   retryMigration: (id: string) => json<MigrationOperation>(`/api/library/migration/${encodeURIComponent(id)}/retry`, { method: 'POST' }),
   undoMigration: (id: string) => json<MigrationOperation>(`/api/library/migration/${encodeURIComponent(id)}/undo`, { method: 'POST' }),
 
   resources: () => json<{ items: Resource[]; warnings?: { path: string; message: string }[] }>('/api/resources'),
 
-  patchResource: (body: ResourceChanges & { path: string; baseRev: string }) =>
+  patchResource: (body: ResourceChanges & { path: string; baseRev: string; libraryId?: string }) =>
     json<Resource & { rev: string; mtime: number }>('/api/resources', jsonBody('PATCH', body)),
 
   search: (q: string, root: Root | 'all' = 'all', signal?: AbortSignal) =>

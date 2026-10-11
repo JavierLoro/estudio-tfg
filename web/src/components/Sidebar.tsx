@@ -1,13 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { sideHint } from '../lib/shortcuts';
-import { openActions } from './OpenActions';
-import { Archive, Check, ExternalLink, FilePlus2, FolderPlus, Inbox, Paperclip, Play, RefreshCw, Search as SearchIcon, Workflow, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { FilePlus2, FolderPlus, Play, RefreshCw, Search as SearchIcon, Workflow, X } from 'lucide-react';
 import type { Root } from '../api';
-import { formatDate, hostOf } from '../lib/paths';
 import { useCompile } from '../state/compile';
-import { STATUS_LABEL, setResourceStatus } from '../state/resources';
 import { SIDEBAR_DEFAULT, SIDEBAR_MAX, SIDEBAR_MIN, useUI, type Section } from '../state/ui';
-import { openResource, openSearch } from '../state/workspace';
+import { openSearch } from '../state/workspace';
 import { saveAndCompile } from '../panels/LatexPanel';
 import { FileTree } from './FileTree';
 import { createFileIn, createFolderIn } from '../state/files';
@@ -17,13 +13,13 @@ import { DiagramasSection } from './DiagramasSection';
 import { useOutline } from '../state/outline';
 import { load, save } from '../lib/storage';
 import { ScopeSelect, SearchResults } from './SearchView';
-import { Empty, IconButton, Spinner, cx } from './ui';
+import { Button, IconButton, Spinner, cx } from './ui';
 
 const TITLES: Record<Section, string> = {
   memoria: 'Memoria',
   diagramas: 'Diagramas',
   notes: 'Notas',
-  resources: 'Recursos',
+  resources: 'Biblioteca',
   search: 'Buscar',
 };
 
@@ -60,7 +56,7 @@ export function Sidebar() {
       {section === 'memoria' && <MemoriaSection />}
       {section === 'diagramas' && <DiagramasSection />}
       {section === 'notes' && <TreeSection root="notes" />}
-      {section === 'resources' && <ResourcesSection />}
+      {section === 'resources' && <div className="p-3"><Button onClick={()=>useUI.getState().showLibrary()}>Abrir Biblioteca</Button></div>}
       {section === 'search' && <SearchSection />}
       <ResizeHandle width={width} />
     </aside>
@@ -184,155 +180,6 @@ function TreeSection({ root }: { root: Root }) {
   );
 }
 
-
-type StatusFilter = 'inbox' | 'revisado' | 'descartado' | 'all';
-
-function ResourcesSection() {
-  const resources = useUI((s) => s.resources);
-  const error = useUI((s) => s.resourcesError);
-  const warnings = useUI((s) => s.resourcesWarnings);
-  const [status, setStatus] = useState<StatusFilter>('inbox');
-  const [tag, setTag] = useState('');
-  const [text, setText] = useState('');
-  useEffect(() => {
-    void useUI.getState().refreshResources();
-  }, []);
-
-  const tags = useMemo(() => {
-    const s = new Set<string>();
-    for (const r of resources ?? []) for (const t of r.tags ?? []) if (t !== 'recurso') s.add(t);
-    return [...s].sort((a, b) => a.localeCompare(b, 'es'));
-  }, [resources]);
-
-  const counts = useMemo(() => {
-    const c: Record<string, number> = { inbox: 0, revisado: 0, descartado: 0, all: 0 };
-    for (const r of resources ?? []) {
-      c[r.status] = (c[r.status] ?? 0) + 1;
-      c.all++;
-    }
-    return c;
-  }, [resources]);
-
-  const list = useMemo(() => {
-    const q = text.trim().toLowerCase();
-    return (resources ?? []).filter(
-      (r) =>
-        (status === 'all' || r.status === status) &&
-        (!tag || r.tags?.includes(tag)) &&
-        (!q || r.title.toLowerCase().includes(q) || (r.url ?? '').toLowerCase().includes(q)),
-    );
-  }, [resources, status, tag, text]);
-
-  return (
-    <>
-      <SectionHeader title="Recursos">
-        <IconButton label="Capturar recurso" onClick={() => useUI.getState().setCaptureOpen(true)}>
-          <FilePlus2 size={14} />
-        </IconButton>
-        <IconButton label="Recargar" onClick={() => useUI.getState().refreshResources()}>
-          <RefreshCw size={13} />
-        </IconButton>
-      </SectionHeader>
-      <div className="flex gap-0.5 px-2 pb-1.5" role="tablist" aria-label="Filtrar por estado">
-        {(['inbox', 'revisado', 'descartado', 'all'] as StatusFilter[]).map((s) => (
-          <button
-            key={s}
-            type="button"
-            role="tab"
-            aria-selected={status === s}
-            onClick={() => setStatus(s)}
-            className={cx(
-              'h-6 min-w-0 flex-auto truncate rounded-md px-1 text-[10.5px] whitespace-nowrap',
-              status === s ? 'bg-active font-semibold text-accent' : 'text-muted hover:bg-hover',
-            )}
-          >
-            {s === 'all' ? 'Todos' : s === 'descartado' ? 'Descart.' : STATUS_LABEL[s]}{' '}
-            {resources ? <span className="opacity-70">{counts[s] ?? 0}</span> : null}
-          </button>
-        ))}
-      </div>
-      <div className="flex gap-1 px-2 pb-1.5">
-        <input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Filtrar…"
-          aria-label="Filtrar recursos"
-          className="h-6 min-w-0 flex-1 rounded-md border border-line bg-bg px-2 text-[12px] outline-none focus:border-accent"
-        />
-        <select
-          value={tag}
-          onChange={(e) => setTag(e.target.value)}
-          aria-label="Filtrar por etiqueta"
-          className="h-6 w-[92px] rounded-md border border-line bg-bg px-1 text-[11.5px] text-muted"
-        >
-          <option value="">Etiqueta</option>
-          {tags.map((t) => (
-            <option key={t} value={t}>
-              #{t}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="min-h-0 flex-1 overflow-auto pb-2">
-        {error && <div role="alert" className="px-3 py-1 text-[12px] text-danger">{error}</div>}
-        {warnings.map((w) => <p role="status" key={w.path} className="break-words px-3 py-1 text-[12px] text-warn">{w.path}: {w.message}</p>)}
-        {!resources && !error && (
-          <div className="flex justify-center py-4 text-muted">
-            <Spinner />
-          </div>
-        )}
-        {resources && list.length === 0 && <Empty>{status === 'inbox' ? 'Bandeja vacía.' : 'Nada por aquí.'}</Empty>}
-        <ul>
-          {list.map((r) => (
-            <li key={r.path} className="group relative">
-              <button
-                type="button"
-                className="block w-full px-3 py-1 pr-16 text-left hover:bg-hover"
-                {...openActions((side) => openResource(r.path, { side }))}
-                title={`${r.title}\n${sideHint()}: abrir al lado`}
-              >
-                <div className="truncate text-[12.5px] font-medium">{r.title}</div>
-                <div className="flex items-center gap-1 truncate text-[10.5px] text-faint">
-                  {r.attachment && <Paperclip size={10} />}
-                  {formatDate(r.captured)}
-                  {r.url ? ` · ${hostOf(r.url)}` : ''}
-                </div>
-              </button>
-              <div className="absolute top-1 right-1.5 hidden gap-0.5 bg-soft group-focus-within:flex group-hover:flex">
-                {r.url && (
-                  <a
-                    href={r.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label="Abrir URL en otra pestaña"
-                    title="Abrir URL en otra pestaña"
-                    className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-hover hover:text-fg"
-                  >
-                    <ExternalLink size={13} />
-                  </a>
-                )}
-                {r.status !== 'revisado' && (
-                  <IconButton label="Marcar revisado" onClick={() => setResourceStatus(r.path, 'revisado')}>
-                    <Check size={13} />
-                  </IconButton>
-                )}
-                {r.status !== 'descartado' ? (
-                  <IconButton label="Descartar" onClick={() => setResourceStatus(r.path, 'descartado')}>
-                    <Archive size={13} />
-                  </IconButton>
-                ) : (
-                  <IconButton label="Devolver a la bandeja" onClick={() => setResourceStatus(r.path, 'inbox')}>
-                    <Inbox size={13} />
-                  </IconButton>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </>
-  );
-}
 
 function SearchSection() {
   const q = useUI((s) => s.sidebarSearch);

@@ -14,7 +14,7 @@ afterEach(async () => { vi.restoreAllMocks(); await t.app.close(); await t.close
 const uuid = () => crypto.randomUUID();
 const R = (p: string) => path.join(t.cfg.notesDir, 'Recursos', p);
 const preview = async () => (await t.app.inject('/api/library/migration')).json();
-const apply = (items: any[], id = uuid()) => t.app.inject({ method: 'POST', url: '/api/library/migration', payload: { operationId: id, items: items.map(({path,baseRev,id,proposalRev}) => ({path,baseRev,id,proposalRev})) } });
+const apply = (items: any[], id = uuid()) => t.app.inject({ method: 'POST', url: '/api/library/migration', payload: { operationId: id, libraryId: libraryId(t.cfg), items: items.map(({path,baseRev,id,proposalRev}) => ({path,baseRev,id,proposalRev})) } });
 const detail = (rel: string) => t.app.inject(`/api/resources/file?path=${encodeURIComponent(rel)}`);
 
 async function legacy(name = 'antiguo.md') {
@@ -197,4 +197,14 @@ it('restaurar biblioteca y registros conserva UUID, adjuntos, recibos e identida
   } finally { await next.app.close(); }
   await verifyManifest(t.cfg.notesDir,path.join(restored,'notes.json'));
   await verifyManifest(path.dirname(t.cfg.buildDir),path.join(restored,'data.json'));
+});
+
+it('deshacer una ficha trasladada detiene la operación con conflicto recuperable', async () => {
+  await legacy(); const p=await preview(), id=uuid(); await apply(p.items,id);
+  await fs.rename(R('antiguo.md'),R('trasladado.md'));
+  const before=await fs.readFile(R('trasladado.md'));
+  const result=await t.app.inject({method:'POST',url:`/api/library/migration/${id}/undo`});
+  expect(result.statusCode).toBe(409);
+  expect(result.json().error).toContain('nueva ubicación');
+  expect(await fs.readFile(R('trasladado.md'))).toEqual(before);
 });

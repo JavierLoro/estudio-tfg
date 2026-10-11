@@ -10,6 +10,7 @@ import { atomicWrite, backup, rev } from '../fsutil.ts';
 import { resolveSafe } from '../paths.ts';
 import { itemFromContent, listResources, readResourceFile } from '../resources.ts';
 import { RESOURCE_KINDS, strings, updateLibraryContent, type ResourceKind } from '../libraryModel.ts';
+import { libraryId } from '../libraryIdentity.ts';
 
 async function readCaptureInput(req: FastifyRequest, cfg: Ctx['cfg']): Promise<CaptureInput> {
   const input: CaptureInput = {};
@@ -100,8 +101,10 @@ export default async function resourcesRoutes(app: FastifyInstance, { ctx }: { c
   });
 
   app.patch('/api/resources', async (req, reply) => {
+    const destination = { ...cfg };
     const b = (req.body ?? {}) as Record<string, unknown>;
-    const r = await resolveSafe(cfg, 'notes', b.path);
+    if (b.libraryId !== undefined && b.libraryId !== libraryId(destination)) throw new HttpError(409, 'La biblioteca cambió; vuelve al destino original');
+    const r = await resolveSafe(destination, 'notes', b.path);
     if (!r.rel.toLowerCase().endsWith('.md')) throw badRequest('Solo archivos .md');
     const updates: Record<string, unknown> = {};
     if (b.status !== undefined) {
@@ -135,9 +138,9 @@ export default async function resourcesRoutes(app: FastifyInstance, { ctx }: { c
       const src = current.toString('utf8');
       const existing = itemFromContent(r.rel, src, new Date());
       if (existing.libraryError) throw new HttpError(422, existing.libraryError);
-      if (existing.id && (await listResources(cfg)).items.filter((item) => item.id === existing.id).length > 1) throw new HttpError(409, 'Identidad duplicada; no se modificó la ficha');
+      if (existing.id && (await listResources(destination)).items.filter((item) => item.id === existing.id).length > 1) throw new HttpError(409, 'Identidad duplicada; no se modificó la ficha');
       for (const value of (updates.attachments as string[] | undefined) ?? []) {
-        await resolveSafe(cfg, 'notes', path.posix.join(path.posix.dirname(r.rel), value));
+        await resolveSafe(destination, 'notes', path.posix.join(path.posix.dirname(r.rel), value));
       }
       let next = src;
       if (Object.keys(updates).length) {
@@ -149,7 +152,7 @@ export default async function resourcesRoutes(app: FastifyInstance, { ctx }: { c
         }
       }
       if (next !== src) {
-        await backup(cfg, 'notes', r.rel, current);
+        await backup(destination, 'notes', r.rel, current);
         await atomicWrite(r.abs, next);
       }
       const st = await fs.stat(r.abs);

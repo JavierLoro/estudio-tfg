@@ -150,10 +150,15 @@ si chocan con el navegador, usa los botones. Más detalles en
 - Renombrar y mover **mantienen los enlaces** (wikilinks, enlaces Markdown y referencias LaTeX). Lo eliminado va a una papelera recuperable.
 - Notas Markdown con modo lectura y edición, wikilinks, enlaces entrantes (backlinks) y vista previa de Mermaid.
 
-### Recursos y captura
+### Biblioteca
 
-- Captura rápida (⌘⇧C) de recursos a la carpeta de recursos de tu vault.
-- Panel de recursos y lista de recientes en el Inicio.
+- Vista principal para referencias, documentos, imágenes, webs y notas: búsqueda, filtros por tipo/etiqueta/colección/revisión, ordenación, lista y cuadrícula con imágenes.
+- **Añadir** (mismo atajo de captura): URL, ficha manual o varios archivos; un recurso por archivo o agrupados en una ficha. La clasificación es opcional.
+- Fichas con varias URLs/adjuntos, datos bibliográficos y notas editables sin YAML. Los cambios externos conservan la edición y exigen revisión antes de reaplicar un conflicto.
+- Compatibilidad con recursos antiguos y conversión con vista previa, copias y deshacer. La identidad del destino se conserva al trasladar fichas y registros juntos.
+- Los lotes se guardan en la cola local antes del primer envío; resultados y reintentos por elemento. Importación bibliográfica y uso de citas/figuras corresponden a los próximos bloques.
+
+Modelo y decisiones: [docs/BIBLIOTECA.md](docs/BIBLIOTECA.md).
 
 ### Recuperar capturas pendientes
 

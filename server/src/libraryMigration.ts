@@ -49,7 +49,10 @@ async function resource(ctx: Ctx, input: unknown) {
 }
 async function content(ctx: Ctx, rel: string) {
   const r = await resource(ctx, rel);
-  const st = await fs.stat(r.abs);
+  const st = await fs.stat(r.abs).catch((e) => {
+    if (e.code === 'ENOENT') throw new HttpError(409, `No existe ${rel}; conserva el registro y revisa su nueva ubicación`, { path: rel });
+    throw e;
+  });
   if (!st.isFile() || st.size > 2 * 1024 * 1024) throw badRequest('Ficha no válida o mayor de 2 MB');
   const bytes = await fs.readFile(r.abs);
   if (!Buffer.from(bytes.toString('utf8')).equals(bytes)) throw badRequest('La ficha no está codificada en UTF-8');
@@ -83,7 +86,7 @@ export async function migrationPreview(ctx: Ctx) {
       items.push({ path: item.path, title: item.title, baseRev: rev(text), id, proposalRev: rev(next.after), ...next });
     } catch (e) { warnings.push({ path: item.path, message: e instanceof Error ? e.message : 'No se pudo preparar la ficha' }); }
   }
-  return { items, warnings, operations: await migrationList(ctx) };
+  return { libraryId: libraryId(ctx.cfg), items, warnings, operations: await migrationList(ctx) };
 }
 
 export async function migrationList(ctx: Ctx) {
@@ -103,9 +106,9 @@ async function run(ctx: Ctx, op: Migration) {
   const undo = op.state === 'undoing';
   try {
     const known = (await listResources(ctx.cfg)).items;
-    for (const entry of op.entries) if (known.some((item) => item.id === entry.id && item.path !== entry.path)) throw new HttpError(409, `Identidad duplicada para ${entry.path}; revisa la biblioteca`);
     for (const entry of op.entries) {
       const current = rev((await content(ctx, entry.path)).bytes);
+      if (known.some((item) => item.id === entry.id && item.path !== entry.path)) throw new HttpError(409, `Identidad duplicada para ${entry.path}; revisa la biblioteca`);
       if (current !== entry.baseRev && current !== entry.afterRev) throw new HttpError(409, `Cambió ${entry.path}; la operación se conserva para revisión`, { path: entry.path, rev: current });
     }
     for (const entry of op.entries) await ctx.locks.run(`notes:${entry.path}`, async () => {
@@ -130,7 +133,8 @@ async function run(ctx: Ctx, op: Migration) {
   }
 }
 
-export async function migrate(ctx: Ctx, operationId: string, selection: Selection[]) {
+export async function migrate(ctx: Ctx, operationId: string, selection: Selection[], target: unknown) {
+  if (target !== libraryId(ctx.cfg)) throw new HttpError(409, 'La biblioteca de destino cambió; recarga la vista previa');
   if (!UUID.test(operationId) || !Array.isArray(selection) || selection.length > 100) throw badRequest('Migración no válida (máximo 100 fichas)');
   for (const e of selection) if (!e || typeof e.path !== 'string' || typeof e.baseRev !== 'string' || !/^[a-f0-9]{16}$/.test(e.baseRev) || typeof e.proposalRev !== 'string' || !/^[a-f0-9]{16}$/.test(e.proposalRev) || typeof e.id !== 'string' || !UUID.test(e.id)) throw badRequest('La migración necesita ruta, revisión, propuesta e identidad de cada ficha');
   selection = selection.map(({ path, baseRev, id, proposalRev }) => ({ path, baseRev, id, proposalRev }));

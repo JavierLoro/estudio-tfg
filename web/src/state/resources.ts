@@ -1,40 +1,45 @@
 import { create } from 'zustand';
-import { api, ConflictError, errorMessage } from '../api';
+import { api, ConflictError, errorMessage, type ResourceChanges } from '../api';
 import { toast, useUI } from './ui';
 
 export const STATUS_LABEL: Record<string, string> = {
   inbox: 'Bandeja', revisado: 'Revisado', descartado: 'Descartado',
 };
 
-type Changes = { status?: string; tags?: string[] };
+type Changes = ResourceChanges;
 interface PendingChange {
   path: string;
   changes: Changes;
   notesDir: string;
+  libraryId?: string;
   content: string;
   rev: string;
   reviewed: boolean;
 }
 export const useResourceEdit = create<{ pending: PendingChange | null; busy: boolean; error: string | null }>(() => ({ pending: null, busy: false, error: null }));
 
-async function updateResource(path: string, changes: Changes, baseRev?: string, retry = false) {
+export async function updateResource(path: string, changes: Changes, baseRev?: string, retry = false, destination?: string): Promise<boolean> {
   const state = useResourceEdit.getState();
-  if (state.busy || (state.pending && !retry)) return;
+  if (state.busy || (state.pending && !retry)) return false;
   const notesDir = useUI.getState().status?.notesDir ?? '';
+  const libraryId = destination ?? useUI.getState().status?.libraryId;
   useResourceEdit.setState({ busy: true, error: null });
   try {
     const revision = baseRev ?? useUI.getState().resources?.find((r) => r.path === path)?.rev;
     if (!revision) throw new Error('Recarga el recurso antes de editarlo');
-    await api.patchResource({ path, ...changes, baseRev: revision });
+    if (destination && destination !== useUI.getState().status?.libraryId) throw new Error('La biblioteca cambió; vuelve al destino de esta edición');
+    await api.patchResource({ path, ...changes, baseRev: revision, libraryId });
     useResourceEdit.setState({ pending: null });
     toast({ kind: 'ok', text: 'Recurso actualizado' });
+    return true;
   } catch (e) {
     if (e instanceof ConflictError) {
-      useResourceEdit.setState({ pending: { path, changes, notesDir, content: e.content, rev: e.rev, reviewed: false } });
+      useResourceEdit.setState({ pending: { path, changes, notesDir, libraryId, content: e.content, rev: e.rev, reviewed: false } });
     } else {
       useResourceEdit.setState({ error: errorMessage(e) });
       toast({ kind: 'error', text: `No se pudo actualizar el recurso: ${errorMessage(e)}` });
     }
+    return false;
   } finally {
     useResourceEdit.setState({ busy: false });
     void useUI.getState().refreshResources();
@@ -67,5 +72,5 @@ export async function reapplyResourceConflict() {
     useResourceEdit.setState({ error: 'Vuelve al vault original para resolver este cambio' });
     return;
   }
-  await updateResource(pending.path, pending.changes, pending.rev, true);
+  await updateResource(pending.path, pending.changes, pending.rev, true, pending.libraryId);
 }

@@ -6,7 +6,7 @@ import { captureStorage } from '../../web/src/lib/captureStorage';
 // @ts-expect-error Resolución bundler del cliente.
 import { useUI } from '../../web/src/state/ui';
 // @ts-expect-error Resolución bundler del cliente.
-import { submitCapture, flushCaptureQueue, editCapture, assignCaptureDestination, discardCapture, useCaptureQueue, initCaptureQueue } from '../../web/src/state/captureQueue';
+import { submitCapture, submitCaptureBatch, flushCaptureQueue, editCapture, assignCaptureDestination, discardCapture, useCaptureQueue, initCaptureQueue } from '../../web/src/state/captureQueue';
 
 let disk: any[];
 beforeEach(() => {
@@ -18,6 +18,7 @@ beforeEach(() => {
   vi.spyOn(captureStorage, 'read').mockImplementation(async () => structuredClone(disk));
   vi.spyOn(captureStorage, 'put').mockImplementation(async (item: any) => { disk = [...disk.filter((x) => x.id !== item.id), structuredClone(item)]; });
   vi.spyOn(captureStorage, 'delete').mockImplementation(async (id: string) => { disk = disk.filter((x) => x.id !== id); });
+  vi.spyOn(captureStorage, 'putMany').mockImplementation(async (items:any[]) => { disk.push(...structuredClone(items)); });
   vi.spyOn(api, 'status').mockResolvedValue({ libraryId: 'destino-A' } as any);
   vi.spyOn(api, 'capture').mockResolvedValue({ path: 'Recursos/prueba.md', title: 'Prueba' });
   vi.spyOn(useUI.getState(), 'refreshResources').mockResolvedValue();
@@ -119,4 +120,50 @@ it('descartar falla sin borrar la copia ni el estado visible', async () => {
   expect(useCaptureQueue.getState().items[0].note).toBe('Conservar');
   await discardCapture(id);
   expect(disk).toEqual([]);
+});
+
+it('persiste todo el lote antes del envío y conserva solo fallos para reintentar', async () => {
+  const progress:number[]=[];
+  const capture=vi.mocked(api.capture).mockImplementationOnce(async(form:FormData)=>{
+    expect(disk).toHaveLength(3);
+    expect(form.get('libraryVersion')).toBe('1');
+    expect(form.getAll('files')).toHaveLength(1);
+    return {path:'Recursos/uno.md',title:'Uno'};
+  }).mockRejectedValueOnce(new ApiError(401,'Acceso ficticio',{})).mockResolvedValue({path:'Recursos/tres.md',title:'Tres'});
+  const inputs=['uno','dos','tres'].map((name)=>({title:name,files:[new File([name],`${name}.png`,{type:'image/png'})]}));
+  const result=await submitCaptureBatch(inputs,(done:number)=>progress.push(done));
+  expect(result.outcomes.map((item:any)=>item.kind)).toEqual(['ok','queued','ok']);
+  expect(progress).toEqual([0,1,2,3]);
+  expect(disk).toHaveLength(1);
+  expect(disk[0].title).toBe('dos');
+  expect(await disk[0].files[0].blob.text()).toBe('dos');
+  const id=disk[0].id;
+  await flushCaptureQueue(id);
+  expect(capture.mock.calls[3][0].get('operationId')).toBe(id);
+  expect(disk).toHaveLength(0);
+});
+
+it('si falla persistir un lote no envía ninguno y el formulario conserva sus entradas', async () => {
+  vi.mocked(captureStorage.putMany).mockRejectedValueOnce(new Error('QuotaExceededError'));
+  const inputs=[{title:'Uno',files:[new File(['uno'],'uno.pdf')]},{title:'Dos',files:[new File(['dos'],'dos.png')]}];
+  const result=await submitCaptureBatch(inputs);
+  expect(result.error).toContain('QuotaExceededError');
+  expect(result.outcomes).toEqual([]);
+  expect(api.capture).not.toHaveBeenCalled();
+  expect(disk).toEqual([]);
+  expect(await inputs[1].files[0].text()).toBe('dos');
+});
+
+it('agrupación conserva todos los adjuntos y un cambio de destino detiene el resto del lote', async () => {
+  vi.mocked(api.capture).mockImplementationOnce(async(form:FormData)=>{
+    expect(form.getAll('files')).toHaveLength(2);
+    vi.mocked(api.status).mockResolvedValue({libraryId:'destino-B'} as any);
+    return {path:'Recursos/uno.md',title:'Uno'};
+  });
+  const files=[new File(['pdf'],'uno.pdf'),new File(['svg'],'uno.svg')];
+  const result=await submitCaptureBatch([{title:'Uno',files},{title:'Dos',files}]);
+  expect(result.outcomes.map((item:any)=>item.kind)).toEqual(['ok','queued']);
+  expect(api.capture).toHaveBeenCalledTimes(1);
+  expect(disk[0]).toMatchObject({libraryId:'destino-A',blocked:true});
+  expect(disk[0].files).toHaveLength(2);
 });

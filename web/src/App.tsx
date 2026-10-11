@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { matchesShortcut } from './lib/shortcuts';
 import { registerTokenPrompt, type Status } from './api';
 import { CaptureQueueDialog } from './components/CaptureQueueDialog';
@@ -25,6 +25,7 @@ import { connectEvents } from './state/events';
 import { initInstance, useSettings, watchSettingsTransitions } from './state/settings';
 import { useUI } from './state/ui';
 import { activeFile } from './state/workspace';
+const BibliotecaPanel = lazy(() => import('./panels/BibliotecaPanel'));
 
 function useBoot() {
   useEffect(() => {
@@ -83,6 +84,7 @@ function useGlobalKeys() {
       } else if (matchesShortcut(e, 'save')) {
         // Mod-S fuera del editor (p. ej. nota en modo lectura): guardar el archivo activo.
         e.preventDefault();
+        if (useUI.getState().libraryView) return;
         const f = activeFile();
         if (f) void saveDoc(docKey(f.root, f.path));
       } else if (matchesShortcut(e, 'sidebar')) {
@@ -149,6 +151,7 @@ export function App() {
   useDragGuard();
   const sidebarOpen = useUI((s) => s.sidebarOpen);
   const homeView = useUI((s) => s.homeView);
+  const libraryView = useUI((s) => s.libraryView);
   const ready = useSettings((s) => s.ready);
   const statusError = useUI((s) => s.statusError);
   return (
@@ -156,13 +159,14 @@ export function App() {
       <Header />
       <div className="flex min-h-0 flex-1">
         <Rail />
-        {sidebarOpen && !homeView && <Sidebar />}
+        {sidebarOpen && !homeView && !libraryView && <Sidebar />}
+        {libraryView && ready && <main className="min-w-0 flex-1 overflow-hidden" aria-label="Biblioteca"><Suspense fallback={<div className="p-6"><Spinner/></div>}><BibliotecaPanel/></Suspense></main>}
         {homeView && ready && (
           <main className="min-w-0 flex-1 overflow-hidden bg-soft" aria-label="Inicio">
             <HomePanel />
           </main>
         )}
-        <main className={homeView && ready ? 'hidden' : 'flex min-w-0 flex-1'} aria-label="Área de trabajo">
+        <main className={(homeView || libraryView) && ready ? 'hidden' : 'flex min-w-0 flex-1'} aria-label="Área de trabajo">
           {ready ? (
             <Workspace />
           ) : (

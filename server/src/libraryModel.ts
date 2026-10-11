@@ -97,6 +97,10 @@ export function updateLibraryContent(content: string, updates: Record<string, un
     if (current.bibliography?.authority === 'manual' && updates.bibliography !== undefined) throw badRequest('Edita la bibliografía manual en su archivo .bib');
     const next = { ...current };
     for (const key of changes) next[key] = updates[key];
+    if (current.bibliography?.authority === 'library' && (updates.bibliography as any)?.authority === 'library') {
+      const incoming = updates.bibliography as Extract<Bibliography, {authority:'library'}>;
+      next.bibliography = { ...current.bibliography, ...incoming, fields: { ...current.bibliography.fields, ...incoming.fields } };
+    }
     common.biblioteca = validateLibrary(next);
   }
   let next = Object.keys(common).length ? setFrontmatterKeys(content, common) : content;

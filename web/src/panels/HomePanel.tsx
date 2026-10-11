@@ -33,7 +33,7 @@ export function HomePanel() {
   const compiling = useCompile((s) => s.compiling);
   const outdated = useCompile(isPdfOutdated);
   const queued = useCaptureQueue((s) => s.items.length);
-  const inbox = (resources ?? []).filter((r) => r.status === 'inbox');
+  const inbox = resources ?? [];
   const { errors, warnings } = countDiags(last?.diagnostics);
 
   useEffect(() => {
@@ -91,11 +91,11 @@ export function HomePanel() {
         </Card>
 
         <Card
-          title={`Recursos en bandeja${resources ? ` (${inbox.length})` : ''}`}
+          title={`Biblioteca${resources ? ` (${inbox.length})` : ''}`}
           icon={<Inbox size={14} className="text-muted" />}
           action={
-            <Button onClick={() => useUI.getState().setCaptureOpen(true)} title={`Capturar (${kbd(shortcutFor('capture'))})`}>
-              <Plus size={12} /> Capturar
+            <Button onClick={() => useUI.getState().setCaptureOpen(true)} title={`Añadir (${kbd(shortcutFor('capture'))})`}>
+              <Plus size={12} /> Añadir
             </Button>
           }
         >
@@ -107,7 +107,7 @@ export function HomePanel() {
               <Spinner />
             </div>
           )}
-          {resources && inbox.length === 0 && <Empty>Bandeja vacía. ¡Bien!</Empty>}
+          {resources && inbox.length === 0 && <Empty>Tu Biblioteca está lista para empezar.</Empty>}
           <ul>
             {inbox.slice(0, 12).map((r) => (
               <li key={r.path}>
@@ -155,7 +155,7 @@ export function HomePanel() {
             <dt className="font-mono text-muted">{kbd('Mod-K')}</dt>
             <dd>Abrir archivo o buscar</dd>
             <dt className="font-mono text-muted">{kbd(shortcutFor('capture'))}</dt>
-            <dd>Capturar recurso (URL, nota, adjunto)</dd>
+            <dd>Añadir a Biblioteca (web, archivos o ficha)</dd>
             <dt className="font-mono text-muted">{kbd('Mod-S')}</dt>
             <dd>Guardar</dd>
             <dt className="font-mono text-muted">{kbd('Mod-Enter')}</dt>
