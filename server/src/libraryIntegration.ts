@@ -324,11 +324,12 @@ export async function integrationPreview(ctx: Ctx, input: any) {
       if (!valid) throw new HttpError(415, 'Usa una imagen PNG, JPG o PDF válido. Convierte SVG, WebP, GIF o EPS antes de insertarlos.');
       const hash = sourceHash(asset);
       let target = `${FIGURES}${file.item.id}-${hash.slice(0, 16)}${ext}`;
+      let previous: Figure | undefined;
       if (input.replaceCopy !== undefined) {
-        const record = next.figures.find((f) => f.id === file.item.id && f.libraryId === input.libraryId && f.path === input.replaceCopy);
-        if (!record || path.extname(record.path).toLowerCase() !== ext)
+        previous = next.figures.find((f) => f.id === file.item.id && f.libraryId === input.libraryId && f.path === input.replaceCopy);
+        if (!previous || path.extname(previous.path).toLowerCase() !== ext)
           throw badRequest('Solo se actualizan copias registradas del mismo formato; para otro formato inserta una figura nueva');
-        target = record.path;
+        target = previous.path;
       }
       const before = await readMemory(ctx, target, 50 * 1024 * 1024);
       if (before.bytes && !input.replaceCopy && rev(before.bytes) !== rev(asset))
@@ -340,28 +341,34 @@ export async function integrationPreview(ctx: Ctx, input: any) {
       writes.push({ path: target, baseRev: before.revision, afterRev: rev(asset), stage: 'asset' });
       preview.push({ path: target, baseRev: before.revision });
       next.figures = next.figures.filter((f) => !(f.path === target && f.libraryId === input.libraryId));
-      next.figures.push({
-        id: file.item.id!,
-        libraryId: input.libraryId,
-        path: target,
-        hash,
-        sourcePath: attachment.path,
-        title: file.item.title,
-        credit: input.credit,
-        label: input.label,
-      });
+      next.figures.push(
+        previous
+          ? { ...previous, hash, sourcePath: attachment.path }
+          : {
+              id: file.item.id!,
+              libraryId: input.libraryId,
+              path: target,
+              hash,
+              sourcePath: attachment.path,
+              title: file.item.title,
+              credit: input.credit,
+              label: input.label,
+            },
+      );
       const width = input.width === 100 ? '\\textwidth' : `${input.width / 100}\\textwidth`,
         caption = input.caption + (input.credit ? ` Fuente: ${input.credit}` : '');
       result.figurePath = target;
-      result.snippet = [
-        `% et:biblioteca-figura ${input.libraryId}/${file.item.id}`,
-        '\\begin{figure}[htbp]',
-        '  \\centering',
-        `  \\includegraphics[width=${width}]{${target}}`,
-        `  \\caption{${texEscape(caption)}}`,
-        `  \\label{${input.label}}`,
-        '\\end{figure}',
-      ].join('\n');
+      result.snippet = previous
+        ? ''
+        : [
+            `% et:biblioteca-figura ${input.libraryId}/${file.item.id}`,
+            '\\begin{figure}[htbp]',
+            '  \\centering',
+            `  \\includegraphics[width=${width}]{${target}}`,
+            `  \\caption{${texEscape(caption)}}`,
+            `  \\label{${input.label}}`,
+            '\\end{figure}',
+          ].join('\n');
     }
     if (bibPath) {
       const main = await readMemory(ctx, ctx.cfg.memoriaMain);

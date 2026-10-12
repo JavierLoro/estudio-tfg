@@ -25,7 +25,8 @@ export default function LibraryUseDialog({
     libraryId: useUI.getState().status!.libraryId!,
     instanceId: useUI.getState().status!.instanceId!,
   }));
-  const storageKey = `et:library-use:${destination.instanceId}:${file.item.id}:${kind}`;
+  // Las vistas antiguas de figura podían mezclar inserción y actualización.
+  const storageKey = `et:library-use:${destination.instanceId}:${file.item.id}:${kind}${kind === 'figure' ? ':v2' : ''}${replaceCopy ? `:actualizar:${replaceCopy}` : ''}`;
   const saved = load<{ preview: IntegrationPreview; target: string } | null>(storageKey, null);
   const tree = useUI((s) => s.trees.memoria),
     paths = flattenTree(tree).filter((p) => p.endsWith('.tex'));
@@ -188,41 +189,48 @@ export default function LibraryUseDialog({
                 <p className="text-[12px] text-muted">
                   LaTeX admite PNG, JPG y PDF. Convierte los demás formatos antes de insertarlos. La copia se guarda dentro de la memoria.
                 </p>
-                <label className="block text-[12px]">
-                  Pie de figura
-                  <input className={input} value={caption} onChange={(e) => setCaption(e.target.value)} />
-                </label>
-                <label className="block text-[12px]">
-                  Procedencia / atribución
-                  <input
-                    className={input}
-                    value={credit}
-                    onChange={(e) => setCredit(e.target.value)}
-                    placeholder="Autor, licencia o fuente"
-                  />
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <label className="text-[12px]">
-                    Etiqueta
-                    <input className={input} value={label} onChange={(e) => setLabel(e.target.value)} />
-                  </label>
-                  <label className="text-[12px]">
-                    Ancho (% del texto)
-                    <input
-                      className={input}
-                      type="number"
-                      min={5}
-                      max={100}
-                      value={width}
-                      onChange={(e) => setWidth(Number(e.target.value))}
-                    />
-                  </label>
-                </div>
+                {!updateOnly && (
+                  <>
+                    <label className="block text-[12px]">
+                      Pie de figura
+                      <input className={input} value={caption} onChange={(e) => setCaption(e.target.value)} />
+                    </label>
+                    <label className="block text-[12px]">
+                      Procedencia / atribución
+                      <input
+                        className={input}
+                        value={credit}
+                        onChange={(e) => setCredit(e.target.value)}
+                        placeholder="Autor, licencia o fuente"
+                      />
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <label className="text-[12px]">
+                        Etiqueta
+                        <input className={input} value={label} onChange={(e) => setLabel(e.target.value)} />
+                      </label>
+                      <label className="text-[12px]">
+                        Ancho (% del texto)
+                        <input
+                          className={input}
+                          type="number"
+                          min={5}
+                          max={100}
+                          value={width}
+                          onChange={(e) => setWidth(Number(e.target.value))}
+                        />
+                      </label>
+                    </div>
+                  </>
+                )}
               </>
             )}
             <p className="text-[12px] text-muted">
-              Se conserva el borrador. La inserción se hace en el cursor del editor y se puede deshacer; compilar guardará los cambios.
-              Actualizar una copia conserva las citas y figuras ya incorporadas.
+              {updateOnly
+                ? kind === 'figure'
+                  ? 'Solo se actualiza el archivo de imagen. Se conservan el texto LaTeX, el pie, la atribución, la etiqueta y el ancho existentes.'
+                  : 'Actualizar una copia conserva las citas ya incorporadas.'
+                : 'Se conserva el borrador. La inserción se hace en el cursor del editor y se puede deshacer; compilar guardará los cambios.'}
             </p>
           </>
         ) : (
@@ -249,7 +257,11 @@ export default function LibraryUseDialog({
                 La conexión bibliográfica se añadirá al borrador del principal, conservando sus cambios sin guardar.
               </Banner>
             )}
-            <pre className="overflow-auto whitespace-pre-wrap rounded bg-soft p-3 text-[12px]">{preview.result.snippet}</pre>
+            {updateOnly && kind === 'figure' ? (
+              <Banner kind="info">Solo se actualiza el archivo de imagen; el texto LaTeX y los metadatos de la figura se conservan.</Banner>
+            ) : (
+              <pre className="overflow-auto whitespace-pre-wrap rounded bg-soft p-3 text-[12px]">{preview.result.snippet}</pre>
+            )}
             {preview.files.map((f) => (
               <details key={f.path} className="rounded border border-line p-2">
                 <summary>
