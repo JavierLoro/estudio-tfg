@@ -18,7 +18,7 @@ export async function renderLibraryReference(ctx: Ctx, item: ResourceItem, key: 
   const support: Record<string, string> = {},
     auxiliary: Record<string, string> = {};
   const sources: (ReturnType<typeof namespaceBibDocument> & { hash: string })[] = [];
-  const origins: BibliographyOrigin[] = [...(bib.source ? [bib.source] : []), ...(bib.sources ?? [])];
+  const origins: BibliographyOrigin[] = [...(bib.source ? [bib.source] : []), ...(bib.sources ?? []).slice().reverse()];
   for (const origin of origins) {
     if (origin.format !== 'bibtex') continue;
     const r = await resolveSafe(ctx.cfg, 'notes', `${ctx.cfg.resourcesSubdir}/originales/${origin.hash}.bib`);
@@ -34,7 +34,8 @@ export async function renderLibraryReference(ctx: Ctx, item: ResourceItem, key: 
     sources.push({ ...doc, hash: origin.hash, entries: [doc.entries[origin.index], ...doc.entries.filter((_, i) => i !== origin.index)] });
   }
   const raw: Record<string, string> = {},
-    values = { ...bib.fields, title: item.title };
+    values = { ...bib.fields, title: item.title },
+    fieldSources: Record<string, (typeof sources)[number]> = {};
   if (bib.source?.format === 'bibtex')
     for (const [name, value] of Object.entries(values)) raw[name] = `{${value.replace(/(?<!\\)[%&#]/g, '\\$&')}}`;
   for (const [name, value] of Object.entries(values))
@@ -44,6 +45,7 @@ export async function renderLibraryReference(ctx: Ctx, item: ResourceItem, key: 
       const original = name === 'title' ? entry.title : entry.fields[name];
       if (original === value && entry.values[name]) {
         raw[name] = entry.values[name].value;
+        fieldSources[name] = doc;
         break;
       }
     }
@@ -73,10 +75,20 @@ export async function renderLibraryReference(ctx: Ctx, item: ResourceItem, key: 
   for (const name of ['crossref', 'xref', 'xdata', 'entryset', 'related'])
     if (bib.fields[name]) {
       if (!primary) throw badRequest(`La referencia ${name} necesita su original BibTeX para resolver asociaciones`);
-      raw[name] = `{${bib.fields[name]
-        .split(',')
-        .map((k) => addParent(k.trim(), primary))
-        .join(',')}}`;
+      const keys = bib.fields[name].split(',').map((k) => k.trim());
+      let doc = fieldSources[name];
+      if (!doc) {
+        const candidates = [...new Map(sources.map((source) => [source.hash, source])).values()].filter((source) =>
+          keys.every((key) => {
+            const matches = source.entries.filter((e) => e?.key === key);
+            return matches.length === 1 && !matches[0].error;
+          }),
+        );
+        if (candidates.length !== 1)
+          throw badRequest(`La asociación ${name} es ${candidates.length ? 'ambigua entre originales' : 'inválida'}; corrige el campo o reimporta su original`);
+        doc = candidates[0];
+      }
+      raw[name] = `{${keys.map((key) => addParent(key, doc)).join(',')}}`;
     }
   let body: string;
   if ((entry && entry.raw.endsWith('}')) || (entry && entry.raw.endsWith(')')))

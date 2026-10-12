@@ -51,6 +51,21 @@ const apply = (p: any) =>
     url: '/api/library/integration/apply',
     payload: { ...binding(), operationId: p.operationId, revisions: p.files.map((f: any) => ({ path: f.path, baseRev: f.baseRev })) },
   });
+async function combine(file: any, text: string) {
+  const p = (await t.app.inject({ method: 'POST', url: '/api/library/import/preview', payload: { format: 'bibtex', text } })).json();
+  const result = await t.app.inject({
+    method: 'POST',
+    url: '/api/library/import',
+    payload: {
+      operationId: uuid(),
+      libraryId: libraryId(t.cfg),
+      source: p.source,
+      items: [{ ...p.items[0], action: 'merge', targetId: file.item.id, baseRev: file.rev }],
+    },
+  });
+  expect(result.json().results[0].state).toBe('done');
+  return (await t.app.inject(`/api/resources/file?path=${encodeURIComponent(file.path)}`)).json();
+}
 
 it('la vista previa no cambia la memoria; aplicar incorpora bibliografía portable y conserva los .bib manuales', async () => {
   const file = await reference(),
@@ -93,6 +108,67 @@ it('incluye xdata y referencias auxiliares con claves privadas sin perder coment
   expect(bib).toContain('% conservar comentario');
   expect(parsed.entries).toHaveLength(2);
   expect(parsed.entries.find((e) => e.key === 'Hijo')?.fields.xdata).toMatch(/^et[0-9a-f_]+$/);
+});
+it.each(['crossref', 'xref', 'xdata', 'entryset', 'related'])('combinar conserva el original del campo %s heredado aunque haya un padre homónimo nuevo', async (association) => {
+  const file = await reference(
+    `@string{editorial={Editorial original}}\n@incollection{Hijo,title={Anterior},author={Ficticio, Ana},${association}={Padre}}\n@book{Padre,title={Padre original},publisher=editorial}`,
+  );
+  const combined = await combine(
+    file,
+    '@incollection{Actualizado,title={Revisado},author={Ficticio, Ana}}\n@book{Padre,title={Padre homónimo nuevo},publisher={Otra editorial}}',
+  );
+  const response = await preview(combined);
+  expect(response.statusCode).toBe(200);
+  expect((await apply(response.json())).statusCode).toBe(200);
+  const parsed = parseBibDocument(await fs.readFile(mem(LIBRARY_BIB), 'utf8')),
+    child = parsed.entries.find((e) => e.key === 'Hijo'),
+    parent = parsed.entries.find((e) => e.key === child?.fields[association]);
+  expect(parent?.title).toBe('Padre original');
+  expect(parent?.fields.publisher).toBe('Editorial original');
+  expect(parsed.entries.some((e) => e.error)).toBe(false);
+});
+it('una asociación heredada sin padre en el nuevo original sigue exportando y actualizando la cita', async () => {
+  const file = await reference('@incollection{Hijo,title={Anterior},author={Ficticio, Ana},crossref={Padre}}\n@book{Padre,title={Padre original}}');
+  expect((await apply((await preview(file)).json())).statusCode).toBe(200);
+  const combined = await combine(file, '@incollection{Actualizado,title={Revisado},author={Ficticio, Ana}}'),
+    response = await preview(combined);
+  expect(response.statusCode).toBe(200);
+  expect((await apply(response.json())).statusCode).toBe(200);
+  const output = await fs.readFile(mem(LIBRARY_BIB), 'utf8');
+  expect(output).toContain('Padre original');
+  expect(parseBibDocument(output).entries.find((e) => e.key === 'Hijo')?.title).toBe('Revisado');
+});
+it('varias combinaciones usan la asociación del último original que aportó el campo', async () => {
+  const first = await reference('@incollection{Hijo,title={Primero},author={Ficticio, Ana},crossref={Padre}}\n@book{Padre,title={Primer padre}}'),
+    second = await combine(first, '@incollection{Otro,title={Segundo},author={Ficticio, Ana},crossref={Padre}}\n@book{Padre,title={Segundo padre}}'),
+    third = await combine(second, '@incollection{Actualizado,title={Tercero},author={Ficticio, Ana}}');
+  const response = await preview(third);
+  expect(response.statusCode).toBe(200);
+  expect((await apply(response.json())).statusCode).toBe(200);
+  const parsed = parseBibDocument(await fs.readFile(mem(LIBRARY_BIB), 'utf8'));
+  expect(parsed.entries.map((e) => e.title)).toContain('Segundo padre');
+  expect(parsed.entries.map((e) => e.title)).not.toContain('Primer padre');
+});
+it('una asociación editada ambigua se rechaza antes de publicar y una inequívoca conserva su original', async () => {
+  const first = await reference('@incollection{Hijo,title={Primero},author={Ficticio, Ana}}\n@book{Padre,title={Primer padre}}\n@book{Unico,title={Padre único}}'),
+    combined = await combine(first, '@incollection{Otro,title={Segundo},author={Ficticio, Ana}}\n@book{Padre,title={Segundo padre}}');
+  const edit = async (file: any, crossref: string) => {
+    expect((await t.app.inject({
+      method: 'PATCH', url: '/api/resources',
+      payload: { path: file.path, baseRev: file.rev, bibliography: { ...file.item.bibliography, fields: { crossref } } },
+    })).statusCode).toBe(200);
+    return (await t.app.inject(`/api/resources/file?path=${encodeURIComponent(file.path)}`)).json();
+  };
+  const ambiguous = await edit(combined, 'Padre'),
+    rejected = await preview(ambiguous);
+  expect(rejected.statusCode).toBe(400);
+  expect(rejected.json().error).toContain('ambigua');
+  await expect(fs.stat(mem(LIBRARY_BIB))).rejects.toMatchObject({ code: 'ENOENT' });
+  const unique = await edit(ambiguous, 'Unico'),
+    response = await preview(unique);
+  expect(response.statusCode).toBe(200);
+  expect((await apply(response.json())).statusCode).toBe(200);
+  expect(await fs.readFile(mem(LIBRARY_BIB), 'utf8')).toContain('Padre único');
 });
 it('respeta el borrador del principal y detiene una revisión obsoleta sin publicar ninguna salida', async () => {
   const file = await reference(),

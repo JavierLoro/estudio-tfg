@@ -6,7 +6,7 @@
 >
 > Fuentes: [PLATAFORMAS.md](PLATAFORMAS.md) (50 hallazgos de portabilidad; los IDs como `S1`, `P2`, `F4` se refieren a él), [CONTRACT.md](CONTRACT.md) y la auditoría del 09-10-2026, cuyas evidencias y acciones se describen en R1–R8 y L1–L5.
 >
-> **Estado actualizado:** A–D, R y L1–L4 completadas y fusionadas. **Bloque actual: `l-validacion` (L5)**, sujeto a comprobar reservas y PR abiertos. Orden de continuación: **R → L → E → F → G**. R y L se insertan aquí sin renumerar las tareas anteriores; sus letras no determinan la prioridad.
+> **Estado actualizado:** A–D, R y L1–L5 completadas y fusionadas. **Bloque actual: `l-correcciones` (L6–L9)**, sujeto a comprobar reservas y PR abiertos. Orden de continuación: **R → L → E → F → G**. R y L se insertan aquí sin renumerar las tareas anteriores; sus letras no determinan la prioridad.
 
 ## Índice
 
@@ -17,8 +17,8 @@
 | [C](#fase-c) | Robustez en Windows (archivos en uso, nombres, saltos de línea…) | C1–C7 | #14–#20 | A |
 | [D](#fase-d) | CI en Linux, macOS y Windows | D1–D2 | #21–#22 | A |
 | [R](#fase-r) | Fiabilidad, seguridad y recuperación | R1–R8 | #45–#52 | D |
-| [L](#fase-l) | Biblioteca, bibliografía e integración con la memoria | L1–L5 | #53–#57 | R (dependencias por tarea) |
-| [E](#fase-e) | Motores de compilación intercambiables (Docker / TeX del sistema / Tectonic) | E1–E4 | #23–#26 | A, L5; E2 también R6 y R8 |
+| [L](#fase-l) | Biblioteca, bibliografía e integración con la memoria | L1–L9 | #53–#57, #65–#68 | R (dependencias por tarea) |
+| [E](#fase-e) | Motores de compilación intercambiables (Docker / TeX del sistema / Tectonic) | E1–E4 | #23–#26 | A, L5, L9; E2 también R6 y R8 |
 | [F](#fase-f) | Exportar diagramas sin Docker | F1 | #27 | E1 |
 | [G](#fase-g) | App de escritorio con Electron | G1–G7 | #28–#34 | B1, C, D1, E1–E2, F1 |
 
@@ -27,11 +27,11 @@ Después de las fases actuales: [Nuevas funcionalidades](#nuevas-funcionalidades
 ```text
 A–D (completadas)
   → r-integridad → r-recursos → r-compilacion → r-recuperacion
-  → l-biblioteca → l-referencias → l-validacion
+  → l-biblioteca → l-referencias → l-validacion → l-correcciones
   → e-motores → e-validacion → f-diagramas → g-base → g-entrega → g-firma
 ```
 
-Este esquema indica **prioridad de entrega**, no todas las dependencias técnicas. Las dependencias vinculantes figuran en cada tarea. E1 incorpora L5 como puerta de entrega para completar la biblioteca antes de retomar motores.
+Este esquema indica **prioridad de entrega**, no todas las dependencias técnicas. Las dependencias vinculantes figuran en cada tarea. E1 incorpora L5 y las correcciones L6–L9 como puerta de entrega para completar la biblioteca antes de retomar motores.
 
 Las issues siguen siendo la unidad de seguimiento; la unidad de trabajo y revisión es un **bloque de tareas relacionadas**, con una rama y un PR para el bloque y un commit por tarea. Dos bloques pueden trabajarse en paralelo si no comparten archivos (ver «Archivos» de cada tarea). Ver [Cómo seguir la hoja de ruta](#cómo-seguir-la-hoja-de-ruta).
 
@@ -81,6 +81,7 @@ Agrupación prevista de 2–4 tareas relacionadas; una tarea autónoma o con una
 | `l-biblioteca` | Modelo compatible, migración reversible y vista Biblioteca | L1, L2 | #53, #54 |
 | `l-referencias` | Importar bibliografía y usar citas/figuras en la memoria | L3, L4 | #55, #56 |
 | `l-validacion` | Recorridos de navegador y recuperación verificados en CI | L5 | #57 |
+| `l-correcciones` | Asociaciones y reimportaciones fiables, copias de figuras sin pérdida y dependencia corregida | L6, L7, L8, L9 | #65–#68 |
 | `e-motores` | Interfaz de motores y compilación con TeX del sistema | E1, E2 | #23, #24 |
 | `e-validacion` | Requisitos de TeX y evaluación de Tectonic | E3, E4 | #25, #26 |
 | `f-diagramas` | Exportación de diagramas sin Docker | F1 | #27 |
@@ -669,6 +670,52 @@ Se mantienen archivos abiertos, compatibilidad con Obsidian, contenido personal 
 
 ---
 
+## Correcciones de Biblioteca — auditoría del 13-10-2026
+
+Bloque `l-correcciones`, antes de E. Plan: reproducir los fallos con regresiones; corregir L6/L7/L8 en paralelo en archivos separados; integrar L9, revisar el contrato y ejecutar las comprobaciones comunes y de navegador; entregar un PR con un commit por tarea y el informe final. No cambia el alcance de E ni añade funcionalidades nuevas.
+
+<a id="l6"></a>
+### L6 · Resolver asociaciones bibliográficas desde su original
+
+**Issue**: [#65](https://github.com/JavierLoro/estudio-tfg/issues/65)
+
+- **Objetivo y alcance**: Corregir la exportación de campos heredados crossref/xref/xdata/entryset/related después de combinar originales. Usar el documento de procedencia del campo, evitar padres homónimos de otra fuente y rechazar asociaciones editadas ambiguas. Conservar expresiones/macros, originales, revisiones e historial.
+- **Criterios de aceptación y verificación**: Regresiones de campo heredado, padres homónimos y asociación editada ambigua; tests de integración.
+- **Archivos**: server/src/libraryBibliography.ts; server/test/libraryIntegration.test.ts.
+- **Contrato**: precisiones v0.26. **Depende de**: L5 (#57).
+
+<a id="l7"></a>
+### L7 · Detectar reimportaciones de originales históricos
+
+**Issue**: [#66](https://github.com/JavierLoro/estudio-tfg/issues/66)
+
+- **Objetivo y alcance**: Buscar hash e índice tanto en source como en sources al sugerir candidatos, aplicar importaciones y recuperar operaciones. Reimportar un original antiguo tras combinar conserva UUID, notas, adjuntos, clave y metadatos actuales sin crear otra ficha.
+- **Criterios de aceptación y verificación**: Regresión sin DOI y con título cambiado: candidato exacto y aplicación idempotente; índices distintos no se confunden.
+- **Archivos**: server/src/libraryImport.ts; server/test/libraryImport.test.ts.
+- **Contrato**: precisiones v0.26. **Depende de**: L5 (#57).
+
+<a id="l8"></a>
+### L8 · Actualizar copias de figuras sin alterar atribución ni LaTeX
+
+**Issue**: [#67](https://github.com/JavierLoro/estudio-tfg/issues/67)
+
+- **Objetivo y alcance**: Actualizar copia sustituye únicamente el archivo gestionado y su huella/procedencia, preservando crédito y etiqueta registrados y el LaTeX ya escrito. Ocultar controles de pie/etiqueta/ancho que no se aplican en ese flujo. Mantener formato, revisión, historial y conflicto externo.
+- **Criterios de aceptación y verificación**: Pruebas API y recorrido de navegador con atribución/etiqueta personalizados, bytes modificados y TeX intacto.
+- **Archivos**: server/src/libraryIntegration.ts; web/src/components/LibraryUseDialog.tsx; server/test/libraryFigureUpdate.test.ts; test/e2e/figure-update.spec.mjs.
+- **Contrato**: precisiones v0.26. **Depende de**: L5 (#57).
+
+<a id="l9"></a>
+### L9 · Corregir KaTeX y actualizar documentación y seguimiento
+
+**Issue**: [#68](https://github.com/JavierLoro/estudio-tfg/issues/68)
+
+- **Objetivo y alcance**: Resolver [GHSA-238p-pmpm-9mq7](https://github.com/KaTeX/KaTeX/security/advisories/GHSA-238p-pmpm-9mq7) sin degradar Mermaid (override de KaTeX 0.18.2 para Mermaid 12.1.0); verificar el módulo realmente empaquetado y fórmulas/diagramas en navegador. Actualizar los textos que aún anuncian L3/L4 como futuros, el estado de L5 y la prioridad de este bloque antes de E. Documentar el contrato y el informe por tarea.
+- **Criterios de aceptación y verificación**: Auditorías npm de producción sin el aviso, build y navegador con Mermaid/fórmulas; comprobaciones comunes del bloque y CI.
+- **Archivos**: web/package.json; web/package-lock.json; web/src/components/ResourceEditor.tsx; test/e2e/mermaid.spec.mjs; docs/BIBLIOTECA.md; docs/CONTRACT.md; docs/HOJA-DE-RUTA.md.
+- **Contrato**: precisiones v0.26. **Depende de**: L5 (#57) y L6–L8 (internas al bloque).
+
+---
+
 <a id="fase-e"></a>
 ## Fase E — Motores de compilación intercambiables
 
@@ -689,7 +736,7 @@ Resultado: el servidor compila con el motor que elija el usuario: **Docker** (el
 - **Criterios de aceptación**: comportamiento idéntico (todos los tests existentes en verde sin tocarlos, salvo imports); tests nuevos de la interfaz con el worker falso; compilar y exportar diagramas funcionan en el navegador (instancia aparte).
 - **Verificación**: `npm test`, typecheck, navegador.
 - **Archivos**: `server/src/engine/*`, `server/src/compile.ts`, `server/src/diagramas.ts`, `server/src/routes/status.ts`, `server/src/config.ts`, `web/src/api.ts`, `docs/CONTRACT.md`.
-- **Contrato**: sí (siguiente versión libre). **Depende de**: A y L5 (#57, puerta de entrega de producto; completar la biblioteca antes de retomar motores). **Modelo**: Opus. **Esfuerzo**: M.
+- **Contrato**: sí (siguiente versión libre). **Depende de**: A, L5 (#57) y L9 (#68, puerta de entrega; verificar las correcciones de Biblioteca antes de retomar motores). **Modelo**: Opus. **Esfuerzo**: M.
 
 <a id="e2"></a>
 ### E2 · Motor «TeX del sistema»
