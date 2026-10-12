@@ -7,7 +7,7 @@ import { atomicWrite, backup, createExclusive, rev } from './fsutil.ts';
 import { isInside, resolveSafe } from './paths.ts';
 import { treeKey } from './fileops.ts';
 import { ensureLibrary, libraryId } from './libraryIdentity.ts';
-import { newLibraryData, updateLibraryContent, urls, UUID } from './libraryModel.ts';
+import { newLibraryData, updateLibraryContent, urls, UUID, type Bibliography } from './libraryModel.ts';
 import { listResources, readResourceFile } from './resources.ts';
 import { setFrontmatterKeys } from './frontmatter.ts';
 import {
@@ -79,6 +79,9 @@ const doiOf = (v: string | undefined) => {
     return '';
   }
 };
+const hasOriginal = (bib: Bibliography | undefined, hash: string, index: number) =>
+  bib?.authority === 'library' &&
+  [bib.source, ...(bib.sources ?? [])].some((source) => source?.hash === hash && source.index === index);
 const referenceUrls = (fields: Record<string, string>) => {
   const doi = doiOf(fields.doi),
     result: string[] = [];
@@ -197,7 +200,7 @@ export async function importPreview(ctx: Ctx, input: any) {
       .filter((r) => !r.libraryError && r.id)
       .flatMap((r) => {
         const bib = r.bibliography as any,
-          exact = bib?.source?.hash === hash && bib.source.index === index;
+          exact = hasOriginal(r.bibliography, hash, index);
         const sameDoi = !!doiOf(entry.fields.doi) && doiOf(bib?.fields?.doi) === doiOf(entry.fields.doi);
         const sameTitle = !!fold(entry.title) && fold(entry.title) === fold(r.title);
         return exact || sameDoi || sameTitle
@@ -272,9 +275,7 @@ async function finishImport(ctx: Ctx, op: ImportOperation) {
       let plan = op.plans[choice.index];
       if (!plan) {
         const items = (await listResources(ctx.cfg)).items;
-        const exact = items.filter(
-          (r) => (r.bibliography as any)?.source?.hash === hash && (r.bibliography as any)?.source?.index === choice.index,
-        );
+        const exact = items.filter((r) => hasOriginal(r.bibliography, hash, choice.index));
         if (choice.action === 'create' && exact.length === 1) {
           op.results.push({ index: choice.index, state: 'done', path: exact[0].path, id: exact[0].id!, duplicate: true });
           await save();
@@ -422,12 +423,7 @@ export async function importOperations(ctx: Ctx) {
     const results = op.results.map((r) => {
       if (r.state !== 'error' || op.choices.some((c) => c.index === r.index)) return r;
       const hash = sourceHash(op.source.text),
-        matches = resources.filter(
-          (resource) =>
-            resource.bibliography?.authority === 'library' &&
-            resource.bibliography.source?.hash === hash &&
-            resource.bibliography.source.index === r.index,
-        );
+        matches = resources.filter((resource) => hasOriginal(resource.bibliography, hash, r.index));
       return matches.length === 1
         ? { index: r.index, state: 'done' as const, path: matches[0].path, id: matches[0].id, duplicate: true }
         : r;

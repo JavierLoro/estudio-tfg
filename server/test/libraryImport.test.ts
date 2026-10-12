@@ -52,8 +52,44 @@ it('una entrada incompleta no impide guardar las otras; se conserva su formulari
   const fixed = op.items.map((c: any) => ({ ...c, title: c.title || 'Corregida' }));
   expect((await apply(p, crypto.randomUUID(), fixed)).json().results.filter((i: any) => i.state === 'done')).toHaveLength(2);
   expect((await t.app.inject('/api/resources')).json().items).toHaveLength(2);
+  const corrected = (await preview('ris', p.source.text)).items[1].candidates[0],
+    replacement = await preview('bibtex', '@book{Actualizada,title={Otro título},year={2026}}'),
+    choice = { ...replacement.items[0], action: 'merge', targetId: corrected.id, baseRev: corrected.baseRev };
+  expect((await apply(replacement, crypto.randomUUID(), [choice])).json().results[0].state).toBe('done');
   const recovered = (await t.app.inject('/api/library/import/operations')).json().items;
   expect(recovered.every((operation: any) => operation.results.every((r: any) => r.state === 'done'))).toBe(true);
+});
+it('reimporta originales históricos tras combinar sin alterar la ficha ni confundir entradas del mismo lote', async () => {
+  const fd = new FormData();
+  fd.set('libraryVersion', '1');
+  fd.set('title', 'Título ficticio');
+  fd.set('note', 'Notas que conservar');
+  fd.append('files', new Blob(['%PDF-1.4 Ficticio']), 'ficticio.pdf');
+  const created = (await t.app.inject({ method: 'POST', url: '/api/capture', ...(await multipart(fd)) })).json(),
+    original = await detail(created.path),
+    p = await preview(),
+    associate = { ...p.items[0], action: 'associate', targetId: original.item.id, baseRev: original.rev };
+  expect((await apply(p, crypto.randomUUID(), [associate])).json().results[0].state).toBe('done');
+  const associated = await detail(created.path),
+    newer = await preview('bibtex', '@article{Nueva2026,title={Título revisado ficticio},author={Nueva, Ana},year={2027}}'),
+    merge = { ...newer.items[0], action: 'merge', targetId: original.item.id, baseRev: associated.rev };
+  expect((await apply(newer, crypto.randomUUID(), [merge])).json().results[0].state).toBe('done');
+  const merged = await detail(created.path);
+  expect(merged.item.title).toBe('Título revisado ficticio');
+  expect(merged.item.bibliography.fields.doi).toBeUndefined();
+  expect(merged.item.bibliography.key).toBe(associated.item.bibliography.key);
+  expect(merged.item.note).toBe(original.item.note);
+  expect(merged.attachments).toEqual(original.attachments);
+  const reimport = await preview();
+  expect(reimport.items[0].candidates).toEqual([expect.objectContaining({ id: original.item.id, reason: 'original', exact: true })]);
+  expect(reimport.items[1].candidates).toEqual([]);
+  const result = (await apply(reimport)).json();
+  expect(result.results[0]).toMatchObject({ state: 'done', id: original.item.id, path: created.path, duplicate: true });
+  expect(result.results[1]).toMatchObject({ state: 'done' });
+  expect(result.results[1].id).not.toBe(original.item.id);
+  expect(result.results[1].duplicate).toBeUndefined();
+  expect(await detail(created.path)).toEqual(merged);
+  expect((await t.app.inject('/api/resources')).json().items).toHaveLength(2);
 });
 it('asocia a un PDF sin perder notas, adjuntos ni identidad; un cambio externo impide combinar', async () => {
   const fd = new FormData();
