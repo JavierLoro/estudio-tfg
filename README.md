@@ -9,7 +9,9 @@ Se desarrolla y prueba en macOS. El modo Docker y el arranque nativo están prep
 Especificación: [docs/CONTRACT.md](docs/CONTRACT.md) · Worker y requisitos de la plantilla: [worker/README.md](worker/README.md) · Guía para agentes de código: [AGENTS.md](AGENTS.md)
 
 Cada push y PR ejecuta tests, typecheck y build en Linux, macOS y Windows con
-Node 24. Otro job construye el worker y compila todos los perfiles con cero avisos.
+Node 24, incluidos recorridos básicos de Biblioteca en Chromium. Otro job construye
+el worker, compila todos los perfiles con cero avisos y ejecuta la suite completa
+de Biblioteca y recuperación con PDF real en Chromium/Linux.
 Para repetir esa comprobación: `node scripts/compile-template.mjs --output-dir <carpeta>`;
 la carpeta debe coincidir con el volumen `/out` del worker. Se usan copias temporales
 de la plantilla y no se lee `.env`. Los logs de CI se conservan durante 7 días.
@@ -264,6 +266,16 @@ node --test worker/*.test.mjs
 ```
 
 Tests del worker (no necesitan Docker).
+
+```bash
+npm ci --prefix test/e2e
+npm run browsers --prefix test/e2e
+npm run test:e2e
+```
+
+Recorridos de navegador con fixtures temporales y la web construida. El caso de
+compilación exige un worker dedicado; instrucciones, evidencias y límites en
+[test/e2e/README.md](test/e2e/README.md).
 
 ```bash
 npm run template:manifest

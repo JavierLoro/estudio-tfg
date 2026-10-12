@@ -32,6 +32,7 @@ jobs:
           cache-dependency-path: |
             server/package-lock.json
             web/package-lock.json
+            test/e2e/package-lock.json
       - name: Instalar API
         run: npm ci --prefix server
       - name: Instalar web
@@ -42,13 +43,30 @@ jobs:
         run: npm test
       - name: Typecheck y build de la web
         run: npm run build --prefix web
+      - name: Instalar pruebas de navegador
+        run: npm ci --prefix test/e2e
+      - name: Instalar Chromium
+        working-directory: test/e2e
+        run: npx playwright install --with-deps chromium
+      - name: Recorridos básicos de biblioteca y conflictos
+        run: npm run test:e2e -- --grep "@smoke"
+      - name: Conservar evidencias de navegador al fallar
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: biblioteca-smoke-${{ matrix.os }}
+          path: |
+            test/e2e/test-results/
+            test/e2e/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Tests del worker
         run: node --test worker/*.test.mjs
       - name: Manifiesto de plantilla
         run: node scripts/template-manifest.mjs --check
 
   template:
-    name: Plantilla (todos los perfiles, sin avisos)
+    name: Plantilla y biblioteca (Chromium y worker real)
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -59,8 +77,17 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: server/package-lock.json
+          cache-dependency-path: |
+            server/package-lock.json
+            web/package-lock.json
+            test/e2e/package-lock.json
       - run: npm ci --prefix server
+      - run: npm ci --prefix web
+      - run: npm ci --prefix test/e2e
+      - run: npm run build --prefix web
+      - name: Instalar Chromium para los recorridos completos
+        working-directory: test/e2e
+        run: npx playwright install --with-deps chromium
       - name: Preparar carpeta de artefactos temporales
         run: |
           echo "TEMPLATE_OUT=$RUNNER_TEMP/estudio-tfg-template" >> "$GITHUB_ENV"
@@ -89,6 +116,21 @@ jobs:
         run: node scripts/compile-template.mjs --worker-url http://127.0.0.1:8097 --output-dir "$TEMPLATE_OUT"
       - name: Verificar citas, figuras y memoria trasladada sin biblioteca
         run: node server/node_modules/tsx/dist/cli.mjs scripts/library-compile.mts --worker-url http://127.0.0.1:8097 --output-dir "$TEMPLATE_OUT"
+      - name: Recorridos E2E de biblioteca, recuperación y PDF
+        run: npm run test:e2e
+        env:
+          E2E_WORKER_URL: http://127.0.0.1:8097
+          E2E_WORKER_OUT: ${{ env.TEMPLATE_OUT }}
+      - name: Conservar evidencias E2E al fallar
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: biblioteca-e2e-linux
+          path: |
+            test/e2e/test-results/
+            test/e2e/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Guardar log del worker y detenerlo
         if: always()
         run: |
