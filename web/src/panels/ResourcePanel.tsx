@@ -1,18 +1,19 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import type { IDockviewPanelProps } from 'dockview-react';
 import { ArrowLeft, ExternalLink, Paperclip, Pencil } from 'lucide-react';
-import { api, errorMessage, type ResourceFile } from '../api';
+import { api, errorMessage, type ResourceFile, type LibraryUses } from '../api';
 import { MarkdownView } from '../components/Markdown';
 import { Banner, Button, Spinner, cx } from '../components/ui';
 import { openActions } from '../components/OpenActions';
 import { ext, formatDate, basename } from '../lib/paths';
 import { ResourceEditor } from '../components/ResourceEditor';
 import { LibraryMigrationDialog } from '../components/LibraryMigrationDialog';
-import { KIND_LABEL, resourceKind, safeUrl } from '../lib/library';
+import { BIB_FIELD_LABEL, KIND_LABEL, resourceKind, safeUrl } from '../lib/library';
 import { onFileChange } from '../state/events';
 import { STATUS_LABEL, useResourceEdit } from '../state/resources';
 import { useUI } from '../state/ui';
 import { openFile, type FileParams } from '../state/workspace';
+import LibraryUseDialog from '../components/LibraryUseDialog';
 
 const PdfViewer = lazy(() => import('../components/PdfViewer'));
 
@@ -22,6 +23,14 @@ export function ResourcePanel({ params }: IDockviewPanelProps<FileParams>) {
     [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<ResourceFile | null>(null),
     [migration, setMigration] = useState(false);
+  const [using, setUsing] = useState<{
+    file: ResourceFile;
+    kind: 'reference' | 'figure';
+    replaceCopy?: string;
+    updateOnly?: boolean;
+  } | null>(null);
+  const [uses, setUses] = useState<LibraryUses | null>(null),
+    [usesError, setUsesError] = useState('');
   const listItem = useUI((s) => s.resources?.find((item) => item.path === path));
   useEffect(() => {
     let alive = true;
@@ -53,6 +62,30 @@ export function ResourcePanel({ params }: IDockviewPanelProps<FileParams>) {
       clearTimeout(timer);
     };
   }, [path, listItem?.rev]);
+  useEffect(() => {
+    if (!file?.item.id) return;
+    let alive = true;
+    const refresh = () =>
+      api
+        .libraryUses(file.item.id!)
+        .then((r) => {
+          if (alive) {
+            setUses(r);
+            setUsesError('');
+          }
+        })
+        .catch((e) => {
+          if (alive) setUsesError(errorMessage(e));
+        });
+    void refresh();
+    const off = onFileChange((e) => {
+      if (e.root === 'memoria') void refresh();
+    });
+    return () => {
+      alive = false;
+      off();
+    };
+  }, [file?.item.id, file?.rev, using]);
   const render = () => {
     if (error)
       return <Banner kind="danger">No se pudo abrir la ficha: {error}. Si cambió fuera de la app, ábrela desde Biblioteca.</Banner>;
@@ -93,6 +126,17 @@ export function ResourcePanel({ params }: IDockviewPanelProps<FileParams>) {
             </Button>
           </div>
           <div className="mb-4 flex flex-wrap gap-1 text-[11px]">
+            {item.id && !libraryError && (
+              <div className="mb-4 flex flex-wrap gap-2">
+                {item.bibliography && <Button onClick={() => setUsing({ file, kind: 'reference' })}>Insertar cita</Button>}
+                {!!file.attachments.length && <Button onClick={() => setUsing({ file, kind: 'figure' })}>Insertar figura</Button>}
+                {uses?.references.some((r) => r.id === item.id) && (
+                  <Button onClick={() => setUsing({ file, kind: 'reference', updateOnly: true })}>
+                    Actualizar bibliografía de esta ficha
+                  </Button>
+                )}
+              </div>
+            )}
             {(item.collections ?? []).map((value) => (
               <span key={value} className="rounded bg-active px-2 py-1 text-accent">
                 {value}
@@ -121,6 +165,19 @@ export function ResourcePanel({ params }: IDockviewPanelProps<FileParams>) {
           {item.bibliography && (
             <section className="my-4 rounded border border-line bg-soft p-3 text-[12px]">
               <h2 className="mb-1 font-semibold">Referencia bibliográfica</h2>
+              {item.bibliography.authority === 'library' && item.bibliography.source && (
+                <a
+                  className="text-accent hover:underline"
+                  target="_blank"
+                  rel="noreferrer"
+                  href={api.rawUrl(
+                    'notes',
+                    `${useUI.getState().status?.resourcesSubdir ?? 'Recursos'}/originales/${item.bibliography.source.hash}.${item.bibliography.source.format === 'bibtex' ? 'bib' : item.bibliography.source.format === 'ris' ? 'ris' : 'json'}`,
+                  )}
+                >
+                  Abrir original bibliográfico
+                </a>
+              )}
               {item.bibliography.authority === 'manual' ? (
                 <p>
                   {item.bibliography.path} · {item.bibliography.key}
@@ -131,9 +188,7 @@ export function ResourcePanel({ params }: IDockviewPanelProps<FileParams>) {
                     .filter(([, value]) => value)
                     .map(([key, value]) => (
                       <div key={key}>
-                        <dt className="inline font-medium">
-                          {({ author: 'Autor/es', year: 'Año', doi: 'DOI' } as Record<string, string>)[key] ?? key}:{' '}
-                        </dt>
+                        <dt className="inline font-medium">{BIB_FIELD_LABEL[key] ?? `Campo: ${key}`}: </dt>
                         <dd className="inline break-words">{value}</dd>
                       </div>
                     ))}
@@ -155,14 +210,47 @@ export function ResourcePanel({ params }: IDockviewPanelProps<FileParams>) {
               <p className="text-[12px] text-faint">Sin notas. Puedes añadirlas al editar la ficha.</p>
             )}
           </section>
+          {item.id && (
+            <section className="mt-6 space-y-2">
+              <h2 className="text-[14px] font-semibold">Usos en esta memoria</h2>
+              {usesError && <Banner kind="warn">No se pudieron consultar los usos: {usesError}</Banner>}
+              {uses?.references.some((r) => r.outdated) && (
+                <Banner kind="warn">
+                  La referencia cambió en Biblioteca. La copia de la memoria se conserva hasta que decidas actualizarla.
+                </Banner>
+              )}
+            {uses?.available===false&&<p className="text-[12px] text-muted">Configura una memoria para consultar sus usos; la Biblioteca sigue disponible.</p>}
+            {uses?.available!==false&&!uses?.uses.length && !usesError && (
+                <p className="text-[12px] text-muted">
+                  Aún no se detectan citas ni figuras guardadas. Los borradores aparecen al guardarlos.
+                </p>
+              )}
+              {uses?.uses.map((u, i) => (
+                <Button key={i} onClick={() => openFile('memoria', u.file, { line: u.line })}>
+                  {u.kind === 'citation' ? 'Cita' : 'Figura'} · {u.file}:{u.line}
+                </Button>
+              ))}
+              {uses?.figures.map((f) => (
+                <div key={f.path} className="flex flex-wrap items-center gap-2 text-[12px]">
+                  <span>Copia: {f.path}</span>
+                  <Button onClick={() => setUsing({ file, kind: 'figure', replaceCopy: f.path, updateOnly: true })}>
+                    Actualizar esta copia de imagen
+                  </Button>
+                </div>
+              ))}
+            </section>
+          )}
           {item.provenance && (
             <p className="mt-6 text-[11px] text-faint">
               Procedencia:{' '}
               {(
-                { file: 'Archivo añadido', url: 'Enlace añadido', manual: 'Ficha manual', legacy: 'Recurso anterior' } as Record<
-                  string,
-                  string
-                >
+                {
+                  file: 'Archivo añadido',
+                  url: 'Enlace añadido',
+                  manual: 'Ficha manual',
+                  legacy: 'Recurso anterior',
+                  bibliography: 'Bibliografía importada',
+                } as Record<string, string>
               )[String(item.provenance.method)] ?? String(item.provenance.method)}
             </p>
           )}
@@ -175,6 +263,7 @@ export function ResourcePanel({ params }: IDockviewPanelProps<FileParams>) {
       {render()}
       {editing && <ResourceEditor file={editing} onClose={() => setEditing(null)} />}
       <LibraryMigrationDialog open={migration} onlyPath={path} onClose={() => setMigration(false)} />
+      {using && <LibraryUseDialog {...using} onClose={() => setUsing(null)} />}
     </>
   );
 }
@@ -211,9 +300,13 @@ function Attachment({ path }: { path: string }) {
       {isImg && <img src={url} alt={basename(path)} className="max-h-[480px] w-full object-contain p-2" />}
       {e === 'pdf' && (
         <div role="region" aria-label={`PDF: ${basename(path)}`} className="relative h-[520px]">
-          <Suspense fallback={
-            <div className="flex h-full items-center justify-center"><Spinner /></div>
-          }>
+          <Suspense
+            fallback={
+              <div className="flex h-full items-center justify-center">
+                <Spinner />
+              </div>
+            }
+          >
             <PdfViewer url={url} synctex={false} />
           </Suspense>
         </div>

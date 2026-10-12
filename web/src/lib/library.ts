@@ -10,6 +10,23 @@ export const KIND_LABEL: Record<ResourceKind, string> = {
   other: 'Otro',
 };
 export const kinds = Object.keys(KIND_LABEL) as ResourceKind[];
+export const BIB_FIELD_LABEL: Record<string, string> = {
+  author: 'Autor/es',
+  year: 'Año',
+  doi: 'DOI',
+  journaltitle: 'Revista',
+  journal: 'Revista',
+  publisher: 'Editorial',
+  url: 'URL',
+  abstract: 'Resumen',
+  volume: 'Volumen',
+  number: 'Número',
+  pages: 'Páginas',
+  date: 'Fecha',
+  editor: 'Editor/es',
+  isbn: 'ISBN',
+  booktitle: 'Título del libro',
+};
 export function resourceKind(resource: Resource): ResourceKind {
   if (resource.kind) return resource.kind;
   return /\.(png|jpe?g|gif|webp|svg|avif)$/i.test(resource.attachment ?? '')
@@ -46,7 +63,7 @@ export function filterResources(resources: Resource[], filters: LibraryFilters) 
       filters.order === 'title'
         ? a.title.localeCompare(b.title, 'es')
         : filters.order === 'oldest'
-          ? a.captured.localeCompare(b.captured)
-          : b.captured.localeCompare(a.captured),
+          ? (Date.parse(a.captured) || 0) - (Date.parse(b.captured) || 0)
+          : (Date.parse(b.captured) || 0) - (Date.parse(a.captured) || 0),
     );
 }

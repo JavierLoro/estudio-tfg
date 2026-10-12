@@ -9,6 +9,7 @@ import { eolOf } from '../lib/eol';
 import { baseExtensions, languageExtension, type EditorLang } from '../lib/editor';
 import { setContent, useDocs } from '../state/docs';
 import { setCursorLine, useCursor } from '../state/cursor';
+import { editorViews } from '../lib/editorInsert';
 
 export interface LineDiagnostic {
   line: number | null;
@@ -116,6 +117,7 @@ export function CodeEditor({ docKey, lang, lineNumbers = true, className, onSave
       }),
     });
     viewRef.current = view;
+    editorViews.set(docKey,view);
     cb.current.onView?.(view);
     // Al remontar el editor (p. ej. tras mover el archivo) se vuelve a la línea del cursor.
     const savedLine = useCursor.getState().lines[docKey];
@@ -125,6 +127,7 @@ export function CodeEditor({ docKey, lang, lineNumbers = true, className, onSave
     }
     if (diagRef.current?.length) view.dispatch(setDiagnostics(view.state, toCmDiagnostics(view.state, diagRef.current)));
     return () => {
+      if(editorViews.get(docKey)===view)editorViews.delete(docKey);
       view.destroy();
       viewRef.current = null;
       cb.current.onView?.(null);
