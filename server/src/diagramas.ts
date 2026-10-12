@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { Ctx } from './context.ts';
+import { createEngine } from './engine/index.ts';
 import { HttpError, badRequest, notFound } from './errors.ts';
 import { atomicWrite, backup, rev, walkFiles } from './fsutil.ts';
 import { resolveSafe } from './paths.ts';
@@ -14,7 +15,6 @@ import { stripComment } from './outline.ts';
 export const DIAGRAMAS_DIR = 'diagramas';
 export const FIGURAS_DIR = 'figuras/diagramas';
 export const MAX_SVG_BYTES = 5 * 1024 * 1024;
-const WORKER_TIMEOUT_MS = 60_000;
 const META_ID = 'estudio-tfg-diagrama';
 
 export type EstadoDiagrama = 'sin-exportar' | 'exportado' | 'desactualizado';
@@ -184,34 +184,9 @@ export async function listEstados(ctx: Ctx): Promise<EstadoItem[]> {
   return items;
 }
 
-/** SVG → PDF con el worker. */
+/** SVG → PDF con el motor elegido. */
 async function svgToPdf(ctx: Ctx, svg: string): Promise<Buffer> {
-  let res: Response;
-  try {
-    res = await fetch(`${ctx.cfg.workerUrl}/svg2pdf`, {
-      method: 'POST',
-      headers: { 'content-type': 'image/svg+xml' },
-      body: svg,
-      signal: AbortSignal.timeout(WORKER_TIMEOUT_MS),
-    });
-  } catch {
-    throw new HttpError(503, 'Worker de compilación no disponible: no se puede convertir el diagrama a PDF');
-  }
-  if (!res.ok) {
-    let msg = `el worker respondió ${res.status}`;
-    try {
-      const b = (await res.json()) as { error?: unknown };
-      if (typeof b?.error === 'string') msg = b.error;
-    } catch {
-      /* sin JSON */
-    }
-    if (res.status === 400 || res.status === 413) throw badRequest(`SVG no válido: ${msg}`);
-    if (res.status === 404) throw new HttpError(503, 'El worker no sabe convertir diagramas: reconstrúyelo (npm run worker)');
-    throw new HttpError(502, `No se pudo convertir el diagrama a PDF: ${msg}`);
-  }
-  const pdf = Buffer.from(await res.arrayBuffer());
-  if (pdf.subarray(0, 5).toString('latin1') !== '%PDF-') throw new HttpError(502, 'El worker no devolvió un PDF');
-  return pdf;
+  return createEngine(ctx.cfg).svg2pdf(svg);
 }
 
 /** Escribe un archivo de la memoria con copia en el historial (si existía y cambia) y de forma atómica. */

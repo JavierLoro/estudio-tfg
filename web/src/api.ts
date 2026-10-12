@@ -12,6 +12,7 @@ export interface Status {
   resourcesSubdir: string;
   syncConflicts: string[];
   worker: 'up' | 'down';
+  motor?: { tipo: 'docker' | 'local'; estado: 'up' | 'down'; version: string | null; capacidades: { compile: boolean; svg2pdf: boolean } };
   watcher: 'ok' | 'error';
   watcherMessage?: string;
   /** v0.2: false si `notesDir` o `memoriaDir` no existen. */

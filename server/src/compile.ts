@@ -2,6 +2,8 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Readable } from 'node:stream';
+import { createEngine } from './engine/index.ts';
+import { HttpError } from './errors.ts';
 import { promisify } from 'node:util';
 import zlib from 'node:zlib';
 import * as tar from 'tar';
@@ -32,8 +34,8 @@ interface Persisted {
   lastGoodPdfUrl: string | null;
 }
 
-export const WORKER_DOWN_MSG = 'Worker de compilación no disponible';
-const WORKER_TIMEOUT_MS = 180_000;
+import { WORKER_DOWN_MSG } from './engine/docker.ts';
+export { WORKER_DOWN_MSG };
 /** Same limit the worker enforces on the tar body. */
 export const MAX_TAR_BYTES = 200 * 1024 * 1024;
 const BUILD_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
@@ -88,16 +90,6 @@ export async function createSourceTar(cfg: Config): Promise<{ stream: Readable; 
   };
   stream.once('close', discard);
   return { stream, files: files.length, bytes };
-}
-
-function normDiagnostics(v: unknown): Diagnostic[] {
-  if (!Array.isArray(v)) return [];
-  return v.map((d: any) => ({
-    severity: d?.severity === 'warning' ? 'warning' : 'error',
-    file: typeof d?.file === 'string' ? d.file : '',
-    line: typeof d?.line === 'number' && Number.isFinite(d.line) ? d.line : null,
-    message: typeof d?.message === 'string' ? d.message : String(d?.message ?? ''),
-  }));
 }
 
 export class Compiler {
@@ -182,44 +174,26 @@ export class Compiler {
       return this.finish(result);
     }
     try {
-      const res = await fetch(`${snap.workerUrl}/compile`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/x-tar', 'x-main': encodeURIComponent(snap.memoriaMain) },
-        body: Readable.toWeb(src.stream) as any,
-        duplex: 'half',
-        signal: AbortSignal.timeout(WORKER_TIMEOUT_MS),
-      } as RequestInit);
-      const text = await res.text();
-      let body: any = null;
-      try {
-        body = JSON.parse(text);
-      } catch {
-        /* not json */
+      const body = await createEngine(snap).compile(src.stream, snap.memoriaMain);
+      const buildId = isValidBuildId(body.buildId) ? body.buildId : localBuildId(started);
+      const ok = Boolean(body?.ok) && typeof body?.pdf === 'string' && (await this.pdfExists(body.pdf));
+      const diagnostics = body.diagnostics;
+      if (body?.ok && !ok) {
+        diagnostics.push({ severity: 'error', file: snap.memoriaMain, line: null, message: 'El worker no generó el PDF esperado' });
       }
-      const buildId = typeof body?.buildId === 'string' && isValidBuildId(body.buildId) ? body.buildId : localBuildId(started);
-      if (!res.ok && !body?.diagnostics) {
-        const msg = typeof body?.error === 'string' ? body.error : text.slice(0, 300);
-        result = await this.failure(buildId, started, t0, sourceRev, `Error del worker (HTTP ${res.status}): ${msg}`, snap);
-      } else {
-        const ok = Boolean(body?.ok) && typeof body?.pdf === 'string' && (await this.pdfExists(body.pdf));
-        const diagnostics = normDiagnostics(body?.diagnostics);
-        if (body?.ok && !ok) {
-          diagnostics.push({ severity: 'error', file: snap.memoriaMain, line: null, message: 'El worker no generó el PDF esperado' });
-        }
-        const pdfUrl = ok ? `/api/pdf/${buildId}.pdf` : await this.lastGood();
-        result = {
-          ok,
-          buildId,
-          startedAt: started.toISOString(),
-          durationMs: typeof body?.durationMs === 'number' ? body.durationMs : Math.round(performance.now() - t0),
-          diagnostics,
-          pdfUrl,
-          sourceRev,
-        };
-        if (ok) this.state.lastGoodPdfUrl = pdfUrl;
-      }
+      const pdfUrl = ok ? `/api/pdf/${buildId}.pdf` : await this.lastGood();
+      result = {
+        ok,
+        buildId,
+        startedAt: started.toISOString(),
+        durationMs: body.durationMs ?? Math.round(performance.now() - t0),
+        diagnostics,
+        pdfUrl,
+        sourceRev,
+      };
+      if (ok) this.state.lastGoodPdfUrl = pdfUrl;
     } catch (e: any) {
-      const msg = e?.name === 'TimeoutError' ? `${WORKER_DOWN_MSG} (tiempo de espera agotado)` : WORKER_DOWN_MSG;
+      const msg = e instanceof HttpError ? e.message : WORKER_DOWN_MSG;
       result = await this.failure(localBuildId(started), started, t0, sourceRev, msg, snap);
     } finally {
       src.stream.destroy();
