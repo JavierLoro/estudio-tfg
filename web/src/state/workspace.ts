@@ -96,7 +96,8 @@ export function openFile(root: Root, path: string, opts: OpenOptions = {}) {
 }
 
 export function openResource(path: string, opts: OpenOptions = {}) {
-  addOrFocus(panelIdFor('resource', path), 'resource', basename(path).replace(/\.md$/i, ''), { root: 'notes', path }, opts);
+  const title=useUI.getState().resources?.find(r=>r.path===path)?.title??basename(path).replace(/\.md$/i,'');
+  addOrFocus(panelIdFor('resource', path), 'resource', title, { root: 'notes', path }, opts);
 }
 
 export function openPdf(opts: OpenOptions = {}) {

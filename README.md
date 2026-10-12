@@ -156,7 +156,9 @@ si chocan con el navegador, usa los botones. Más detalles en
 - **Añadir** (mismo atajo de captura): URL, ficha manual o varios archivos; un recurso por archivo o agrupados en una ficha. La clasificación es opcional.
 - Fichas con varias URLs/adjuntos, datos bibliográficos y notas editables sin YAML. Los cambios externos conservan la edición y exigen revisión antes de reaplicar un conflicto.
 - Compatibilidad con recursos antiguos y conversión con vista previa, copias y deshacer. La identidad del destino se conserva al trasladar fichas y registros juntos.
-- Los lotes se guardan en la cola local antes del primer envío; resultados y reintentos por elemento. Importación bibliográfica y uso de citas/figuras corresponden a los próximos bloques.
+- Los lotes se guardan en la cola local antes del primer envío; resultados y reintentos por elemento.
+- **Importar bibliografía:** archivos/texto BibTeX o RIS y consultas DOI a Crossref, con revisión de campos, decisiones sobre duplicados y originales conservados. Los lotes fallidos se recuperan sin repetir éxitos.
+- **Insertar cita / figura:** revisa las copias propuestas y añádelas al cursor del editor, conservando su borrador y deshacer. Bibliografía e imágenes quedan dentro de la memoria; los .bib manuales no se sobrescriben. La ficha muestra usos guardados y permite actualizar sus copias explícitamente.
 
 Modelo y decisiones: [docs/BIBLIOTECA.md](docs/BIBLIOTECA.md).
 

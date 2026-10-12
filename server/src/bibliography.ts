@@ -13,7 +13,7 @@ export interface BibEntry {
   end: number;
   error?: string;
 }
-export const sourceHash = (text: string) => crypto.createHash('sha256').update(text).digest('hex');
+export const sourceHash = (text: string | Buffer) => crypto.createHash('sha256').update(text).digest('hex');
 export const citeKey = /^[A-Za-z0-9][A-Za-z0-9_:.-]{0,199}$/;
 export const fieldName = /^[A-Za-z][A-Za-z0-9_:.-]{0,99}$/;
 export const texEscape = (value: string) =>
@@ -32,6 +32,10 @@ interface Parsed extends BibEntry {
   typeSpan: Span;
   values: Record<string, Span>;
   close: number;
+}
+interface Definition {
+  name?: Span;
+  value: Span;
 }
 const ws = (text: string, start: number) => {
   let i = start;
@@ -76,8 +80,8 @@ function expression(text: string, start: number, stop: number): Span {
       continue;
     }
     if (!depth && c === '"') quoted = !quoted;
-    if (!quoted && c === '{') depth++;
-    else if (!quoted && c === '}') depth--;
+    if (c === '{') depth++;
+    else if (c === '}') depth--;
     if (!depth && !quoted && c === ',') break;
     if (depth < 0) throw new Error('Llaves no equilibradas');
     if (!depth && !quoted && c === '%') {
@@ -92,9 +96,15 @@ function expression(text: string, start: number, stop: number): Span {
 }
 
 /** Escáner de rangos: los bytes originales quedan separados de los valores editables. */
-export function parseBibDocument(text: string): { entries: Parsed[]; support: string; macros: Map<string, string> } {
+export function parseBibDocument(text: string): {
+  entries: Parsed[];
+  support: string;
+  macros: Map<string, string>;
+  definitions: Definition[];
+} {
   const entries: Parsed[] = [],
     macros = new Map<string, string>();
+  const definitions: Definition[] = [];
   let support = '',
     last = 0,
     i = 0;
@@ -131,6 +141,8 @@ export function parseBibDocument(text: string): { entries: Parsed[]; support: st
           close,
         });
       if (entries.length > 100) throw badRequest('Importa como máximo 100 referencias por lote');
+      support += text.slice(last, i);
+      last = close;
       i = Math.max(close, open + 1);
       continue;
     }
@@ -139,11 +151,20 @@ export function parseBibDocument(text: string): { entries: Parsed[]; support: st
         const nm = /^\s*([A-Za-z][A-Za-z0-9_:-]*)\s*=/.exec(text.slice(open + 1, close));
         if (nm)
           try {
-            macros.set(nm[1].toLowerCase(), expression(text, open + 1 + nm[0].length, close).value);
+            const value = expression(text, open + 1 + nm[0].length, close),
+              start = open + 1 + nm[0].indexOf(nm[1]);
+            macros.set(nm[1].toLowerCase(), value.value);
+            definitions.push({ name: { start, end: start + nm[1].length, value: nm[1] }, value });
           } catch {
             /* avisa cada campo que la necesite */
           }
       }
+      if (type === 'preamble')
+        try {
+          definitions.push({ value: expression(text, ws(text, open + 1), close) });
+        } catch {
+          /* conserva el original para revisión */
+        }
       i = close + 1;
       continue;
     }
@@ -241,16 +262,19 @@ export function parseBibDocument(text: string): { entries: Parsed[]; support: st
     }
     return result;
   };
-  for (const entry of entries)
-    try {
-      for (const [name, v] of Object.entries(entry.values)) entry.fields[name] = expand(v.value);
-      entry.title = entry.fields.title ?? '';
-      delete entry.fields.title;
-      if (!entry.title && !['xdata', 'set'].includes(entry.entryType)) entry.error ??= 'Falta el título; complétalo antes de importar';
-    } catch (e) {
-      entry.error ??= e instanceof Error ? e.message : 'Expresión no válida';
-    }
-  return { entries, support, macros };
+  for (const entry of entries) {
+    for (const [name, v] of Object.entries(entry.values))
+      try {
+        entry.fields[name] = expand(v.value);
+      } catch (e) {
+        if (name !== 'title') entry.fields[name] = v.value;
+        entry.error ??= e instanceof Error ? e.message : 'Expresión no válida';
+      }
+    entry.title = entry.fields.title ?? '';
+    delete entry.fields.title;
+    if (!entry.title && !['xdata', 'set'].includes(entry.entryType)) entry.error ??= 'Falta el título; complétalo antes de importar';
+  }
+  return { entries, support, macros, definitions };
 }
 
 export function parseRis(text: string): BibEntry[] {
@@ -350,6 +374,7 @@ export function rewriteBibEntry(
   text: string,
   entry: Parsed,
   next: { key: string; entryType: string; title: string; fields: Record<string, string> },
+  rawFields: Record<string, string> = {},
 ): string {
   const fields: Record<string, string> = { ...next.fields, title: next.title },
     old: Record<string, string> = { ...entry.fields, title: entry.title };
@@ -358,18 +383,77 @@ export function rewriteBibEntry(
   if (next.entryType !== entry.entryType) changes.push({ ...entry.typeSpan, value: next.entryType });
   const extra: string[] = [];
   for (const [name, value] of Object.entries(fields)) {
-    if (value === old[name]) continue;
-    const literal = `{${texEscape(value)}}`,
+    if (value === old[name] && rawFields[name] === undefined) continue;
+    const literal = rawFields[name] ?? `{${texEscape(value)}}`,
       span = entry.values[name];
+    if (span?.value === literal) continue;
     if (span) changes.push({ ...span, value: literal });
     else extra.push(`  ${name} = ${literal}`);
   }
   if (extra.length) {
-    const before = text.slice(entry.start, entry.close).trimEnd();
-    changes.push({ start: entry.close, end: entry.close, value: `${before.endsWith(',') ? '' : ','}\n${extra.join(',\n')}\n` });
+    const last = Math.max(entry.keySpan.end, ...Object.values(entry.values).map((v) => v.end));
+    changes.push({ start: entry.close, end: entry.close, value: `${text[ws(text, last)] === ',' ? '' : ','}\n${extra.join(',\n')}\n` });
   }
   let result = text.slice(entry.start, entry.end);
   for (const c of changes.sort((a, b) => b.start - a.start))
     result = result.slice(0, c.start - entry.start) + c.value + result.slice(c.end - entry.start);
   return result;
+}
+
+/** Cada original conserva sus macros sin interferir con las de otros archivos. */
+export function namespaceBibDocument(text: string, prefix: string) {
+  const doc = parseBibDocument(text),
+    names = new Set(doc.macros.keys()),
+    changes: { start: number; end: number; value: string }[] = [];
+  const rewrite = (value: string) => {
+    let result = '',
+      i = 0;
+    while (i < value.length) {
+      const c = value[i];
+      if (c === '{') {
+        const end = group(value, i);
+        if (end < 0) return value;
+        result += value.slice(i, end + 1);
+        i = end + 1;
+        continue;
+      }
+      if (c === '"') {
+        const start = i++;
+        let depth = 0;
+        for (; i < value.length; i++) {
+          if (value[i] === '\\') i++;
+          else if (value[i] === '{') depth++;
+          else if (value[i] === '}') depth--;
+          else if (value[i] === '"' && !depth) {
+            i++;
+            break;
+          }
+        }
+        result += value.slice(start, i);
+        continue;
+      }
+      if (c === '%') {
+        const end = value.indexOf('\n', i);
+        result += value.slice(i, end < 0 ? value.length : end + 1);
+        i = end < 0 ? value.length : end + 1;
+        continue;
+      }
+      const m = /^[A-Za-z][A-Za-z0-9_:.-]*/.exec(value.slice(i));
+      if (m) {
+        result += names.has(m[0].toLowerCase()) ? prefix + m[0].toLowerCase() : m[0];
+        i += m[0].length;
+      } else {
+        result += c;
+        i++;
+      }
+    }
+    return result;
+  };
+  for (const d of doc.definitions) {
+    if (d.name) changes.push({ ...d.name, value: prefix + d.name.value.toLowerCase() });
+    changes.push({ ...d.value, value: rewrite(d.value.value) });
+  }
+  for (const entry of doc.entries) for (const v of Object.values(entry.values)) changes.push({ ...v, value: rewrite(v.value) });
+  for (const c of changes.sort((a, b) => b.start - a.start)) text = text.slice(0, c.start) + c.value + text.slice(c.end);
+  return { text, ...parseBibDocument(text) };
 }

@@ -143,6 +143,22 @@ export interface ImportPreview { libraryId:string; source:BibliographySource; wa
 export interface ImportResult {index:number;state:'done'|'error'|'skipped';path?:string;id?:string;error?:string;duplicate?:boolean}
 export interface ImportRequest {operationId:string;libraryId:string;source:BibliographySource;items:ImportChoice[]}
 export interface ImportOperation extends ImportRequest {results:ImportResult[]}
+export interface LibraryUse {id:string;kind:'citation'|'figure';file:string;line:number;key?:string;path?:string}
+export interface LibraryUses {
+  available?:boolean;
+  uses:LibraryUse[]; references:{id:string;key:string;authority:'library'|'manual';outdated:boolean}[];
+  figures:{id:string;libraryId:string;path:string;hash:string;sourcePath:string;title:string;credit:string;label:string}[];
+}
+export interface IntegrationPreview {
+  operationId:string;libraryId:string;instanceId:string;state:'prepared'|'done';warnings:string[];
+  result:{snippet:string;key?:string;figurePath?:string;mainEdit?:{path:string;baseRev:string;before:string;after:string}};
+  files:{path:string;baseRev:string|null;before?:string;after?:string}[];
+}
+export interface IntegrationRequest {
+  operationId:string;libraryId:string;instanceId:string;resourceId:string;baseRev:string;kind:'reference'|'figure';
+  attachmentPath?:string;caption?:string;credit?:string;label?:string;width?:number;replaceCopy?:string;
+  mainDraft?:{content:string;baseRev:string};
+}
 
 export interface SearchItem {
   root: Root;
@@ -546,6 +562,10 @@ export const api = {
   importPreview: (input:BibliographySource|{format:'doi';doi:string})=>json<ImportPreview>('/api/library/import/preview',jsonBody('POST',input)),
   importBibliography: (input:ImportRequest)=>json<{operationId:string;results:ImportResult[]}>('/api/library/import',jsonBody('POST',input)),
   importOperations: ()=>json<{libraryId:string;items:ImportOperation[]}>('/api/library/import/operations'),
+  libraryUses:(id?:string,path?:string)=>json<LibraryUses>(`/api/library/uses?${qs({id,path})}`),
+  integrationPreview:(input:IntegrationRequest)=>json<IntegrationPreview>('/api/library/integration/preview',jsonBody('POST',input)),
+  integrationApply:(preview:IntegrationPreview)=>json<IntegrationPreview>('/api/library/integration/apply',jsonBody('POST',{operationId:preview.operationId,libraryId:preview.libraryId,instanceId:preview.instanceId,revisions:preview.files.map(({path,baseRev})=>({path,baseRev}))})),
+  integrationOperation:(id:string)=>json<IntegrationPreview>(`/api/library/integration/${encodeURIComponent(id)}`),
   migrate: (operationId: string, items: MigrationSelection[], libraryId: string) => json<MigrationOperation>('/api/library/migration', jsonBody('POST', { operationId, libraryId, items: items.map(({path,baseRev,id,proposalRev}) => ({path,baseRev,id,proposalRev})) })),
   retryMigration: (id: string) => json<MigrationOperation>(`/api/library/migration/${encodeURIComponent(id)}/retry`, { method: 'POST' }),
   undoMigration: (id: string) => json<MigrationOperation>(`/api/library/migration/${encodeURIComponent(id)}/undo`, { method: 'POST' }),

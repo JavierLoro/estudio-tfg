@@ -170,6 +170,13 @@ export function canMoveInto(from: string, dir: string): boolean {
 export async function deleteEntry(root: Root, path: string, isDir?: boolean): Promise<boolean> {
   const entry = findEntry(useUI.getState().trees[root], path);
   const dir = isDir ?? entry?.type === 'dir';
+  if(root==='notes'&&useUI.getState().resources?.some(r=>r.id&&(r.path===path||r.path.startsWith(path+'/')))) {
+    try {
+      const result=await api.libraryUses(undefined,path);
+      const where=result.uses.length?`Usos guardados: ${result.uses.map(u=>`${u.file}:${u.line}`).join(', ')}. `:'Hay copias preparadas que pueden utilizarse en borradores. ';
+      if((result.uses.length||result.references.length||result.figures.length)&&!(await confirmDialog({title:'Recurso utilizado en la memoria',text:where+'Las copias de bibliografía e imágenes se conservan dentro de la memoria. ¿Enviar el recurso a la papelera?',okLabel:'Continuar',danger:true})))return false;
+    }catch(e){toast({kind:'error',text:`No se pudo comprobar dónde se utiliza; no se eliminó: ${errorMessage(e)}`});return false;}
+  }
   const affected = docsUnder(root, path);
   const unsaved = affected.filter((d) => isDirty(d) || d.conflict);
   const lost = unsaved.length
