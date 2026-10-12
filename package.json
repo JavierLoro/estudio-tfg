@@ -10,6 +10,7 @@
     "start": "npm start --prefix server",
     "worker": "docker compose up -d --build worker",
     "test": "node --test scripts/*.test.mjs && npm test --prefix server",
+    "test:e2e": "npm test --prefix test/e2e --",
     "template:manifest": "node scripts/template-manifest.mjs"
   }
 }

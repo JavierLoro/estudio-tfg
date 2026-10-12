@@ -2,11 +2,11 @@
 
 > Objetivo de producto: reunir fuentes en una **Biblioteca** y utilizarlas al escribir la memoria: añadir, organizar, consultar, citar e insertar figuras. Primero se corrigen los riesgos de pérdida de datos detectados en la auditoría del 09-10-2026; después se construye la biblioteca y se retoman los motores de compilación y la distribución como **app instalable y portable para Windows y Mac** (Electron), sin obligar a instalar Docker.
 >
-> Cada tarea está escrita para que **un agente pueda hacerla leyendo solo su sección** (más AGENTS.md y lo que la sección enlace). Cada tarea tiene su issue en GitHub con la etiqueta `hoja-de-ruta` y la de su fase (`fase-A`…`fase-G`, `fase-R` y `fase-L`).
+> Cada tarea está escrita para que **un agente pueda hacerla leyendo solo su sección** (más AGENTS.md y lo que la sección enlace). Cada tarea de los bloques de entrega tiene su issue en GitHub con la etiqueta `hoja-de-ruta` y la de su fase (`fase-A`…`fase-G`, `fase-R` y `fase-L`). Las ideas del apartado final de nuevas funcionalidades están pendientes de concretar.
 >
 > Fuentes: [PLATAFORMAS.md](PLATAFORMAS.md) (50 hallazgos de portabilidad; los IDs como `S1`, `P2`, `F4` se refieren a él), [CONTRACT.md](CONTRACT.md) y la auditoría del 09-10-2026, cuyas evidencias y acciones se describen en R1–R8 y L1–L5.
 >
-> **Estado actualizado:** A–D, R y L1/L2 completadas y fusionadas. **Bloque actual: `l-referencias` (L3 + L4)**, sujeto a comprobar reservas y PR abiertos. Orden de continuación: **R → L → E → F → G**. R y L se insertan aquí sin renumerar las tareas anteriores; sus letras no determinan la prioridad.
+> **Estado actualizado:** A–D, R y L1–L4 completadas y fusionadas. **Bloque actual: `l-validacion` (L5)**, sujeto a comprobar reservas y PR abiertos. Orden de continuación: **R → L → E → F → G**. R y L se insertan aquí sin renumerar las tareas anteriores; sus letras no determinan la prioridad.
 
 ## Índice
 
@@ -21,6 +21,8 @@
 | [E](#fase-e) | Motores de compilación intercambiables (Docker / TeX del sistema / Tectonic) | E1–E4 | #23–#26 | A, L5; E2 también R6 y R8 |
 | [F](#fase-f) | Exportar diagramas sin Docker | F1 | #27 | E1 |
 | [G](#fase-g) | App de escritorio con Electron | G1–G7 | #28–#34 | B1, C, D1, E1–E2, F1 |
+
+Después de las fases actuales: [Nuevas funcionalidades](#nuevas-funcionalidades), pendientes de evaluación y planificación.
 
 ```text
 A–D (completadas)
@@ -849,3 +851,31 @@ Resultado: instaladores y versión portable para Windows y Mac (y AppImage para 
 - **Verificación**: revisión en la app.
 - **Archivos**: componente en `web/src/` o menú de `desktop/`, `README.md`.
 - **Contrato**: no. **Depende de**: G3. **Modelo**: Haiku. **Esfuerzo**: S.
+
+---
+
+<a id="nuevas-funcionalidades"></a>
+## Nuevas funcionalidades — pendientes para más adelante
+
+Ideas añadidas el 12-10-2026 para evaluar después de la hoja de ruta actual. **No son bloques disponibles**: antes de implementarlas, concretar alcance, crear sus issues y añadirlas a «Bloques de entrega». El orden actual R → L → E → F → G se mantiene.
+
+<a id="nf1"></a>
+### NF1 · Agentes asistentes con la suscripción personal de ChatGPT
+
+- **Objetivo**: que cada usuario conecte su cuenta y aproveche su propia suscripción para recibir ayuda dentro de Estudio TFG: consultar fuentes, revisar un apartado, proponer una estructura o corregir LaTeX.
+- **Vía a evaluar**: la documentación oficial de [Sign in with ChatGPT](https://developers.openai.com/siwc/quickstart) contempla solicitudes elegibles con el plan de usuarios Plus/Pro en aplicaciones de código abierto. Comparar una integración directa con Responses y [Codex app-server](https://developers.openai.com/siwc/token-sharing-open-source/codex-app-server); validar disponibilidad, condiciones, modelos y límites vigentes al implementarlo. No extraer cookies ni reutilizar credenciales de otros clientes.
+- **Primera entrega**: un asistente al que se le proporciona el texto seleccionado o el apartado activo y fuentes elegidas por el usuario. Mostrar las propuestas antes de aplicarlas; conservar `baseRev`, historial y deshacer. No dar acceso general a carpetas ni ejecutar comandos arbitrarios.
+- **Cuenta y privacidad**: conexión y desconexión por usuario, credenciales protegidas fuera del repo y del estado de la interfaz, explicación del contenido enviado y gestión de sesiones caducadas, cancelación y límites del plan. La aplicación debe seguir funcionando sin conectar una cuenta.
+- **Criterios de aceptación futuros**: conectar una cuenta elegible y completar una consulta sin clave de API independiente; aplicar o descartar una propuesta sin perder cambios; impedir cruces de contenido entre usuarios. Documentar limitaciones y verificar con fixtures ficticios y pruebas de autenticación simulada.
+- **Dependencias**: biblioteca validada (L5); decidir el encaje entre app local, Electron (G3) y despliegue self-hosted. Actualizar el contrato al introducir la funcionalidad.
+
+<a id="nf2"></a>
+### NF2 · Recomendaciones de recursos y notas según el apartado activo
+
+- **Objetivo**: sugerir bibliografía, imágenes, webs y notas de la biblioteca/vault relacionadas con el título y el texto del apartado que se está escribiendo.
+- **Opciones a comparar**: búsqueda existente como referencia; embeddings locales para ordenar por afinidad semántica; o el asistente de NF1 para seleccionar y explicar candidatos. Ambos enfoques pueden combinarse. Elegir con ejemplos ficticios en español, midiendo relevancia, latencia y requisitos de hardware.
+- **Suscripción y costes**: evaluar si NF1 permite realizar la selección con el plan conectado. No asumir acceso a embeddings con esa autorización: la [API de embeddings](https://developers.openai.com/api/docs/guides/embeddings) documenta facturación por tokens. Una opción remota de embeddings requeriría comprobar acceso, consentimiento y costes por separado; mantener una alternativa local sin suscripción.
+- **Primera entrega**: recomendaciones bajo demanda, con enlace al recurso o nota, fragmento relevante y motivo de la sugerencia; abrir, citar o insertar usando los flujos de la biblioteca. No inventar referencias ni insertar contenido automáticamente.
+- **Datos y privacidad**: índice regenerable por biblioteca/vault; los archivos siguen siendo la fuente de verdad. Reflejar altas, cambios, movimientos y borrados. No enviar el vault completo ni cada pulsación a un servicio externo; el usuario controla qué contexto comparte.
+- **Criterios de aceptación futuros**: sugerencias útiles para apartados ficticios distintos, resultados actualizados al editar o borrar fuentes, ausencia de referencias inexistentes y funcionamiento local sin cuenta. Pruebas deterministas sin llamadas de pago en CI y evaluación manual de relevancia.
+- **Dependencias**: L5; NF1 solo para la variante que utiliza ChatGPT. Actualizar el contrato al introducir la funcionalidad.
