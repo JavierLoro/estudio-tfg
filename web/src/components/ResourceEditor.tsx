@@ -192,7 +192,7 @@ export function ResourceEditor({ file, onClose }: { file: ResourceFile; onClose:
                 </label>
               </div>
               <p className="mt-2 text-[11px] text-faint">
-                Puedes completarlos después. Importar bibliografía e insertar citas llegará en el siguiente bloque.
+                Puedes completarlos después o importar bibliografía desde Biblioteca.
               </p>
             </fieldset>
           )
