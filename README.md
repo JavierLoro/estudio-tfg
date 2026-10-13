@@ -143,8 +143,79 @@ confianza. El aviso permanece visible con Local/Automático. Usa copias temporal
 ignora rc/configuración del proyecto y conserva shell-escape desactivado, pero
 **no es un sandbox**. Detalles y comprobaciones: [SEGURIDAD-COMPILACION.md](docs/SEGURIDAD-COMPILACION.md).
 Si la API está dentro de Docker, «TeX del sistema» se refiere al interior de ese
-contenedor, no al TeX del host. La validación física de MacTeX/MiKTeX corresponde
-a E3; la CI verifica el adaptador local con TeX Live real en Linux sin worker HTTP.
+contenedor, no al TeX del host.
+
+### Instalar TeX para la plantilla
+
+La base comprobada es **TeX Live 2026**, con pdfLaTeX 1.40.29, latexmk 4.88 y
+biber 2.22. Mantén **biblatex y biber de la misma distribución**, actualizados
+juntos; BibTeX no sustituye a biber en esta plantilla. Versiones anteriores no
+están certificadas por estas pruebas.
+
+- **macOS:** [MacTeX 2026](https://www.tug.org/mactex/) completo incluye TeX Live.
+  Añade `/Library/TeX/texbin` al PATH del proceso que inicia la API y reinícialo
+  después de instalar. La prueba nativa usó TeX Live en un temporal, sin instalar
+  el paquete MacTeX ni sus aplicaciones.
+- **Linux/Windows:** [TeX Live 2026](https://www.tug.org/texlive/quickinstall.html)
+  completo es la opción con menos preparación. Añade su carpeta `bin/<plataforma>`
+  al PATH. En Linux, los paquetes de la distribución pueden tener otros nombres;
+  comprueba versiones antes de mezclar repositorios.
+- **MiKTeX (Windows):** instala también Perl y añade ambas carpetas de binarios al
+  PATH. Instala previamente los paquetes de abajo desde MiKTeX Console y actualiza
+  biber/biblatex juntos. La compilación desatendida no puede responder a diálogos
+  de instalación automática. **MiKTeX no se ha validado físicamente todavía**.
+
+Una alternativa ligera comprobada en macOS es `scheme-basic` de TeX Live 2026,
+sin documentación ni código fuente de los paquetes, más este conjunto (nombres de
+`tlmgr`; incluye dependencias de la clase y las fuentes):
+
+```sh
+tlmgr install latexmk biber babel-spanish hyphen-spanish hyphen-german \
+  newtx tex-gyre bera lm microtype geometry setspace enumitem xcolor caption \
+  booktabs listings acronym tocbibind csquotes biblatex biblatex-ieee titlesec \
+  hyperref xpatch xstring xkeyval fontaxes mweights textcase anyfontsize ly1 bigfoot
+```
+
+Usa permisos de administrador solo si tu instalación TeX es del sistema.
+El conjunto probado ocupa aproximadamente **330 MiB**, sin herramientas para
+exportar SVG. `hyphen-german` resolvió un formato pdfLaTeX incompleto del instalador
+`scheme-basic` del 13-10-2026; no es un requisito del idioma de la memoria.
+No se garantiza ese tamaño para otras fechas o plataformas.
+
+**Validación del 13-10-2026**, con el adaptador local de la API: ambos perfiles
+incluyen una cita y figura importadas; también se recompila una copia trasladada
+sin Biblioteca. «0» cuenta los diagnósticos finales de LaTeX/biber.
+
+| Distribución y entorno | `esi-uclm` | `generico` |
+| --- | --- | --- |
+| TeX Live 2026 ligero, macOS arm64 nativo | 0 avisos, original y copia | 0 avisos, original y copia |
+| TeX Live 2026 full, Linux arm64, API directa sin worker HTTP | 0 avisos, original y copia | 0 avisos, original y copia |
+| Instalador MacTeX / MiKTeX en Windows | Sin comprobar | Sin comprobar |
+
+Para repetir la verificación sobre **fixtures temporales**, desde la raíz
+en una shell POSIX (macOS/Linux o Git Bash):
+
+```sh
+ET_TEX_OUT=$(mktemp -d)
+node server/node_modules/tsx/dist/cli.mjs scripts/library-compile.mts \
+  --engine local --output-dir "$ET_TEX_OUT"
+```
+
+El script exige PDF válido, cero diagnósticos y bibliografía manual intacta.
+No lee `.env` ni utiliza la memoria o notas personales. Si cambias la clase o sus
+paquetes, repite la prueba para todos los perfiles. La CI conserva además la
+referencia Docker y verifica TeX Live nativo en Linux.
+
+### Distribución de escritorio prevista
+
+La futura app Electron tendrá dos descargas: **completa / offline**, con TeX Live
+reducido incluido, y **ligera / online**, que descarga y prepara el mismo motor al
+primer arranque. Ambas compilarán localmente y sin conexión una vez preparadas,
+sin exigir instalaciones manuales de TeX ni Docker. El motor tendrá versiones
+fijadas y vivirá en una carpeta privada de la app, sin cambiar el PATH del sistema.
+Esta distribución **aún no está implementada**: los pasos de instalación actuales
+de arriba siguen aplicándose al ejecutar desde el repositorio. Decisión y medidas:
+[Motores](docs/MOTORES.md#distribución-elegida-para-electron).
 
 ## Primeros pasos
 
