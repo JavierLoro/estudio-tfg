@@ -130,7 +130,7 @@ function normalizeDir(cfg: Config, key: string, raw: unknown, mustExist: boolean
   if (!insideAllowed(cfg, abs)) {
     throw fieldError(key, `${label}: ${abs} está fuera de las carpetas permitidas (${cfg.allowedRoots.join(', ')})`);
   }
-  const repoErr = repoGuardError(label, abs);
+  const repoErr = repoGuardError(label, abs, cfg.checkoutRoot);
   if (repoErr) throw fieldError(key, repoErr);
   return abs;
 }
@@ -311,7 +311,7 @@ export class Settings {
     return this.serial(async () => {
       const { dir: raw, perfil: rawPerfil } = (body as { dir?: unknown; perfil?: unknown } | null) ?? {};
       const perfil = rawPerfil === undefined || rawPerfil === null || rawPerfil === '' ? DEFAULT_PERFIL : rawPerfil;
-      if (typeof perfil !== 'string' || !listPerfiles().some((p) => p.id === perfil)) {
+      if (typeof perfil !== 'string' || !listPerfiles(this.cfg.templatesDir).some((p) => p.id === perfil)) {
         throw fieldError('perfil', `Perfil de plantilla desconocido: ${String(perfil)}`);
       }
       const dir = normalizeDir(this.cfg, 'dir', raw, false);
@@ -319,7 +319,7 @@ export class Settings {
       if (!isEmptyDir(dir)) throw new HttpError(409, `La carpeta no está vacía: ${dir}`, { field: 'dir' });
       let warning: string | undefined;
       try {
-        ({ warning } = createMemoriaFromTemplate(dir, { perfil }));
+        ({ warning } = createMemoriaFromTemplate(dir, { perfil, templatesDir: this.cfg.templatesDir }));
       } catch (e: any) {
         if (e?.code === 'ENOTEMPTY') throw new HttpError(409, `La carpeta no está vacía: ${dir}`, { field: 'dir' });
         throw new HttpError(500, `No se pudo crear la memoria: ${e?.message ?? e}`);

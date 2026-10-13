@@ -126,8 +126,8 @@ function knownAny(m: Manifiesto, rel: string): string[] {
     .flatMap(([, v]) => hashesDe(v));
 }
 
-function perfilIds(): string[] {
-  return listPerfiles().map((p) => p.id);
+function perfilIds(cfg: Config): string[] {
+  return listPerfiles(cfg.templatesDir).map((p) => p.id);
 }
 
 /** `esi-uclm` si usa el logo de la ESI; si no, `generico`. */
@@ -135,7 +135,7 @@ async function deducePerfil(cfg: Config, inst: Buffer | null): Promise<string> {
   const usaEsi = inst
     ? parseDatos(inst.toString('utf8'), 'institucion').logo === 'esi_logo.pdf'
     : (await readMem(cfg, 'estilo/esi_logo.pdf')) !== null;
-  const ids = perfilIds();
+  const ids = perfilIds(cfg);
   const p = usaEsi ? 'esi-uclm' : 'generico';
   return ids.includes(p) ? p : ids.includes(DEFAULT_PERFIL) ? DEFAULT_PERFIL : ids[0];
 }
@@ -164,14 +164,14 @@ function withTemplateComments(src: string, tplSrc: string, cmds: string[]): stri
  * memoria no tiene institucion.tex; si no, se deduce.
  */
 export async function computePlan(cfg: Config, perfilPedido?: string): Promise<Plan> {
-  const manifiestos = readManifiestos();
+  const manifiestos = readManifiestos(cfg.templatesDir);
   const actual = manifiestos.find((m) => m.version === PLANTILLA_VERSION);
   if (!actual) throw new Error(`Falta el manifiesto de la plantilla ${PLANTILLA_VERSION}`);
 
   const inst = await readMem(cfg, INSTITUCION_REL);
   let perfil: string;
   if (perfilPedido !== undefined && perfilPedido !== '' && !inst) {
-    if (!perfilIds().includes(perfilPedido)) throw new HttpError(400, `Perfil de plantilla desconocido: ${perfilPedido}`, { field: 'perfil' });
+    if (!perfilIds(cfg).includes(perfilPedido)) throw new HttpError(400, `Perfil de plantilla desconocido: ${perfilPedido}`, { field: 'perfil' });
     perfil = perfilPedido;
   } else {
     perfil = await deducePerfil(cfg, inst);
@@ -197,7 +197,7 @@ export async function computePlan(cfg: Config, perfilPedido?: string): Promise<P
   if (!desde) return plan('desconocida', null);
   const migra = desde.version !== actual.version;
 
-  const tpl = templateFiles(perfil);
+  const tpl = templateFiles(perfil, cfg.templatesDir);
   const tplBuf = (rel: string) => fs.readFile(tpl.get(rel)!);
   const add = (archivo: string, accion: Accion, motivo: string, cur: Buffer | null, data: Buffer | null) => {
     cambios.push({ archivo, accion, motivo, rev: cur ? rev(cur) : null });
@@ -265,7 +265,7 @@ export async function computePlan(cfg: Config, perfilPedido?: string): Promise<P
   // institucion.tex del perfil (y su logo) si no existe; nunca se pisa.
   if (!inst && tpl.has(INSTITUCION_REL)) {
     const tplInst = await tplBuf(INSTITUCION_REL);
-    const nombre = listPerfiles().find((p) => p.id === perfil)?.nombre ?? perfil;
+    const nombre = listPerfiles(cfg.templatesDir).find((p) => p.id === perfil)?.nombre ?? perfil;
     add(INSTITUCION_REL, 'crear', `datos de la institución (perfil ${nombre})`, null, tplInst);
     const logo = parseDatos(tplInst.toString('utf8'), 'institucion').logo;
     if (logo && tpl.has(`estilo/${logo}`) && !(await readMem(cfg, `estilo/${logo}`))) {

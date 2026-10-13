@@ -6,7 +6,7 @@
 >
 > Fuentes: [PLATAFORMAS.md](PLATAFORMAS.md) (50 hallazgos de portabilidad; los IDs como `S1`, `P2`, `F4` se refieren a él), [CONTRACT.md](CONTRACT.md) y la auditoría del 09-10-2026, cuyas evidencias y acciones se describen en R1–R8 y L1–L5.
 >
-> **Estado actualizado:** A–D, R, L1–L9 y E1–E4 completadas y fusionadas. **Bloque actual: `f-diagramas` (F1)**, sujeto a comprobar reservas y PR abiertos. Orden de continuación: **R → L → E → F → G**. R y L se insertan aquí sin renumerar las tareas anteriores; sus letras no determinan la prioridad.
+> **Estado actualizado:** A–D, R, L1–L9, E1–E4 y F1 completadas y fusionadas. **Bloque actual: `g-base` (G1–G3)**, sujeto a comprobar reservas y PR abiertos. Orden de continuación: **R → L → E → F → G**. R y L se insertan aquí sin renumerar las tareas anteriores; sus letras no determinan la prioridad.
 
 ## Índice
 
@@ -819,6 +819,8 @@ Resultado: app con **TeX Live reducido privado**, instaladores y versión portab
 
 <a id="g1"></a>
 ### G1 · Desacoplar el servidor del checkout del repo
+
+**Plan del bloque `g-base`:** separar rutas de datos, plantillas e interfaz conservando el checkout; generar el servidor JavaScript y probarlo reubicado sin fuentes TypeScript ni tsx; arrancarlo desde Electron con autenticación y cierre limpio, verificar edición/compilación y persistencia de borradores en macOS. Un commit por G1/G2/G3 y un único PR. G4/G5 preparan el motor y los instaladores offline/online después.
 
 **Issue**: [#28](https://github.com/JavierLoro/estudio-tfg/issues/28)
 

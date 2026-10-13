@@ -9,12 +9,15 @@ export interface Config {
   port: number;
   host: string;
   repoRoot: string;
+  checkoutRoot: string | null;
+  dataDir: string;
+  templatesDir: string;
   notesDir: string;
   resourcesSubdir: string;
   memoriaDir: string;
   memoriaMain: string;
   buildDir: string;
-  /** BUILD_DIR/../history */
+  /** DATA_DIR/history (por defecto junto a BUILD_DIR). */
   historyDir: string;
   workerUrl: string;
   compileEngine: CompileEngine;
@@ -23,7 +26,7 @@ export interface Config {
   webDist: string;
   /** ALLOWED_ROOTS (realpath when they exist). No configurable/browsable folder may leave them. */
   allowedRoots: string[];
-  /** BUILD_DIR/../settings.json */
+  /** DATA_DIR/settings.json. */
   settingsFile: string;
   /** Where each UI-editable value came from before settings.json is applied. */
   envSources: Record<SettingKey, 'env' | 'default'>;
@@ -36,6 +39,17 @@ export type SettingValues = Record<SettingKey, string>;
 
 /** Repo root = parent of server/. */
 export const REPO_ROOT = path.resolve(import.meta.dirname, '..', '..');
+
+export function checkoutRoot(root = REPO_ROOT): string | null {
+  return fs.existsSync(path.join(root, '.git')) ? root : null;
+}
+
+/** Datos de la app por sistema; no crea carpetas ni cambia el entorno. */
+export function userDataDir(platform = process.platform, env: NodeJS.ProcessEnv = process.env, home = os.homedir()): string {
+  if (platform === 'win32') return path.win32.join(env.APPDATA && path.win32.isAbsolute(env.APPDATA) ? env.APPDATA : path.win32.join(home, 'AppData', 'Roaming'), 'Estudio TFG');
+  if (platform === 'darwin') return path.posix.join(home, 'Library', 'Application Support', 'Estudio TFG');
+  return path.posix.join(env.XDG_DATA_HOME && path.posix.isAbsolute(env.XDG_DATA_HOME) ? env.XDG_DATA_HOME : path.posix.join(home, '.local', 'share'), 'estudio-tfg');
+}
 
 export function expandPath(p: string, base: string, paths = path): string {
   let v = p.trim();
@@ -84,7 +98,8 @@ function insideRepoNotWorkspace(dir: string, repoRoot: string, paths = path): bo
  * NOTES_DIR / MEMORIA_DIR may only live under the git-ignored workspace/ folder.
  * Checked on the lexical path and on its realpath. Returns an error message or null.
  */
-export function repoGuardError(name: string, dir: string, repoRoot = REPO_ROOT, paths = path): string | null {
+export function repoGuardError(name: string, dir: string, repoRoot: string | null = checkoutRoot(), paths = path): string | null {
+  if (repoRoot === null) return null;
   const realRepo = realpathLoose(repoRoot, paths);
   if (insideRepoNotWorkspace(dir, repoRoot, paths) || insideRepoNotWorkspace(realpathLoose(dir, paths), realRepo, paths)) {
     return `${name} (${dir}) está dentro del repositorio: usa una carpeta externa o workspace/ (ignorada por git)`;
@@ -92,8 +107,8 @@ export function repoGuardError(name: string, dir: string, repoRoot = REPO_ROOT, 
   return null;
 }
 
-function assertOutsideRepo(name: string, dir: string): void {
-  const err = repoGuardError(name, dir);
+function assertOutsideRepo(name: string, dir: string, root: string | null): void {
+  const err = repoGuardError(name, dir, root);
   if (err) throw new Error(err);
 }
 
@@ -109,32 +124,38 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, repoRoot = REPO
   if (!['auto', 'on', 'off'].includes(watchPolling)) throw new Error('WATCH_POLLING debe ser auto, on u off');
   const compileEngine = str(env.COMPILE_ENGINE, 'docker');
   if (!['auto', 'docker', 'local'].includes(compileEngine)) throw new Error('COMPILE_ENGINE debe ser auto, docker o local');
-  const buildDir = expandPath(str(env.BUILD_DIR, './data/builds'), repoRoot);
+  const checkout = checkoutRoot();
+  const legacyData = env.BUILD_DIR?.trim() ? path.dirname(expandPath(env.BUILD_DIR, repoRoot)) : './data';
+  const dataDir = expandPath(str(env.DATA_DIR, legacyData), repoRoot);
+  const buildDir = expandPath(str(env.BUILD_DIR, path.join(dataDir, 'builds')), repoRoot);
   const resourcesSubdir = str(env.RESOURCES_SUBDIR, 'Recursos').replace(/^\/+|\/+$/g, '');
   if (resourcesSubdir.split('/').some((s) => s === '..' || s === '.')) {
     throw new Error('RESOURCES_SUBDIR no válido');
   }
   const notesDir = expandPath(str(env.NOTES_DIR, './workspace/notes'), repoRoot);
   const memoriaDir = expandPath(str(env.MEMORIA_DIR, './workspace/memoria'), repoRoot);
-  assertOutsideRepo('NOTES_DIR', notesDir);
-  assertOutsideRepo('MEMORIA_DIR', memoriaDir);
+  assertOutsideRepo('NOTES_DIR', notesDir, checkout);
+  assertOutsideRepo('MEMORIA_DIR', memoriaDir, checkout);
   return {
     port: Number(str(env.PORT, '8787')),
     host: str(env.HOST, '127.0.0.1'),
     repoRoot,
+    checkoutRoot: checkout,
+    dataDir,
+    templatesDir: expandPath(str(env.TEMPLATES_DIR, path.join(REPO_ROOT, 'templates')), repoRoot),
     notesDir,
     resourcesSubdir,
     memoriaDir,
     memoriaMain: str(env.MEMORIA_MAIN, 'tfg.tex'),
     buildDir,
-    historyDir: path.join(path.dirname(buildDir), 'history'),
+    historyDir: path.join(dataDir, 'history'),
     workerUrl: str(env.WORKER_URL, 'http://localhost:8090').replace(/\/+$/, ''),
     compileEngine: compileEngine as CompileEngine,
     watchPolling: watchPolling as WatchPolling,
     authToken: (env.AUTH_TOKEN ?? '').trim(),
-    webDist: path.join(repoRoot, 'web', 'dist'),
+    webDist: expandPath(str(env.WEB_DIST, './web/dist'), repoRoot),
     allowedRoots: parseAllowedRoots(env.ALLOWED_ROOTS, repoRoot),
-    settingsFile: path.join(path.dirname(buildDir), 'settings.json'),
+    settingsFile: path.join(dataDir, 'settings.json'),
     envSources: {
       notesDir: src(env.NOTES_DIR),
       resourcesSubdir: src(env.RESOURCES_SUBDIR),

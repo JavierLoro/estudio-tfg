@@ -250,7 +250,7 @@ async function rewriteLinks(ctx: Ctx, root: RootName, mm: MoveMap): Promise<{ up
 /** Carpeta de la papelera: `<notas>/.trash` o `data/trash/memoria`. */
 async function trashBase(cfg: Config, root: RootName): Promise<string> {
   if (root === 'notes') return path.join(await fs.realpath(cfg.notesDir), '.trash');
-  return path.join(path.dirname(cfg.buildDir), 'trash', 'memoria');
+  return path.join(cfg.dataDir, 'trash', 'memoria');
 }
 
 function withN(name: string, n: number, keepExt: boolean): string {

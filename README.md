@@ -124,6 +124,13 @@ si chocan con el navegador, usa los botones. Más detalles en
 
 ### Elegir motor de compilación
 
+Para arrancar el servidor fuera del checkout, `DATA_DIR` selecciona ajustes,
+historial, papelera y operaciones recuperables; `BUILD_DIR` puede separar los
+builds. `TEMPLATES_DIR` selecciona las plantillas y sus manifiestos, y `WEB_DIST`
+la interfaz compilada. Sin esos valores se conserva la configuración anterior.
+La entrada CLI carga `.env` solo en un checkout; las carpetas siguen sujetas a
+`ALLOWED_ROOTS`. No se trasladan datos existentes automáticamente.
+
 En **Ajustes → Motor de compilación**, elige Docker, TeX del sistema o Automático.
 Docker se mantiene por defecto para instalaciones anteriores. Automático prefiere
 el worker disponible; si no responde, usa TeX local. Un fallo de compilación no
