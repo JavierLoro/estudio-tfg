@@ -171,9 +171,24 @@ export async function buildTex(output, releaseTag) {
     await command(path.join(tree, binDir, process.platform === 'win32' ? 'updmap-sys.exe' : 'updmap-sys'), [], tree, environment);
     await command(path.join(tree, binDir, process.platform === 'win32' ? 'fmtutil-sys.exe' : 'fmtutil-sys'), ['--byfmt', 'pdflatex'], tree, environment);
     const inventory = packages.map(([name, entry]) => ({ name, revision: Number(entry.revision?.[0] ?? 0), sha512: entry.containerchecksum?.[0] ?? null,
-      license: entry['catalogue-license']?.[0] ?? 'TeX Live: ver LICENSE.TL', source: entry['catalogue-ctan']?.[0] ? `https://ctan.org${entry['catalogue-ctan'][0]}` : 'https://tug.org/texlive/svn/' }));
-    await fs.writeFile(path.join(tree, 'COMPONENTS.json'), JSON.stringify({ snapshot: lock.repository, databaseSha256: lock.databaseSha256, packages: inventory, perl: lock.perl }, null, 2));
+      license: entry['catalogue-license']?.[0] ?? 'TeX Live: ver LICENSE.TL', source: entry['catalogue-ctan']?.[0] ? `https://mirrors.ctan.org${entry['catalogue-ctan'][0]}` : 'https://tug.org/texlive/svn/' }));
+    await fs.writeFile(path.join(tree, 'COMPONENTS.json'), JSON.stringify({ snapshot: lock.repository, databaseSha256: lock.databaseSha256, packages: inventory, perl: process.platform === 'win32' ? { version: '5.42.0', source: 'https://github.com/Perl/perl5/tree/v5.42.0', snapshot: lock.repository } : lock.perl }, null, 2));
     for (const name of ['LICENSE.TL', 'LICENSE.CTAN']) await fs.copyFile(path.join(installerRoot, name), path.join(tree, name));
+    const legal = {};
+    for (const name of ['LICENSE.TL', 'LICENSE.CTAN']) legal[name] = await fs.readFile(path.join(tree, name), 'utf8');
+    if (process.platform !== 'win32') {
+      legal['Perl COPYING'] = await fs.readFile(path.join(tree, 'runtime-perl/COPYING'), 'utf8');
+      legal['Perl ARTISTIC'] = await fs.readFile(path.join(tree, 'runtime-perl/ARTISTIC'), 'utf8');
+    } else {
+      legal['Perl TeX Live'] = await fs.readFile(path.join(tree, 'tlpkg/tlperl/README.TEXLIVE'), 'utf8');
+      if (!legal['Perl TeX Live'].includes('Perl 5.42.0')) throw new Error('La versión de Perl Windows no coincide con sus avisos');
+      for (const name of ['COPYING', 'ARTISTIC']) {
+        const source = path.join(repo, `desktop/licenses/Perl-${name}.txt`);
+        await fs.copyFile(source, path.join(tree, `tlpkg/tlperl/${name}`));
+        legal[`Perl ${name}`] = await fs.readFile(source, 'utf8');
+      }
+    }
+    await fs.writeFile(path.join(output, `legal-${platform}.json`), JSON.stringify(legal, null, 2));
     const name = `estudio-tfg-${releaseTag.slice(1)}-tex-${platform}.tar.gz`;
     const archive = path.join(output, name);
     await packTex(tree, archive);
@@ -181,7 +196,7 @@ export async function buildTex(output, releaseTag) {
     await pipeline(createReadStream(archive), createGunzip(), new Writable({ write(chunk, _encoding, callback) { unpackedBytes += chunk.length; callback(); } }));
     const manifest = { schema: 1, id: lock.id, platform, url: `https://github.com/JavierLoro/estudio-tfg/releases/download/${releaseTag}/${name}`,
       sha256: await digest(archive), bytes: (await fs.stat(archive)).size, unpackedBytes, binDir, perlDir,
-      versions: { texlive: 2026, latexmk: '4.88', biber: '2.22', pdftex: '1.40.29', perl: process.platform === 'win32' ? 'TeX Live incluido' : lock.perl.version },
+      versions: { texlive: 2026, latexmk: '4.88', biber: '2.22', pdftex: '1.40.29', perl: process.platform === 'win32' ? '5.42.0' : lock.perl.version },
       snapshot: lock.repository, packages: inventory };
     await fs.writeFile(path.join(output, `engine-${platform}.json`), JSON.stringify(manifest, null, 2));
     console.log(JSON.stringify({ archive, id: manifest.id, sha256: manifest.sha256, bytes: manifest.bytes, installedBytes: unpackedBytes }));

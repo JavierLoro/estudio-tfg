@@ -31,8 +31,13 @@ como compatible con macOS anteriores.
 
 `desktop/tex/lock.json` fija el snapshot del **13-10-2026**, hashes del índice e
 instaladores y Perl **5.42.2** en Unix. El índice fija revisiones/SHA-512 de todos
-los paquetes transitivos; Windows utiliza `tlperl.windows` del mismo snapshot.
-Se verifica cada descarga antes de instalar desde un repositorio local. No se
+los paquetes transitivos; Windows utiliza `tlperl.windows` del mismo snapshot (Perl 5.42.0). Sus textos
+originales [GPL](https://github.com/Perl/perl5/blob/v5.42.0/Copying) y
+[Artistic](https://github.com/Perl/perl5/blob/v5.42.0/Artistic) se conservan en
+`desktop/licenses/` y se incluyen en el motor y la ventana de licencias.
+El compilador crea un perfil temporal Windows con `AppData/Roaming` y
+`AppData/Local`, para que la inclusión PDF funcione sin reutilizar el perfil del
+usuario. Se verifica cada descarga antes de instalar desde un repositorio local. No se
 resuelve `latest` ni se actualiza TeX al arrancar la app.
 
 El runtime conserva servidor JavaScript, recursos, plantillas y helpers, con
