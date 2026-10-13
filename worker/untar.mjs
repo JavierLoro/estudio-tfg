@@ -139,7 +139,7 @@ const TYPE_NAMES = { 1: 'enlace duro', 2: 'enlace simbólico', 3: 'dispositivo d
  * Extrae `source` (iterable asíncrono de Buffers, p. ej. un http.IncomingMessage)
  * en `dest` (carpeta existente y vacía). Devuelve { files, dirs, bytes }.
  */
-export async function extractTar(source, dest, { maxBytes = 200 * 1024 * 1024, maxEntries = MAX_ENTRIES } = {}) {
+export async function extractTar(source, dest, { maxBytes = 200 * 1024 * 1024, maxEntries = MAX_ENTRIES, preserveMode = false, portablePaths = false } = {}) {
   const r = new ByteReader(source, maxBytes);
   const root = path.resolve(dest);
   let entries = 0;
@@ -197,6 +197,8 @@ export async function extractTar(source, dest, { maxBytes = 200 * 1024 * 1024, m
       throw new TarError(`Entrada no permitida en el tar (${what}): ${name}`);
     }
     const rel = safeEntryPath(name);
+    if (portablePaths && rel.split('/').some(part => /[:\x00-\x1f]|[. ]$/.test(part) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i.test(part)))
+      throw new TarError(`Ruta no portable en el paquete: ${name}`);
     if (type === '5') {
       if (size !== 0) throw new TarError(`Carpeta con datos en el tar: ${name}`);
       if (rel) await fs.mkdir(target(rel), { recursive: true });
@@ -208,7 +210,8 @@ export async function extractTar(source, dest, { maxBytes = 200 * 1024 * 1024, m
     await fs.mkdir(path.dirname(abs), { recursive: true });
     // Solo creamos carpetas y archivos regulares: no puede haber symlinks en el destino.
     // 'w' (no 'wx'): una entrada repetida sobrescribe la anterior, como tar.
-    const fh = await fs.open(abs, 'w', 0o644);
+    const mode = preserveMode && (octal(h, 100, 8, 'mode') & 0o111) ? 0o755 : 0o644;
+    const fh = await fs.open(abs, 'w', mode);
     try {
       let left = size;
       while (left > 0) {

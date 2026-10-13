@@ -3,7 +3,7 @@ import path from 'node:path';
 import Fastify, { type FastifyInstance } from 'fastify';
 import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
-import type { Config } from './config.ts';
+import { realpathLoose, type Config } from './config.ts';
 import { isAuthorized } from './auth.ts';
 import { Compiler } from './compile.ts';
 import type { Ctx } from './context.ts';
@@ -34,6 +34,9 @@ import libraryRoutes from './routes/library.ts';
 import { recoverMigrations } from './libraryMigration.ts';
 
 export interface BuildOptions {
+  desktopDataDir?: string;
+  /** Rutas locales de la app de escritorio, antes de escuchar. */
+  configure?: (app: FastifyInstance, ctx: Ctx) => Promise<void>;
   fetchMetadata?: Ctx['fetchMetadata'];
   logger?: boolean;
   bus?: EventBus;
@@ -59,6 +62,7 @@ function rootsFor(method: string, url: string, query: any, body: any): RootName[
 }
 
 export async function buildApp(cfg: Config, opts: BuildOptions = {}): Promise<{ app: FastifyInstance; ctx: Ctx }> {
+  if (opts.desktopDataDir) cfg.desktopDataDir = realpathLoose(opts.desktopDataDir);
   fs.mkdirSync(cfg.buildDir, { recursive: true });
   const app = Fastify({
     logger: opts.logger ? { level: 'info' } : false,
@@ -124,6 +128,7 @@ export async function buildApp(cfg: Config, opts: BuildOptions = {}): Promise<{ 
   for (const plugin of [statusRoutes, filesRoutes, fileopsRoutes, notesRoutes, resourcesRoutes, libraryRoutes, searchRoutes, compileRoutes, synctexRoutes, memoriaRoutes, refsRoutes, diagramasRoutes, datosRoutes, plantillaRoutes, eventsRoutes, settingsRoutes]) {
     await app.register(plugin, { ctx });
   }
+  await opts.configure?.(app, ctx);
 
   const indexHtml = path.join(cfg.webDist, 'index.html');
   const hasWeb = (opts.serveWeb ?? true) && fs.existsSync(indexHtml);

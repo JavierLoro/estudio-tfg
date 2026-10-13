@@ -13,6 +13,9 @@ export interface Config {
   dataDir: string;
   templatesDir: string;
   texBinDir?: string;
+  texPerlDir?: string;
+  /** Datos privados de Electron: nunca seleccionables como notas o memoria. */
+  desktopDataDir?: string;
   notesDir: string;
   resourcesSubdir: string;
   memoriaDir: string;

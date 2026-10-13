@@ -6,7 +6,7 @@
 >
 > Fuentes: [PLATAFORMAS.md](PLATAFORMAS.md) (50 hallazgos de portabilidad; los IDs como `S1`, `P2`, `F4` se refieren a él), [CONTRACT.md](CONTRACT.md) y la auditoría del 09-10-2026, cuyas evidencias y acciones se describen en R1–R8 y L1–L5.
 >
-> **Estado actualizado:** A–D, R, L1–L9, E1–E4 y F1 completadas y fusionadas. **Bloque actual: `g-base` (G1–G3)**, sujeto a comprobar reservas y PR abiertos. Orden de continuación: **R → L → E → F → G**. R y L se insertan aquí sin renumerar las tareas anteriores; sus letras no determinan la prioridad.
+> **Estado actualizado:** A–D, R, L1–L9, E1–E4, F1 y G1–G3 completadas y fusionadas. **Bloque actual: `g-entrega` (G4, G5, G7)**, sujeto a comprobar reservas y PR abiertos. Orden de continuación: **R → L → E → F → G**. R y L se insertan aquí sin renumerar las tareas anteriores; sus letras no determinan la prioridad.
 
 ## Índice
 
@@ -861,6 +861,8 @@ Resultado: app con **TeX Live reducido privado**, instaladores y versión portab
 
 <a id="g4"></a>
 ### G4 · Asistente de primer arranque
+
+**Plan del bloque `g-entrega`:** reutilizar selección de carpetas y creación de memoria; preparar TeX fijado en staging privado con hash, cancelación y recuperación; construir y comprobar los paquetes offline/online por plataforma; entregar licencias, «Acerca de» y guía. Un commit por G4/G5/G7 y un PR conjunto. Publicación de prueba en una release borrador sin firma; G6 sigue aparte.
 
 **Issue**: [#31](https://github.com/JavierLoro/estudio-tfg/issues/31)
 

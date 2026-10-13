@@ -2,16 +2,18 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import dotenv from 'dotenv';
 import { REPO_ROOT, checkoutRoot, loadConfig } from './config.ts';
-import { buildApp } from './app.ts';
+import { buildApp, type BuildOptions } from './app.ts';
 import { isConfigured } from './settings.ts';
 export { loadConfig, userDataDir } from './config.ts';
+export { requireAdmin, isConfigured, instanceId } from './settings.ts';
+export { computeSourceRev } from './compile.ts';
 
 /** Entrada reutilizable por la app de escritorio; no lee .env ni instala señales. */
-export async function startServer(env: NodeJS.ProcessEnv = process.env) {
+export async function startServer(env: NodeJS.ProcessEnv = process.env, opts: BuildOptions = {}) {
   const cfg = loadConfig(env);
 
   // buildApp aplica settings.json y reinicia el vigilante cuando cambian las carpetas.
-  const { app, ctx } = await buildApp(cfg, { logger: true, watch: true });
+  const { app, ctx } = await buildApp(cfg, { logger: true, watch: true, ...opts });
 
   let url: string;
   try { url = await app.listen({ port: cfg.port, host: cfg.host }); }

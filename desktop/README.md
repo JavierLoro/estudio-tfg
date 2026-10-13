@@ -39,3 +39,9 @@ E2E_DESKTOP=1 npm run test:e2e -- --grep '@desktop'
 comprueba también el foco físico del sistema en una sesión gráfica que lo permita.
 Las pruebas usan carpetas temporales y datos ficticios. Windows y los instaladores
 se validarán en G5; esta entrega prueba la ejecución nativa en macOS.
+
+El asistente aparece cuando faltan carpetas o está pendiente el paquete de la
+release y se repite desde Ajustes. `engine-manifest.json` fija plataforma, versión,
+URL, tamaño y hash; offline añade `engine.tar.gz` junto a ese manifiesto. Ambos
+archivos los genera el empaquetado G5, no el usuario. Los fallos y cancelaciones
+limpian staging sin tocar el motor anterior; las fuentes permanecen externas.
