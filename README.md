@@ -133,8 +133,9 @@ Para trabajar sin Docker, instala una distribución TeX y comprueba que `latexmk
 `pdflatex` y `biber` estén en el PATH del proceso que arranca la API. Elige **TeX del
 sistema** en Ajustes o define `COMPILE_ENGINE=local` en `.env`, y ejecuta `npm run dev`
 sin levantar el worker. Ajustes muestra herramientas, versiones, diferencias con
-la referencia Docker y lo que falta. `rsvg-convert` es opcional para compilar;
-se necesita para exportar diagramas a PDF con el motor local hasta F1.
+la referencia Docker y lo que falta. No necesitas `rsvg-convert` para exportar
+diagramas: si falta, la app genera el PDF vectorial en el navegador con Source Sans 3
+incrustada. Si está disponible, se conserva la conversión con rsvg.
 MiKTeX necesita [Perl para ejecutar latexmk](https://miktex.org/kb/fix-script-engine-not-found);
 su ruta también debe estar en PATH. El entorno controlado conserva esa dependencia.
 
@@ -386,4 +387,4 @@ Estudio TFG se distribuye bajo la [GNU Affero General Public License v3.0](LICEN
 
 La clase de la plantilla (`templates/base/estilo/memoria.cls`) deriva de la clase [esi-tfg](https://github.com/UCLM-ESI/esi-tfg) del grupo ARCO (UCLM-ESI), distribuida bajo GPL-2.0 o posterior; se mantiene su aviso de copyright y licencia en la clase. El logotipo de la ESI pertenece a la Universidad de Castilla-La Mancha.
 
-Componentes de terceros: la fuente Source Sans 3 (SIL OFL 1.1, vía `@fontsource/source-sans-3`) se usa en los diagramas y se instala en la imagen del worker; Visimer (MIT) da la edición visual de diagramas; además se usan PDF.js (Apache-2.0), Mermaid (MIT), CodeMirror, Dockview, Fastify y TeX Live, cada uno con su propia licencia.
+Componentes de terceros: la fuente Source Sans 3 (SIL OFL 1.1, vía `@fontsource/source-sans-3`) se usa en los diagramas y se instala en la imagen del worker; Visimer (MIT) da la edición visual de diagramas; jsPDF y svg2pdf.js (MIT) permiten exportar PDF en el navegador; además se usan PDF.js (Apache-2.0), Mermaid (MIT), CodeMirror, Dockview, Fastify y TeX Live, cada uno con su propia licencia. Las licencias del conversor y de su fuente se distribuyen en `web/public/licenses/`.

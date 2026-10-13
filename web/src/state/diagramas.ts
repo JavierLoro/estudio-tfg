@@ -191,7 +191,14 @@ export async function exportDiagram(path: string, opts: { quiet?: boolean } = {}
     return false;
   }
   try {
-    const out = await diagramasApi.exportar(path, r.svg, d.rev);
+    let out;
+    try {
+      out = await diagramasApi.exportar(path, r.svg, d.rev);
+    } catch (e) {
+      if (!(e instanceof ApiError) || e.status !== 422 || (e.body as { code?: string })?.code !== 'PDF_BROWSER_REQUIRED') throw e;
+      const { diagramPdf } = await import('../lib/diagramPdf');
+      out = await diagramasApi.exportar(path, r.svg, d.rev, await diagramPdf(r.svg));
+    }
     await useDiagramas.getState().refresh();
     useUI.getState().refreshTree('memoria');
     if (!opts.quiet) toast({ kind: 'ok', text: `Exportado a ${out.pdf}` });

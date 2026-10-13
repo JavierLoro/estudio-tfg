@@ -6,7 +6,7 @@
 >
 > Fuentes: [PLATAFORMAS.md](PLATAFORMAS.md) (50 hallazgos de portabilidad; los IDs como `S1`, `P2`, `F4` se refieren a él), [CONTRACT.md](CONTRACT.md) y la auditoría del 09-10-2026, cuyas evidencias y acciones se describen en R1–R8 y L1–L5.
 >
-> **Estado actualizado:** A–D, R, L1–L9 y E1–E2 completadas y fusionadas. **Bloque actual: `e-validacion` (E3–E4)**, sujeto a comprobar reservas y PR abiertos. Orden de continuación: **R → L → E → F → G**. R y L se insertan aquí sin renumerar las tareas anteriores; sus letras no determinan la prioridad.
+> **Estado actualizado:** A–D, R, L1–L9 y E1–E4 completadas y fusionadas. **Bloque actual: `f-diagramas` (F1)**, sujeto a comprobar reservas y PR abiertos. Orden de continuación: **R → L → E → F → G**. R y L se insertan aquí sin renumerar las tareas anteriores; sus letras no determinan la prioridad.
 
 ## Índice
 
@@ -795,6 +795,8 @@ Resultado: el servidor compila con el motor que elija el usuario: **Docker** (el
 
 <a id="f1"></a>
 ### F1 · Exportar diagramas a PDF sin `rsvg-convert`
+
+**Plan del bloque `f-diagramas`:** conservar rsvg cuando esté disponible; si falta, generar PDF vectorial con jsPDF/svg2pdf.js en el navegador, con las mismas fuentes y medidas. Mantener revisión, historial y escrituras atómicas; verificar las seis plantillas a 200 dpi, texto extraíble y compilación de ambos perfiles sin avisos. No cambiar el flujo de edición/inserción ni regenerar figuras automáticamente al editar.
 
 **Issue**: [#27](https://github.com/JavierLoro/estudio-tfg/issues/27)
 

@@ -753,6 +753,6 @@ export const diagramasApi = {
   estado: (path: string) => json<DiagramaEstado>(`/api/diagramas/estado?${qs({ path })}`),
   lista: () => json<{ items: DiagramaItem[] }>('/api/diagramas/estado'),
   /** ApiError 409 si la fuente cambió desde `rev` (body.rev = la actual). */
-  exportar: (path: string, svg: string, rev: string) =>
-    json<{ pdf: string; svg: string; exportadoEn: string }>('/api/diagramas/exportar', jsonBody('POST', { path, svg, rev })),
+  exportar: (path: string, svg: string, rev: string, pdf?: string) =>
+    json<{ pdf: string; svg: string; exportadoEn: string }>('/api/diagramas/exportar', jsonBody('POST', { path, svg, rev, pdf })),
 };

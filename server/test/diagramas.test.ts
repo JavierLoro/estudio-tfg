@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readMeta, withMeta } from '../src/diagramas.ts';
 import { rev } from '../src/fsutil.ts';
 import { setup, type TestEnv } from './helpers.ts';
@@ -56,6 +56,7 @@ describe('diagramas', () => {
     await fs.writeFile(path.join(env.cfg.memoriaDir, 'diagramas', 'flujo.mmd'), SRC);
   });
   afterEach(async () => {
+    vi.unstubAllEnvs();
     await env.close();
     await new Promise((r) => worker.server.close(r));
   });
@@ -119,6 +120,50 @@ describe('diagramas', () => {
     const hist = await fs.readdir(path.join(env.cfg.historyDir, 'memoria', 'figuras', 'diagramas', 'flujo.svg'));
     expect(hist.filter((f) => f.endsWith('.bak'))).toHaveLength(1);
     expect((await estado('diagramas/flujo.mmd')).json().estado).toBe('exportado');
+  });
+
+  it('local sin rsvg solicita PDF sin escribir; acepta el adjunto y conserva conflictos e historial', async () => {
+    vi.stubEnv('PATH', '');
+    env.cfg.compileEngine = 'local';
+    const body = { path: 'diagramas/flujo.mmd', svg: SVG, rev: rev(SRC) };
+    const pdf = Buffer.from('%PDF-1.7\nFigura ficticia\n%%EOF\n');
+    let res = await exportar(body);
+    expect(res.statusCode).toBe(422);
+    expect(res.json().code).toBe('PDF_BROWSER_REQUIRED');
+    expect((await estado(body.path)).json().estado).toBe('sin-exportar');
+    await expect(fs.stat(fig('flujo.pdf'))).rejects.toThrow();
+    res = await exportar({ ...body, pdf: pdf.toString('base64') });
+    expect(res.statusCode).toBe(200);
+    expect(await fs.readFile(fig('flujo.pdf'))).toEqual(pdf);
+    expect((await estado(body.path)).json().estado).toBe('exportado');
+    const src2 = SRC + '  B --> C\n';
+    await fs.writeFile(path.join(env.cfg.memoriaDir, body.path), src2);
+    expect((await exportar({ ...body, pdf: pdf.toString('base64') })).statusCode).toBe(409);
+    const pdf2 = Buffer.from('%PDF-1.7\nFigura ficticia actualizada\n%%EOF\n');
+    expect((await exportar({ ...body, rev: rev(src2), pdf: pdf2.toString('base64') })).statusCode).toBe(200);
+    const history = await fs.readdir(path.join(env.cfg.historyDir, 'memoria', 'figuras', 'diagramas', 'flujo.pdf'));
+    expect(history.filter((f) => f.endsWith('.bak'))).toHaveLength(1);
+    expect(worker.calls).toBe(0);
+  });
+
+  it('el adjunto PDF no elude la validación del SVG ni admite base64/tamaños/cabeceras inválidos', async () => {
+    vi.stubEnv('PATH', '');
+    env.cfg.compileEngine = 'local';
+    const body = { path: 'diagramas/flujo.mmd', svg: SVG, rev: rev(SRC) };
+    const pdf = Buffer.from('%PDF-1.7\nFicticio\n%%EOF\n').toString('base64');
+    for (const value of [null, '', '%%%=', 'aGVsbG8=', Buffer.from('%PDF-1.7\nSin final').toString('base64'), 'a'.repeat(14 * 1024 * 1024)])
+      expect((await exportar({ ...body, pdf: value })).statusCode).toBe(400);
+    for (const extra of ['<!DOCTYPE svg>', '<image href="https://ejemplo.invalid/a"/>', '<style>@import "x";</style>'])
+      expect((await exportar({ ...body, svg: SVG.replace('</svg>', extra + '</svg>'), pdf })).statusCode).toBe(400);
+    await expect(fs.stat(fig('flujo.pdf'))).rejects.toThrow();
+  });
+
+  it('Docker convierte el SVG aunque el cliente incluya un PDF', async () => {
+    const pdf = Buffer.from('%PDF-1.7\nPDF ficticio del cliente\n%%EOF\n');
+    const res = await exportar({ path: 'diagramas/flujo.mmd', svg: SVG, rev: rev(SRC), pdf: pdf.toString('base64') });
+    expect(res.statusCode).toBe(200);
+    expect(worker.calls).toBe(1);
+    expect(await fs.readFile(fig('flujo.pdf'))).not.toEqual(pdf);
   });
 
   it('400: SVG no válido, demasiado grande, con foreignObject, ruta fuera de diagramas/ o rechazado por el worker', async () => {

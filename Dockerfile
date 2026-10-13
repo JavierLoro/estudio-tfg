@@ -7,6 +7,7 @@ WORKDIR /app/web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY web/ ./
+COPY worker/woff2sfnt.mjs worker/woff2sfnt.d.mts /app/worker/
 RUN npm run build
 
 # --- server: dependencias (tsx está en dependencies; se ejecuta TS directamente) ---

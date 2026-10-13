@@ -39,6 +39,11 @@ beforeEach(async () => {
     calls.push(call);
     setImmediate(async () => {
       if (cmd.endsWith('taskkill.exe')) { calls.find((c) => c.child.pid === Number(args[1]))?.child.emit('close', null, 'SIGTERM'); child.emit('close', 0); return; }
+      if (args.includes('--format=pdf')) {
+        await fs.writeFile(args.find(arg => arg.startsWith('--output='))!.slice('--output='.length), '%PDF-1.7\nConvertido por rsvg ficticio\n%%EOF\n');
+        child.emit('close', 0);
+        return;
+      }
       if (!args.includes('-pdf')) {
         const name = path.basename(cmd).replace(/\.exe$/, '');
         const finish = () => {
@@ -157,8 +162,12 @@ it('explica herramientas ausentes antes de ejecutar y rsvg es opcional para comp
   expect(compiles()).toHaveLength(0);
   await binaries(bin, ['latexmk']);
   await fs.rm(path.join(bin, 'rsvg-convert' + (process.platform === 'win32' ? '.exe' : '')));
-  expect(await detectLocal(t.cfg, true)).toMatchObject({ ok: true, capabilities: { compile: true, svg2pdf: false } });
-  await expect(localEngine(t.cfg).svg2pdf('<svg/>')).rejects.toMatchObject({ statusCode: 503, message: expect.stringContaining('rsvg-convert') });
+  expect(await detectLocal(t.cfg, true)).toMatchObject({ ok: true, capabilities: { compile: true, svg2pdf: true } });
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg"></svg>';
+  await expect(localEngine(t.cfg).svg2pdf(svg)).rejects.toMatchObject({ statusCode: 422, body: { code: 'PDF_BROWSER_REQUIRED' } });
+  const pdf = Buffer.from('%PDF-1.7\nFicticio\n%%EOF\n');
+  expect(await localEngine(t.cfg).svg2pdf(svg, pdf)).toEqual(pdf);
+  await expect(localEngine(t.cfg).svg2pdf(svg.replace('</svg>', '<image href="file:///ficticio"/></svg>'), pdf)).rejects.toMatchObject({ statusCode: 400 });
 });
 
 it('compila una copia temporal, conserva originales y aplica rc/biber/entorno controlados y SyncTeX relativo', async () => {
@@ -183,6 +192,14 @@ it('compila una copia temporal, conserva originales y aplica rc/biber/entorno co
   expect(syn).toBe('Input:1:tfg.tex\n');
   const log = await fs.readFile(path.join(t.cfg.buildDir, result.buildId, 'latexmk.txt'), 'utf8');
   expect(log).toContain('latexmk: Latexmk, Version 4.88'); expect(log).toContain('biber version: 2.22');
+});
+
+it('local conserva rsvg cuando está disponible aunque reciba un PDF del navegador', async () => {
+  const pdf = await localEngine(t.cfg).svg2pdf('<svg xmlns="http://www.w3.org/2000/svg"></svg>', Buffer.from('%PDF-1.7\nAdjunto ficticio\n%%EOF\n'));
+  expect(pdf.toString()).toContain('Convertido por rsvg ficticio');
+  const call = calls.find(call => call.args.includes('--format=pdf'))!;
+  expect(call.cmd).toBe(path.join(bin, 'rsvg-convert' + (process.platform === 'win32' ? '.exe' : '')));
+  expect(call.options.env.AUTH_TOKEN).toBeUndefined();
 });
 
 it.skipIf(!supportsDirectoryLink)('canoniza temporales enlazados para que SyncTeX conserve rutas relativas', async () => {

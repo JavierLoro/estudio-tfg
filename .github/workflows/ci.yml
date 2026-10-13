@@ -92,6 +92,7 @@ jobs:
         run: |
           echo "TEMPLATE_OUT=$RUNNER_TEMP/estudio-tfg-template" >> "$GITHUB_ENV"
           mkdir -p "$RUNNER_TEMP/estudio-tfg-template"
+          mkdir -p "$RUNNER_TEMP/estudio-tfg-template/diagramas-browser"
       - name: Construir el worker
         run: docker build --pull --tag estudio-tfg-worker:ci worker
       - name: Arrancar el worker aislado
@@ -129,15 +130,20 @@ jobs:
               --volume "$GITHUB_WORKSPACE/server/node_modules:/repo/server/node_modules:ro" \
               --volume "$GITHUB_WORKSPACE/worker:/repo/worker:ro" \
               --volume "$GITHUB_WORKSPACE/scripts:/repo/scripts:ro" \
+              --volume "$GITHUB_WORKSPACE/web/src/lib/diagramTemplates.ts:/repo/web/src/lib/diagramTemplates.ts:ro" \
               --volume "$GITHUB_WORKSPACE/templates:/repo/templates:ro" \
               --entrypoint node estudio-tfg-worker:ci --experimental-transform-types \
               "/repo/scripts/$fixture" --engine local --output-dir /out/builds
           done
       - name: Recorridos E2E de biblioteca, recuperación y PDF
+        # La exportación local con PATH vacío deja figuras ficticias para compilarlas después.
         run: npm run test:e2e
         env:
           E2E_WORKER_URL: http://127.0.0.1:8097
           E2E_WORKER_OUT: ${{ env.TEMPLATE_OUT }}
+          E2E_DIAGRAM_OUT: ${{ env.TEMPLATE_OUT }}/diagramas-browser
+      - name: Compilar las seis figuras del navegador en ambos perfiles
+        run: node server/node_modules/tsx/dist/cli.mjs scripts/library-compile.mts --worker-url http://127.0.0.1:8097 --output-dir "$TEMPLATE_OUT" --diagrams-dir "$TEMPLATE_OUT/diagramas-browser"
       - name: Conservar evidencias E2E al fallar
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -166,5 +172,6 @@ jobs:
             ${{ env.TEMPLATE_OUT }}/**/latexmk.txt
             ${{ env.TEMPLATE_OUT }}/native/**/resultado-*.json
             ${{ env.TEMPLATE_OUT }}/native/**/herramientas-locales.json
+            ${{ env.TEMPLATE_OUT }}/diagramas-browser/*.pdf
           if-no-files-found: ignore
           retention-days: 7

@@ -6,6 +6,7 @@ import { HttpError } from '../errors.ts';
 import { isInside } from '../paths.ts';
 import { compile, compileEnvironment, newBuildId, pruneBuilds, run, svgToPdf, type Tools } from '../../../worker/engine.mjs';
 import { extractTar } from '../../../worker/untar.mjs';
+import { checkSvg } from '../../../worker/svg.mjs';
 import type { Engine, EngineHealth } from './index.ts';
 
 const COMMANDS = { latexmk: 'latexmk', biber: 'biber', pdflatex: 'pdflatex', rsvg: 'rsvg-convert' } as const;
@@ -63,7 +64,7 @@ async function probe(cfg: Config): Promise<LocalHealth> {
   if (tools.pdflatex.version && !tools.pdflatex.version.includes('TeX Live 2026'))
     warnings.push('La distribución detectada difiere de TeX Live 2026; se permite compilar y se registran sus versiones.');
   return { ok: !missing.length, version: tools.pdflatex.version, tools, warnings,
-    capabilities: { compile: !missing.length, svg2pdf: !!tools.rsvg.version },
+    capabilities: { compile: !missing.length, svg2pdf: true },
     ...(missing.length ? { message: `No están disponibles ${missing.map((key) => COMMANDS[key]).join(', ')} en PATH; instala una distribución TeX o utiliza Docker.` } : {}) };
 }
 
@@ -105,10 +106,15 @@ export function localEngine(cfg: Config): Engine {
         await pruneBuilds(cfg.buildDir).catch(() => {});
       }
     },
-    svg2pdf(svg) {
+    svg2pdf(svg, browserPdf) {
       const next = svgQueue.then(async () => {
+        const problem = checkSvg(svg);
+        if (problem) throw new HttpError(400, problem);
         const health = await detectLocal(cfg);
-        if (!health.capabilities.svg2pdf) throw new HttpError(503, 'No está disponible rsvg-convert; utiliza Docker para exportar diagramas a PDF.');
+        if (!health.tools.rsvg.version) {
+          if (!browserPdf) throw new HttpError(422, 'El diagrama necesita conversión a PDF en el navegador', { code: 'PDF_BROWSER_REQUIRED' });
+          return browserPdf;
+        }
         const result = await svgToPdf(svg, { tool: health.tools.rsvg.path! });
         if (!result.pdf) throw new HttpError(result.status, result.error);
         return result.pdf;
