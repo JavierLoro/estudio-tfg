@@ -11,10 +11,12 @@ import { instanceId } from '../server/src/settings.ts';
 
 const args = process.argv.slice(2),
   arg = (name: string) => args[args.indexOf(name) + 1];
-const worker = arg('--worker-url'),
+const engine = args.includes('--engine') ? arg('--engine') : 'docker';
+if (!['docker', 'local'].includes(engine)) throw new Error('--engine debe ser docker o local');
+const worker = args.includes('--worker-url') ? arg('--worker-url') : 'http://127.0.0.1:1',
   output = path.resolve(arg('--output-dir') ?? '');
-if (!worker || !/^http:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):\d+$/.test(worker) || !args.includes('--output-dir'))
-  throw new Error('Indica un worker local y --output-dir temporal compartido con su /out');
+if ((engine === 'docker' && !args.includes('--worker-url')) || !worker || !/^http:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):\d+$/.test(worker) || !args.includes('--output-dir'))
+  throw new Error('Indica --output-dir temporal; para Docker, --worker-url loopback compartido con su /out');
 const realOutput = await fs.realpath(output),
   allowed = [await fs.realpath(os.tmpdir()), ...(process.env.RUNNER_TEMP ? [await fs.realpath(process.env.RUNNER_TEMP)] : [])];
 if (!allowed.some((root) => realOutput === root || realOutput.startsWith(root + path.sep)))
@@ -40,6 +42,7 @@ try {
         MEMORIA_DIR: memoria,
         BUILD_DIR: realOutput,
         WORKER_URL: worker,
+        COMPILE_ENGINE: engine,
         ALLOWED_ROOTS: root,
         AUTH_TOKEN: '',
         RESOURCES_SUBDIR: 'Recursos',
@@ -66,7 +69,8 @@ try {
         },
       })
     ).json();
-    assert(imported.results.every((r: any) => r.state === 'done'));
+    assert(Array.isArray(imported.results), JSON.stringify(imported));
+    assert(imported.results.every((r: any) => r.state === 'done'), JSON.stringify(imported));
     const article = (await app.inject(`/api/resources/file?path=${encodeURIComponent(imported.results[0].path)}`)).json();
     const binding = { libraryId: libraryId(cfg), instanceId: instanceId(cfg) };
     async function integrate(file: any, extra: any) {

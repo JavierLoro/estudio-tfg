@@ -116,6 +116,23 @@ jobs:
         run: node scripts/compile-template.mjs --worker-url http://127.0.0.1:8097 --output-dir "$TEMPLATE_OUT"
       - name: Verificar citas, figuras y memoria trasladada sin biblioteca
         run: node server/node_modules/tsx/dist/cli.mjs scripts/library-compile.mts --worker-url http://127.0.0.1:8097 --output-dir "$TEMPLATE_OUT"
+      - name: Verificar el motor local con TeX real sin worker HTTP
+        run: |
+          mkdir -p "$TEMPLATE_OUT/native/builds"
+          for fixture in local-engine-security.mts library-compile.mts; do
+            docker run --rm --init --user "$(id -u):$(id -g)" --network none \
+              --read-only --tmpfs /tmp:rw,exec,nosuid,size=1g,mode=1777 \
+              --cap-drop ALL --security-opt no-new-privileges --memory 2g --pids-limit 256 \
+              --env RUNNER_TEMP=/out --volume "$TEMPLATE_OUT/native:/out" \
+              --volume "$GITHUB_WORKSPACE/server/src:/repo/server/src:ro" \
+              --volume "$GITHUB_WORKSPACE/server/package.json:/repo/server/package.json:ro" \
+              --volume "$GITHUB_WORKSPACE/server/node_modules:/repo/server/node_modules:ro" \
+              --volume "$GITHUB_WORKSPACE/worker:/repo/worker:ro" \
+              --volume "$GITHUB_WORKSPACE/scripts:/repo/scripts:ro" \
+              --volume "$GITHUB_WORKSPACE/templates:/repo/templates:ro" \
+              --entrypoint node estudio-tfg-worker:ci --experimental-transform-types \
+              "/repo/scripts/$fixture" --engine local --output-dir /out/builds
+          done
       - name: Recorridos E2E de biblioteca, recuperación y PDF
         run: npm run test:e2e
         env:
@@ -147,5 +164,7 @@ jobs:
             ${{ env.TEMPLATE_OUT }}/resultado-*.json
             ${{ env.TEMPLATE_OUT }}/**/*.log
             ${{ env.TEMPLATE_OUT }}/**/latexmk.txt
+            ${{ env.TEMPLATE_OUT }}/native/**/resultado-*.json
+            ${{ env.TEMPLATE_OUT }}/native/**/herramientas-locales.json
           if-no-files-found: ignore
           retention-days: 7

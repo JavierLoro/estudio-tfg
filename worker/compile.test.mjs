@@ -34,6 +34,15 @@ function fakeEngine(t, mode = 'ok') {
   });
   mock.method(childProcess, 'spawn', (command, args, options) => {
     calls.push({ command, args, options });
+    if (command.endsWith('taskkill.exe')) {
+      const killer = new EventEmitter();
+      kills.push({ pid: Number(args[1]), signal: 'taskkill', args });
+      setImmediate(() => {
+        if (child?.pid === Number(args[1])) child.emit('close', null, 'SIGTERM');
+        killer.emit('close', 0);
+      });
+      return killer;
+    }
     child = new EventEmitter();
     child.pid = 123456;
     child.stdout = new PassThrough();
@@ -55,12 +64,13 @@ function fakeEngine(t, mode = 'ok') {
 }
 
 const compile = (files = { 'main.tex': 'Documento ficticio' }) => fetch(url, {
-  method: 'POST', headers: { 'content-type': 'application/x-tar' }, body: tarFiles(files),
+  method: 'POST', headers: { 'content-type': 'application/x-tar' }, body: tarFiles(files), signal: AbortSignal.timeout(5000),
 });
 
 test('el entorno de TeX no hereda secretos ni configuración ejecutable', () => {
   const env = compileEnvironment(path.join(scratch, 'runtime'));
-  assert.equal(env.PATH, '/usr/local/bin:/usr/bin:/bin');
+  const windowsRoot = process.env.SystemRoot || process.env.SYSTEMROOT || 'C:\\Windows';
+  assert.equal(env.PATH, process.platform === 'win32' ? `${path.win32.join(windowsRoot, 'System32')};${windowsRoot}` : '/usr/local/bin:/usr/bin:/bin');
   assert.equal(env.openout_any, 'p');
   assert.equal(env.shell_escape, '0');
   for (const key of ['AUTH_TOKEN', 'LATEXMKRCSYS', 'PERL5OPT', 'LD_PRELOAD', 'TEXMFCNF', 'TEXINPUTS', 'BIBINPUTS', 'XDG_CONFIG_HOME']) {
@@ -81,14 +91,14 @@ test('compilar ignora rc, aísla temporales, conserva PDF/SyncTeX y borra el tra
   assert.ok(args.includes('-norc'));
   assert.ok(args.includes('-no-shell-escape'));
   assert.ok(args.includes('$biber = "biber --noconf %O %B";'));
-  assert.equal(options.detached, true);
+  assert.equal(options.detached, process.platform !== 'win32');
   assert.deepEqual(options.env, compileEnvironment(path.join(path.dirname(options.cwd), 'runtime')));
   assert.equal(fs.existsSync(path.dirname(options.cwd)), false);
   assert.equal(fs.readFileSync(path.join(process.env.OUT_DIR, body.pdf), 'utf8').slice(0, 5), '%PDF-');
   assert.match(fs.readFileSync(path.join(process.env.OUT_DIR, body.buildId, 'latexmk.txt'), 'utf8'), /^Herramientas de esta imagen:\n/);
   const syn = zlib.gunzipSync(fs.readFileSync(path.join(process.env.OUT_DIR, body.buildId, 'main.synctex.gz'))).toString();
   assert.equal(syn, 'Input:1:main.tex\n');
-  assert.ok(kills.some(({ pid, signal }) => pid === -123456 && signal === 'SIGKILL'));
+  if (process.platform !== 'win32') assert.ok(kills.some(({ pid, signal }) => pid === -123456 && signal === 'SIGKILL'));
 });
 
 test('el timeout mata el grupo entero y no publica PDF', async (t) => {
@@ -97,8 +107,26 @@ test('el timeout mata el grupo entero y no publica PDF', async (t) => {
   assert.equal(body.ok, false);
   assert.equal(body.pdf, null);
   assert.match(body.diagnostics[0].message, /Compilación cancelada/);
-  assert.ok(kills.some(({ pid, signal }) => pid === -123456 && signal === 'SIGTERM'));
+  if (process.platform === 'win32') assert.ok(kills.some(({ pid, signal, args }) => pid === 123456 && signal === 'taskkill' && args.includes('/T') && args.includes('/F')));
+  else assert.ok(kills.some(({ pid, signal }) => pid === -123456 && signal === 'SIGTERM'));
   assert.equal(fs.existsSync(path.dirname(calls[0].options.cwd)), false);
+});
+
+test('el fixture Windows responde a taskkill y libera la cola tras un timeout', { timeout: 5000 }, async (t) => {
+  const previous = Object.getOwnPropertyDescriptor(process, 'platform');
+  Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
+  t.after(() => Object.defineProperty(process, 'platform', previous));
+  const { calls, kills } = fakeEngine(t, 'timeout');
+  const body = await (await compile()).json();
+  assert.equal(body.ok, false);
+  assert.equal(body.pdf, null);
+  assert.equal(calls[0].options.detached, false);
+  assert.ok(kills.some(({ pid, signal, args }) => pid === 123456 && signal === 'taskkill' && args.includes('/T') && args.includes('/F')));
+  assert.equal(fs.existsSync(path.dirname(calls[0].options.cwd)), false);
+  const next = await compile();
+  assert.equal(next.status, 200);
+  assert.equal((await next.json()).ok, false);
+  assert.equal(calls.filter(({ command }) => command === 'latexmk').length, 2);
 });
 
 test('un fallo al arrancar el motor libera el trabajo y conserva el diagnóstico', async (t) => {

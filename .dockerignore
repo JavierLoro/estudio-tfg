@@ -4,7 +4,11 @@
 .env
 data
 test
-worker
+worker/*
+!worker/engine.mjs
+!worker/parse-log.mjs
+!worker/untar.mjs
+!worker/svg.mjs
 docs
 **/*.log
 .DS_Store

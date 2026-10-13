@@ -12,7 +12,7 @@ export interface Status {
   resourcesSubdir: string;
   syncConflicts: string[];
   worker: 'up' | 'down';
-  motor?: { tipo: 'docker' | 'local'; estado: 'up' | 'down'; version: string | null; capacidades: { compile: boolean; svg2pdf: boolean } };
+  motor?: { seleccion?: 'auto' | 'docker' | 'local'; tipo: 'docker' | 'local'; estado: 'up' | 'down'; version: string | null; capacidades: { compile: boolean; svg2pdf: boolean } };
   watcher: 'ok' | 'error';
   watcherMessage?: string;
   /** v0.2: false si `notesDir` o `memoriaDir` no existen. */
@@ -23,7 +23,7 @@ export interface Status {
 
 // ---- Ajustes (v0.2) ----
 
-export const SETTINGS_KEYS = ['notesDir', 'resourcesSubdir', 'memoriaDir', 'memoriaMain'] as const;
+export const SETTINGS_KEYS = ['notesDir', 'resourcesSubdir', 'memoriaDir', 'memoriaMain', 'compileEngine'] as const;
 export type SettingsKey = (typeof SETTINGS_KEYS)[number];
 export type SettingsValues = Record<SettingsKey, string>;
 export type SettingsSource = 'settings' | 'env' | 'default';
@@ -40,6 +40,21 @@ export interface SettingsResponse {
   sources: Record<SettingsKey, SettingsSource>;
   allowedRoots: string[];
   checks: SettingsCheck[];
+}
+
+export interface EngineHealth {
+  ok: boolean;
+  version: string | null;
+  capabilities: { compile: boolean; svg2pdf: boolean };
+}
+
+export interface EnginesResponse {
+  docker: EngineHealth;
+  local: EngineHealth & {
+    tools: Record<'latexmk' | 'biber' | 'pdflatex' | 'rsvg', { path: string | null; version: string | null }>;
+    warnings: string[];
+    message?: string;
+  };
 }
 
 export interface FsDir {
@@ -520,6 +535,7 @@ async function guarded<T>(p: Promise<T>): Promise<T> {
 
 export const api = {
   status: () => json<Status>('/api/status'),
+  engines: () => guarded(json<EnginesResponse>('/api/engines')),
 
   tree: (root: Root) => json<TreeResponse>(`/api/tree?${qs({ root })}`),
 

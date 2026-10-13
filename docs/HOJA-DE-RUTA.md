@@ -6,7 +6,7 @@
 >
 > Fuentes: [PLATAFORMAS.md](PLATAFORMAS.md) (50 hallazgos de portabilidad; los IDs como `S1`, `P2`, `F4` se refieren a él), [CONTRACT.md](CONTRACT.md) y la auditoría del 09-10-2026, cuyas evidencias y acciones se describen en R1–R8 y L1–L5.
 >
-> **Estado actualizado:** A–D, R y L1–L5 completadas y fusionadas. **Bloque actual: `l-correcciones` (L6–L9)**, sujeto a comprobar reservas y PR abiertos. Orden de continuación: **R → L → E → F → G**. R y L se insertan aquí sin renumerar las tareas anteriores; sus letras no determinan la prioridad.
+> **Estado actualizado:** A–D, R y L1–L9 completadas y fusionadas. **Bloque actual: `e-motores` (E1–E2)**, sujeto a comprobar reservas y PR abiertos. Orden de continuación: **R → L → E → F → G**. R y L se insertan aquí sin renumerar las tareas anteriores; sus letras no determinan la prioridad.
 
 ## Índice
 
@@ -720,6 +720,9 @@ Bloque `l-correcciones`, antes de E. Plan: reproducir los fallos con regresiones
 ## Fase E — Motores de compilación intercambiables
 
 Resultado: el servidor compila con el motor que elija el usuario: **Docker** (el worker actual), **TeX del sistema** (MacTeX, TeX Live, MiKTeX) o, si se valida, **Tectonic**. Imprescindible para la app de escritorio sin Docker. Esfuerzo ≈ 2–3 días.
+
+**Plan del bloque `e-motores`:** extraer y verificar E1 manteniendo Docker; compartir el núcleo del worker y añadir el adaptador local, detección y Ajustes en E2; probar cancelación/aislamiento con fixtures, ambos motores con TeX real y navegador; ejecutar CI y entregar un PR con un commit por tarea. El entorno de desarrollo no tiene TeX en el PATH: la comprobación real local se ejecuta directamente en Linux dentro de un contenedor sin worker HTTP; MacTeX/MiKTeX físicos permanecen pendientes de E3.
+
 
 <a id="e1"></a>
 ### E1 · Contrato e interfaz de motor de compilación

@@ -80,8 +80,8 @@ export function Header() {
           <CloudOff size={13} /> Sin conexión
         </span>
       )}
-      {status?.worker === 'down' && (
-        <span className="flex items-center gap-1 text-[12px] text-warn" title="El worker de LaTeX no responde">
+      {(status?.motor?.estado ?? status?.worker) === 'down' && (
+        <span className="flex items-center gap-1 text-[12px] text-warn" title={status?.motor?.tipo === 'local' ? 'TeX del sistema no está disponible; revisa Ajustes' : 'El worker de LaTeX no responde'}>
           <ServerCrash size={13} /> LaTeX
         </span>
       )}

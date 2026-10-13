@@ -90,7 +90,7 @@ montadas permanecen en el host. Puedes consultar los logs con
 
 ## Desarrollar (server y web nativos)
 
-Necesitas **Node ≥ 24**, npm y Docker para el worker. Git es recomendable para
+Necesitas **Node ≥ 24**, npm y un motor de compilación: Docker o TeX instalado en el equipo. Git es recomendable para
 el historial y las actualizaciones de plantilla; sin él se crea la memoria con
 un aviso. Clona el repositorio, entra en él y ejecuta:
 
@@ -122,6 +122,30 @@ y memoria fuera de OneDrive, Dropbox o Google Drive; si usas OneDrive, marca
 si chocan con el navegador, usa los botones. Más detalles en
 [docs/PLATAFORMAS.md](docs/PLATAFORMAS.md).
 
+### Elegir motor de compilación
+
+En **Ajustes → Motor de compilación**, elige Docker, TeX del sistema o Automático.
+Docker se mantiene por defecto para instalaciones anteriores. Automático prefiere
+el worker disponible; si no responde, usa TeX local. Un fallo de compilación no
+repite el proyecto con otro motor.
+
+Para trabajar sin Docker, instala una distribución TeX y comprueba que `latexmk`,
+`pdflatex` y `biber` estén en el PATH del proceso que arranca la API. Elige **TeX del
+sistema** en Ajustes o define `COMPILE_ENGINE=local` en `.env`, y ejecuta `npm run dev`
+sin levantar el worker. Ajustes muestra herramientas, versiones, diferencias con
+la referencia Docker y lo que falta. `rsvg-convert` es opcional para compilar;
+se necesita para exportar diagramas a PDF con el motor local hasta F1.
+MiKTeX necesita [Perl para ejecutar latexmk](https://miktex.org/kb/fix-script-engine-not-found);
+su ruta también debe estar en PATH. El entorno controlado conserva esa dependencia.
+
+El motor local ejecuta con los permisos del usuario: compila solo fuentes de
+confianza. El aviso permanece visible con Local/Automático. Usa copias temporales,
+ignora rc/configuración del proyecto y conserva shell-escape desactivado, pero
+**no es un sandbox**. Detalles y comprobaciones: [SEGURIDAD-COMPILACION.md](docs/SEGURIDAD-COMPILACION.md).
+Si la API está dentro de Docker, «TeX del sistema» se refiere al interior de ese
+contenedor, no al TeX del host. La validación física de MacTeX/MiKTeX corresponde
+a E3; la CI verifica el adaptador local con TeX Live real en Linux sin worker HTTP.
+
 ## Primeros pasos
 
 1. **Carpetas.** Define `NOTES_DIR` (tu vault de Obsidian) y `MEMORIA_DIR` en `.env` (hay un ejemplo en `.env.example`) o desde **Ajustes** en la interfaz, que las aplica en caliente.
@@ -133,7 +157,7 @@ si chocan con el navegador, usa los botones. Más detalles en
 
 ### Memoria y PDF
 
-- Editor LaTeX (CodeMirror 6) con diagnósticos de LaTeX y biblatex/biber en línea; la compilación (`latexmk`, `-no-shell-escape`) se hace en el worker.
+- Editor LaTeX (CodeMirror 6) con diagnósticos de LaTeX y biblatex/biber en línea; la compilación (`latexmk`, `-no-shell-escape`) se hace con el motor elegido (Docker o TeX del sistema).
 - Visor PDF propio (PDF.js) con zoom, búsqueda y modo oscuro.
 - **SyncTeX** en los dos sentidos: ⌘⇧J lleva del código al PDF y ⌘clic en el PDF lleva al código.
 - Vista **Documento**: el esquema de la memoria en el orden del PDF; resalta el apartado que estás viendo, permite crear apartados nuevos y «Ver en PDF» salta a la página correcta.

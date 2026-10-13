@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 export type WatchPolling = 'auto' | 'on' | 'off';
+export type CompileEngine = 'auto' | 'docker' | 'local';
 
 export interface Config {
   port: number;
@@ -16,6 +17,7 @@ export interface Config {
   /** BUILD_DIR/../history */
   historyDir: string;
   workerUrl: string;
+  compileEngine: CompileEngine;
   watchPolling: WatchPolling;
   authToken: string;
   webDist: string;
@@ -28,7 +30,7 @@ export interface Config {
 }
 
 /** Keys editable from the UI (settings.json > .env > default). */
-export const SETTING_KEYS = ['notesDir', 'resourcesSubdir', 'memoriaDir', 'memoriaMain'] as const;
+export const SETTING_KEYS = ['notesDir', 'resourcesSubdir', 'memoriaDir', 'memoriaMain', 'compileEngine'] as const;
 export type SettingKey = (typeof SETTING_KEYS)[number];
 export type SettingValues = Record<SettingKey, string>;
 
@@ -105,6 +107,8 @@ export function parseAllowedRoots(v: string | undefined, base: string, paths = p
 export function loadConfig(env: NodeJS.ProcessEnv = process.env, repoRoot = REPO_ROOT): Config {
   const watchPolling = str(env.WATCH_POLLING, 'auto');
   if (!['auto', 'on', 'off'].includes(watchPolling)) throw new Error('WATCH_POLLING debe ser auto, on u off');
+  const compileEngine = str(env.COMPILE_ENGINE, 'docker');
+  if (!['auto', 'docker', 'local'].includes(compileEngine)) throw new Error('COMPILE_ENGINE debe ser auto, docker o local');
   const buildDir = expandPath(str(env.BUILD_DIR, './data/builds'), repoRoot);
   const resourcesSubdir = str(env.RESOURCES_SUBDIR, 'Recursos').replace(/^\/+|\/+$/g, '');
   if (resourcesSubdir.split('/').some((s) => s === '..' || s === '.')) {
@@ -125,6 +129,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, repoRoot = REPO
     buildDir,
     historyDir: path.join(path.dirname(buildDir), 'history'),
     workerUrl: str(env.WORKER_URL, 'http://localhost:8090').replace(/\/+$/, ''),
+    compileEngine: compileEngine as CompileEngine,
     watchPolling: watchPolling as WatchPolling,
     authToken: (env.AUTH_TOKEN ?? '').trim(),
     webDist: path.join(repoRoot, 'web', 'dist'),
@@ -135,6 +140,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, repoRoot = REPO
       resourcesSubdir: src(env.RESOURCES_SUBDIR),
       memoriaDir: src(env.MEMORIA_DIR),
       memoriaMain: src(env.MEMORIA_MAIN),
+      compileEngine: src(env.COMPILE_ENGINE),
     },
   };
 }

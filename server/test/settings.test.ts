@@ -47,8 +47,9 @@ describe('GET /api/settings', () => {
       resourcesSubdir: 'Recursos',
       memoriaDir: t.cfg.memoriaDir,
       memoriaMain: 'tfg.tex',
+      compileEngine: 'docker',
     });
-    expect(s.sources).toEqual({ notesDir: 'env', resourcesSubdir: 'env', memoriaDir: 'env', memoriaMain: 'default' });
+    expect(s.sources).toEqual({ notesDir: 'env', resourcesSubdir: 'env', memoriaDir: 'env', memoriaMain: 'default', compileEngine: 'default' });
     expect(s.allowedRoots).toEqual([t.dir]);
     expect(s.pathSep).toBe(path.sep);
     expect(s.checks).toContainEqual({ key: 'memoriaMain', level: 'ok', message: 'Archivo principal: tfg.tex' });
@@ -200,7 +201,7 @@ describe('precedence and reset', () => {
     const s = (await t.app.inject({ url: '/api/settings' })).json();
     expect(s.values.notesDir).toBe(notes2);
     expect(s.values.memoriaMain).toBe('otro.tex');
-    expect(s.sources).toEqual({ notesDir: 'settings', resourcesSubdir: 'env', memoriaDir: 'env', memoriaMain: 'settings' });
+    expect(s.sources).toEqual({ notesDir: 'settings', resourcesSubdir: 'env', memoriaDir: 'env', memoriaMain: 'settings', compileEngine: 'default' });
 
     const bad = await t.app.inject({ method: 'POST', url: '/api/settings/reset', payload: { keys: ['nope'] } });
     expect(bad.statusCode).toBe(400);
@@ -235,7 +236,7 @@ describe('precedence and reset', () => {
     expect(s.values.notesDir).toBe(path.join(t.dir, 'fixtures', 'notes'));
     expect(s.values.memoriaDir).toBe(path.join(t.dir, 'fixtures', 'memoria'));
     expect(s.values.resourcesSubdir).toBe('Recursos');
-    expect(s.sources).toEqual({ notesDir: 'env', resourcesSubdir: 'env', memoriaDir: 'env', memoriaMain: 'env' });
+    expect(s.sources).toEqual({ notesDir: 'env', resourcesSubdir: 'env', memoriaDir: 'env', memoriaMain: 'env', compileEngine: 'default' });
     const errs = s.checks.filter((c: any) => c.level === 'error');
     expect(errs.map((c: any) => c.key).sort()).toEqual(['memoriaDir', 'notesDir', 'resourcesSubdir']);
     expect(errs.find((c: any) => c.key === 'notesDir').message).toMatch(/dentro del repositorio/);

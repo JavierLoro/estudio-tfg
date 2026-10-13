@@ -28,12 +28,12 @@ export function dockerEngine(url: string): Engine {
         return { ok: false, version: null, capabilities: { compile: false, svg2pdf: false } };
       }
     },
-    async compile(sources, main) {
+    async compile(sources, main, signal) {
       let res: Response;
       try {
         res = await fetch(`${url}/compile`, {
           method: 'POST', headers: { 'content-type': 'application/x-tar', 'x-main': encodeURIComponent(main) },
-          body: Readable.toWeb(sources) as any, duplex: 'half', signal: AbortSignal.timeout(180_000),
+          body: Readable.toWeb(sources) as any, duplex: 'half', signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(180_000)]) : AbortSignal.timeout(180_000),
         } as RequestInit);
       } catch (e: any) {
         throw new HttpError(503, e?.name === 'TimeoutError' ? `${WORKER_DOWN_MSG} (tiempo de espera agotado)` : WORKER_DOWN_MSG);

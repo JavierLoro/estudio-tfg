@@ -6,6 +6,7 @@ import {
   FieldError,
   SETTINGS_KEYS,
   type Perfil,
+  type EnginesResponse,
   type SettingsCheck,
   type SettingsKey,
   type SettingsResponse,
@@ -24,6 +25,7 @@ const LABELS: Record<SettingsKey, string> = {
   resourcesSubdir: 'Subcarpeta de recursos',
   memoriaDir: 'Carpeta de la memoria',
   memoriaMain: 'Archivo principal',
+  compileEngine: 'Motor de compilación',
 };
 
 const HELP: Record<SettingsKey, string> = {
@@ -31,6 +33,7 @@ const HELP: Record<SettingsKey, string> = {
   resourcesSubdir: 'Dentro de la carpeta de notas. Se crea si no existe.',
   memoriaDir: 'Carpeta del proyecto LaTeX de la memoria.',
   memoriaMain: 'Archivo .tex que se compila, en la raíz de la memoria.',
+  compileEngine: 'Automático prefiere Docker si responde; en caso contrario utiliza TeX del sistema. Se aplica al guardar.',
 };
 
 const SOURCE_LABEL: Record<SettingsSource, string> = {
@@ -78,11 +81,28 @@ export function SettingsPanel() {
   const [creationWarning, setCreationWarning] = useState<string | null>(null);
   const [perfiles, setPerfiles] = useState<Perfil[] | null>(null);
   const [perfil, setPerfil] = useState('');
+  const [engines, setEngines] = useState<EnginesResponse | null>(null);
+  const [detecting, setDetecting] = useState(false);
+  const [engineError, setEngineError] = useState<string | null>(null);
   const baseline = useRef<SettingsValues | null>(null);
   /** Ruta real de la carpeta de notas (el selector devuelve rutas reales). */
   const [notesReal, setNotesReal] = useState<string | null>(null);
 
+  const detectEngines = async () => {
+    setDetecting(true);
+    setEngineError(null);
+    try {
+      setEngines(await api.engines());
+      await useUI.getState().refreshStatus();
+    } catch (e) {
+      setEngineError(errorMessage(e));
+    } finally {
+      setDetecting(false);
+    }
+  };
+
   useEffect(() => {
+    void detectEngines();
     void useSettings.getState().load();
     // Perfiles de la plantilla (v0.5): si el servidor no los ofrece, no se muestra el selector.
     api
@@ -325,7 +345,7 @@ export function SettingsPanel() {
         ) : (
           <div className="mx-auto flex max-w-3xl flex-col gap-3">
             <section className="rounded-lg border border-line bg-bg">
-              <header className="flex h-8 items-center border-b border-line px-3 text-[12px] font-semibold">Carpetas</header>
+              <header className="flex h-8 items-center border-b border-line px-3 text-[12px] font-semibold">Configuración</header>
               <div className="divide-y divide-line">
                 {SETTINGS_KEYS.map((k) => {
                   const source = data.sources[k];
@@ -364,7 +384,19 @@ export function SettingsPanel() {
                         )}
                       </div>
                       <div className="flex items-center gap-1.5">
-                        {k === 'memoriaMain' && !memoriaDirChanged && !memoriaTreeError && memoriaTree ? (
+                        {k === 'compileEngine' ? (
+                          <select
+                            id={id}
+                            value={form.compileEngine}
+                            onChange={(e) => setField(k, e.target.value)}
+                            className={cx(inputCls, err ? 'border-danger' : 'border-line-strong')}
+                            aria-invalid={!!err}
+                          >
+                            <option value="auto">Automático</option>
+                            <option value="docker">Docker</option>
+                            <option value="local">TeX del sistema</option>
+                          </select>
+                        ) : k === 'memoriaMain' && !memoriaDirChanged && !memoriaTreeError && memoriaTree ? (
                           <select
                             id={id}
                             value={form.memoriaMain}
@@ -393,7 +425,7 @@ export function SettingsPanel() {
                             aria-invalid={!!err}
                           />
                         )}
-                        {k !== 'memoriaMain' && (
+                        {k !== 'memoriaMain' && k !== 'compileEngine' && (
                           <Button
                             onClick={() => (k === 'resourcesSubdir' ? void openResourcesPicker() : setPicker({ kind: 'dir', key: k }))}
                             disabled={k === 'resourcesSubdir' && !isAbsPath(notesBase)}
@@ -424,6 +456,40 @@ export function SettingsPanel() {
                   );
                 })}
               </div>
+            </section>
+
+            <section className="rounded-lg border border-line bg-bg" aria-label="Disponibilidad de compilación">
+              <header className="flex h-8 items-center gap-2 border-b border-line px-3 text-[12px] font-semibold">
+                <span className="flex-1">Compilación</span>
+                <Button onClick={() => void detectEngines()} disabled={detecting}>
+                  {detecting && <Spinner size={11} />} Detectar herramientas
+                </Button>
+              </header>
+              {(status?.motor?.tipo === 'local' || form.compileEngine === 'local' || (form.compileEngine === 'auto' && !engines?.docker.ok)) && (
+                <Banner kind="warn">TeX del sistema no es un sandbox: compila solo fuentes de confianza. Las herramientas se ejecutan en este equipo.</Banner>
+              )}
+              {engineError && <Banner kind="danger">No se pudieron detectar los motores: {engineError}</Banner>}
+              {engines && (
+                <div className="space-y-2 px-3 py-2.5 text-[12px]">
+                  <p>Motor actual: <strong>{status?.motor?.tipo === 'local' ? 'TeX del sistema' : 'Docker'}</strong>.</p>
+                  <p>Docker: <span className={engines.docker.ok ? 'text-ok' : 'text-warn'}>{engines.docker.ok ? 'Disponible' : 'No responde'}</span>{engines.docker.version && ` · ${engines.docker.version}`}</p>
+                  <p>TeX del sistema: <span className={engines.local.ok ? 'text-ok' : 'text-warn'}>{engines.local.ok ? 'Disponible' : 'No disponible'}</span>{engines.local.version && ` · ${engines.local.version}`}</p>
+                  {engines.local.message && <p className="text-warn">{engines.local.message}</p>}
+                  <ul className="space-y-1">
+                    {(['latexmk', 'biber', 'pdflatex', 'rsvg'] as const).map((key) => {
+                      const tool = engines.local.tools[key];
+                      return (
+                        <li key={key} className="break-all">
+                          <strong>{key === 'rsvg' ? 'rsvg-convert' : key}</strong>: {tool.path
+                            ? <><span className="font-mono">{tool.path}</span> · {tool.version ?? 'Versión no disponible'}</>
+                            : <span className="text-warn">No encontrado en PATH{key === 'rsvg' && ' (necesario para convertir diagramas SVG)'}</span>}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  {engines.local.warnings.map((warning, i) => <p key={i} className="text-warn">{warning}</p>)}
+                </div>
+              )}
             </section>
 
             <section className="rounded-lg border border-line bg-bg">

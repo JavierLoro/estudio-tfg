@@ -95,6 +95,7 @@ export async function createSourceTar(cfg: Config): Promise<{ stream: Readable; 
 export class Compiler {
   private running: Promise<CompileResult> | null = null;
   private queued: Promise<CompileResult> | null = null;
+  private abort = new AbortController();
   private state: Persisted = { last: null, lastGoodPdfUrl: null };
   private loaded = false;
   /** LRU (por orden de inserción) de synctex analizados: clave = ruta + mtime + tamaño. */
@@ -136,7 +137,13 @@ export class Compiler {
    * One compile at a time. If one is running, wait for it and then compile
    * again; concurrent waiters share the same queued compile.
    */
+  async close(): Promise<void> {
+    this.abort.abort();
+    await Promise.allSettled([this.running, this.queued]);
+  }
+
   compile(): Promise<CompileResult> {
+    if (this.abort.signal.aborted) return Promise.reject(new HttpError(503, 'El servidor está cerrando; no se inicia otra compilación'));
     if (!this.running) {
       this.running = this.run().finally(() => {
         this.running = null;
@@ -174,12 +181,13 @@ export class Compiler {
       return this.finish(result);
     }
     try {
-      const body = await createEngine(snap).compile(src.stream, snap.memoriaMain);
+      const engine = await createEngine(snap);
+      const body = await engine.compile(src.stream, snap.memoriaMain, this.abort.signal);
       const buildId = isValidBuildId(body.buildId) ? body.buildId : localBuildId(started);
       const ok = Boolean(body?.ok) && typeof body?.pdf === 'string' && (await this.pdfExists(body.pdf));
       const diagnostics = body.diagnostics;
       if (body?.ok && !ok) {
-        diagnostics.push({ severity: 'error', file: snap.memoriaMain, line: null, message: 'El worker no generó el PDF esperado' });
+        diagnostics.push({ severity: 'error', file: snap.memoriaMain, line: null, message: engine.type === 'docker' ? 'El worker no generó el PDF esperado' : 'El motor local no generó el PDF esperado' });
       }
       const pdfUrl = ok ? `/api/pdf/${buildId}.pdf` : await this.lastGood();
       result = {

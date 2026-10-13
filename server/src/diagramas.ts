@@ -186,7 +186,7 @@ export async function listEstados(ctx: Ctx): Promise<EstadoItem[]> {
 
 /** SVG → PDF con el motor elegido. */
 async function svgToPdf(ctx: Ctx, svg: string): Promise<Buffer> {
-  return createEngine(ctx.cfg).svg2pdf(svg);
+  return (await createEngine({ ...ctx.cfg })).svg2pdf(svg);
 }
 
 /** Escribe un archivo de la memoria con copia en el historial (si existía y cambia) y de forma atómica. */

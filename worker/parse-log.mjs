@@ -15,9 +15,9 @@ const TEX_EXT = /\.(tex|sty|cls|clo|def|cfg|fd|bbl|aux|toc|lof|lot|lol|out|ldf|l
  * @param {string} [rootDir] directorio donde se compiló (temporal)
  */
 export function normalizeFile(p, rootDir) {
-  let f = String(p).trim().replace(/^"(.*)"$/, '$1');
+  let f = String(p).trim().replace(/^"(.*)"$/, '$1').replaceAll('\\', '/');
   if (rootDir) {
-    const root = rootDir.replace(/\/+$/, '');
+    const root = rootDir.replaceAll('\\', '/').replace(/\/+$/, '');
     if (f === root) return '.';
     if (f.startsWith(root + '/')) f = f.slice(root.length + 1);
     // /src es la montura de solo lectura del proyecto
@@ -88,7 +88,7 @@ function currentFile(stack) {
   return null;
 }
 
-const RE_FILE_LINE = /^((?:\.{1,2}\/|\/)?[^:\s][^:]*?\.[A-Za-z0-9]+):(\d+): (.*)$/;
+const RE_FILE_LINE = /^((?:[A-Za-z]:[\\/]|\.{1,2}\/|\/)?[^:\s][^:]*?\.[A-Za-z0-9]+):(\d+): (.*)$/;
 const RE_WARNING = /^(?:(LaTeX)|(?:Package|Class|Module) ([^\s]+)|(pdfTeX)) (Font )?[Ww]arning(?: \([^)]*\))?:? ?(.*)$/;
 const RE_INPUT_LINE = /\s*on input line (\d+)\.?/;
 const RE_PAGE_GROUP = /multiple pdfs with page group included in a single page/i;

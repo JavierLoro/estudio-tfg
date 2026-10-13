@@ -15,7 +15,7 @@ import { Sidebar } from './components/Sidebar';
 import { Toasts } from './components/Toasts';
 import { Workspace } from './components/Workspace';
 import { HomePanel } from './panels/HomePanel';
-import { Button, Spinner } from './components/ui';
+import { Banner, Button, Spinner } from './components/ui';
 import { docKey } from './lib/paths';
 import { initCaptureQueue } from './state/captureQueue';
 import { useCompile } from './state/compile';
@@ -154,9 +154,16 @@ export function App() {
   const libraryView = useUI((s) => s.libraryView);
   const ready = useSettings((s) => s.ready);
   const statusError = useUI((s) => s.statusError);
+  const motor = useUI((s) => s.status?.motor);
   return (
     <div className="flex h-full flex-col">
       <Header />
+      {(motor?.seleccion === 'local' || motor?.seleccion === 'auto' || motor?.tipo === 'local') && (
+        <Banner kind="warn">
+          {motor?.seleccion === 'auto' && 'El modo Automático puede usar TeX del sistema si Docker no responde. '}
+          TeX del sistema ejecuta herramientas con los permisos del usuario y no es un sandbox. Compila solo fuentes de confianza.
+        </Banner>
+      )}
       <div className="flex min-h-0 flex-1">
         <Rail />
         {sidebarOpen && !homeView && !libraryView && <Sidebar />}

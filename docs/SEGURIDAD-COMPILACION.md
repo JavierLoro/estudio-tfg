@@ -4,7 +4,7 @@
 
 LaTeX y la bibliografía son fuentes activas. Revisa los `.tex`, clases, paquetes y bibliografía de un proyecto importado antes de compilarlo; no aceptes instrucciones para habilitar shell-escape o configuraciones externas. Para material desconocido utiliza un contenedor desechable sin datos personales, sin volúmenes de otras compilaciones y con salida de red bloqueada por el despliegue.
 
-El worker Docker recibe un tar y **no monta la memoria ni las notas**. Su frontera es el contenedor, no cada trabajo. El motor nativo de E2 ejecutará con los permisos del usuario: **no será un sandbox** y solo admitirá fuentes de confianza. Estas mitigaciones no sustituyen el aislamiento del sistema operativo ni protegen frente a vulnerabilidades de las herramientas.
+El worker Docker recibe un tar y **no monta la memoria ni las notas**. Su frontera es el contenedor, no cada trabajo. El motor nativo ejecuta con los permisos del usuario: **no es un sandbox** y requiere fuentes de confianza. La interfaz avisa antes de compilar en Local/Automático. Estas mitigaciones no sustituyen el aislamiento del sistema operativo ni protegen frente a vulnerabilidades de las herramientas.
 
 ## Política del worker
 
@@ -43,3 +43,31 @@ node scripts/compile-template.mjs --worker-url http://127.0.0.1:8097 --output-di
 ```
 
 La integración comprueba marcadores inocuos y SyncTeX relativo; no lee ni escribe la memoria/vault del usuario. Referencias: [manual de latexmk, rc y `-norc`](https://www.cantab.net/users/johncollins/latexmk/latexmk-487.pdf), `biber --help` (`--noconf`) y `texmf-dist/web2c/texmf.cnf` de la imagen fijada (comentario de `openin_any` en TeX Live 2026). Versiones y actualizaciones: [worker/README.md](../worker/README.md).
+
+## Implementación y validación del motor local (E2)
+
+El servidor copia el tar validado a un trabajo temporal nuevo, separa runtime y
+elimina ambos al terminar. Usa binarios de PATH absoluto fuera de memoria/notas,
+validando las rutas reales y conservando los nombres que seleccionan formatos TeX.
+No se ejecutan wrappers `.bat`/`.cmd`. Perl encontrado fuera del proyecto se incluye como dependencia de latexmk sin heredar
+el resto del PATH. Los temporales se canonicalizan para que SyncTeX no conserve alias
+del sistema. Los comandos de auxiliares citan rutas con
+espacios/metacaracteres; Windows rechaza rutas que permitan expansión de cmd.
+HOME/USERPROFILE, temporales, cachés y APPDATA/LOCALAPPDATA son propios; solo se
+conservan directorios de herramientas/sistema y SystemRoot de Windows, sin secretos
+ni configuración de búsqueda. El cierre de la API cancela y espera la limpieza.
+
+Máximo 200 MiB de tar y 50 000 entradas; una compilación en curso y una petición
+coalescida pendiente, timeout 120 s (COMPILE_TIMEOUT_MS, hasta 180 s), conversión SVG
+serializada y diez builds. Los límites de 2 GiB/256 procesos usados en la prueba
+Docker **no se aplican al proceso local del usuario**. No se garantiza confinamiento
+de lecturas, red, auxiliares, memoria o disco. Revisa fuentes importadas antes de usarlas.
+
+La CI invoca directamente `scripts/local-engine-security.mts` y
+`scripts/library-compile.mts --engine local` en la imagen TeX fijada, sin servidor
+HTTP del worker y sin red. Node `--experimental-transform-types` se utiliza solo
+como ejecutor de pruebas en esa imagen; la API normal mantiene `tsx`. Los fixtures
+verifican rc/biber.conf, shell-escape, escritura, timeout/recuperación, originales,
+SyncTeX, SVG y ambos perfiles con cita/figura y 0 avisos. Los tests unitarios cubren
+cierre, rutas con enlaces/espacios/metacaracteres y taskkill. MacTeX y MiKTeX físicos
+siguen pendientes de E3; la prueba Linux no los sustituye.
