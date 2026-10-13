@@ -131,6 +131,13 @@ la interfaz compilada. Sin esos valores se conserva la configuración anterior.
 La entrada CLI carga `.env` solo en un checkout; las carpetas siguen sujetas a
 `ALLOWED_ROOTS`. No se trasladan datos existentes automáticamente.
 
+El servidor para escritorio se genera con `npm run bundle --prefix server`:
+`node server/dist/server.mjs` arranca sin TypeScript ni `tsx`. Conserva las
+dependencias de producción en `server/node_modules` y los módulos JavaScript
+compartidos de `scripts/` y `worker/`; no es un ejecutable autónomo. Comprueba la
+reubicación con `npm run test:bundle --prefix server`. Desarrollo, `npm start` y
+Docker conservan `tsx` para evitar cambiar sus recorridos en esta entrega.
+
 En **Ajustes → Motor de compilación**, elige Docker, TeX del sistema o Automático.
 Docker se mantiene por defecto para instalaciones anteriores. Automático prefiere
 el worker disponible; si no responde, usa TeX local. Un fallo de compilación no

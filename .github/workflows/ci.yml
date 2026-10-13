@@ -39,6 +39,8 @@ jobs:
         run: npm ci --prefix web
       - name: Typecheck de la API
         run: npm run typecheck --prefix server
+      - name: Servidor JavaScript reubicado sin fuentes ni tsx
+        run: npm run bundle --prefix server && npm run test:bundle --prefix server
       - name: Tests del lanzador y de la API
         run: npm test
       - name: Typecheck y build de la web
@@ -84,6 +86,7 @@ jobs:
       - run: npm ci --prefix server
       - run: npm ci --prefix web
       - run: npm ci --prefix test/e2e
+      - run: npm run bundle --prefix server
       - run: npm run build --prefix web
       - name: Instalar Chromium para los recorridos completos
         working-directory: test/e2e
@@ -111,6 +114,8 @@ jobs:
             }
             throw new Error("El worker de prueba no terminó de arrancar");
           '
+      - name: Bundle reubicado con worker real
+        run: node scripts/bundle-smoke.mjs --worker-url http://127.0.0.1:8097 --output-dir "$TEMPLATE_OUT"
       - name: Verificar configuraciones y límites de acceso con fuentes ficticias
         run: WORKER_SECURITY_URL=http://127.0.0.1:8097 WORKER_SECURITY_OUT="$TEMPLATE_OUT" node --test worker/security.integration.test.mjs
       - name: Compilar todos los perfiles y exigir cero avisos
