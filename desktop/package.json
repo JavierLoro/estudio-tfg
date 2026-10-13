@@ -1,0 +1,9 @@
+{
+  "name": "estudio-tfg-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "main.mjs",
+  "scripts": { "start": "electron .", "test": "node --test *.test.mjs" },
+  "devDependencies": { "electron": "44.7.0" }
+}

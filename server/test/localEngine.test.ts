@@ -144,6 +144,23 @@ it('registra diferencias de versiones/distribución sin bloquear la compilación
   expect((await compile()).ok).toBe(true);
 });
 
+it('selecciona TeX por ruta privada sin cambiar PATH ni mezclar herramientas externas', async () => {
+  const privateBin = path.join(t.dir, 'tex privado');
+  await binaries(privateBin);
+  t.cfg.texBinDir = privateBin;
+  const before = process.env.PATH;
+  expect(await detectLocal(t.cfg, true)).toMatchObject({ ok: true });
+  expect(calls.every(call => path.dirname(call.cmd) === privateBin)).toBe(true);
+  expect(process.env.PATH).toBe(before);
+  await fs.rm(path.join(privateBin, 'biber' + (process.platform === 'win32' ? '.exe' : '')));
+  expect((await detectLocal(t.cfg, true)).ok).toBe(false);
+  t.cfg.texBinDir = t.cfg.notesDir;
+  await binaries(t.cfg.notesDir);
+  const health = await detectLocal(t.cfg, true);
+  expect(health.ok).toBe(false);
+  expect(Object.values(health.tools).every(tool => tool.path === null)).toBe(true);
+});
+
 it('el arranque frío de biber no marca como ausente una herramienta válida', async () => {
   biberVersionDelay = 3000;
   const health = await detectLocal(t.cfg, true);

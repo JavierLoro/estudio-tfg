@@ -22,7 +22,8 @@ let svgQueue: Promise<unknown> = Promise.resolve();
 
 async function findTool(name: string, cfg: Config): Promise<string | null> {
   const roots = [cfg.memoriaDir, cfg.notesDir, realpathLoose(cfg.memoriaDir), realpathLoose(cfg.notesDir)];
-  for (const dir of (process.env.PATH ?? '').split(path.delimiter)) {
+  const dirs = cfg.texBinDir ? [cfg.texBinDir] : (process.env.PATH ?? '').split(path.delimiter);
+  for (const dir of dirs) {
     if (!path.isAbsolute(dir)) continue;
     try {
       const candidate = path.join(dir, name + (process.platform === 'win32' ? '.exe' : ''));
@@ -69,7 +70,7 @@ async function probe(cfg: Config): Promise<LocalHealth> {
 }
 
 export function detectLocal(cfg: Config, refresh = false): Promise<LocalHealth> {
-  const key = [process.env.PATH ?? '', cfg.memoriaDir, cfg.notesDir].join('\0');
+  const key = [cfg.texBinDir ?? '', process.env.PATH ?? '', cfg.memoriaDir, cfg.notesDir].join('\0');
   if (!refresh && cached?.key === key && cached.until > Date.now()) return cached.health;
   cached = { key, until: Date.now() + 30_000, health: probe(cfg) };
   return cached.health;

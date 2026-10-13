@@ -29,7 +29,7 @@ interface Operation {
 
 /** Identidad del destino, independiente de la memoria y de la fecha de arranque. */
 export { libraryId } from './libraryIdentity.ts';
-const operationsDir = (cfg: Config) => path.join(path.dirname(cfg.buildDir), 'captures', libraryId(cfg));
+const operationsDir = (cfg: Config) => path.join(cfg.dataDir, 'captures', libraryId(cfg));
 const operationDir = (cfg: Config, id: string) => path.join(operationsDir(cfg), id);
 
 async function readOperation(dir: string): Promise<Operation | null> {

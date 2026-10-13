@@ -20,7 +20,7 @@ interface Migration {
   state: 'prepared' | 'done' | 'undoing' | 'undone'; entries: Entry[]; error?: string;
 }
 const hash = (value: string) => crypto.createHash('sha256').update(value).digest('hex');
-const dir = (ctx: Ctx) => path.join(path.dirname(ctx.cfg.buildDir), 'library', libraryId(ctx.cfg), 'migrations');
+const dir = (ctx: Ctx) => path.join(ctx.cfg.dataDir, 'library', libraryId(ctx.cfg), 'migrations');
 const file = (ctx: Ctx, id: string) => {
   if (!UUID.test(id)) throw badRequest('Identificador de migración no válido');
   return path.join(dir(ctx), `${id}.json`);

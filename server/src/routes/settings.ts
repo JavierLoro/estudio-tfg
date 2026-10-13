@@ -38,7 +38,7 @@ export default async function settingsRoutes(app: FastifyInstance, { ctx }: { ct
   app.put('/api/settings', { preHandler: admin }, async (req) => settings.update(req.body));
   app.post('/api/settings/reset', { preHandler: admin }, async (req) => settings.reset(req.body));
   app.post('/api/settings/init-memoria', { preHandler: admin }, async (req) => settings.initMemoria(req.body));
-  app.get('/api/templates/perfiles', async () => ({ perfiles: listPerfiles() }));
+  app.get('/api/templates/perfiles', async () => ({ perfiles: listPerfiles(cfg.templatesDir) }));
 
   app.get('/api/fs/dirs', { preHandler: admin }, async (req) => {
     const q = req.query as Record<string, string | undefined>;

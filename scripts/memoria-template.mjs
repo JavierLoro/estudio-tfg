@@ -34,14 +34,15 @@ export function isEmptyDir(dir) {
  * de por defecto primero.
  * @returns {{ id: string, nombre: string, descripcion: string }[]}
  */
-export function listPerfiles() {
-  if (!fs.existsSync(PERFILES_DIR)) return [];
+export function listPerfiles(templatesDir = TEMPLATES_DIR) {
+  const perfilesDir = path.join(templatesDir, 'perfiles');
+  if (!fs.existsSync(perfilesDir)) return [];
   const out = [];
-  for (const ent of fs.readdirSync(PERFILES_DIR, { withFileTypes: true })) {
+  for (const ent of fs.readdirSync(perfilesDir, { withFileTypes: true })) {
     if (!ent.isDirectory() || !PERFIL_ID.test(ent.name)) continue;
     let meta = {};
     try {
-      meta = JSON.parse(fs.readFileSync(path.join(PERFILES_DIR, ent.name, 'perfil.json'), 'utf8'));
+      meta = JSON.parse(fs.readFileSync(path.join(perfilesDir, ent.name, 'perfil.json'), 'utf8'));
     } catch {
       continue; // sin perfil.json válido no es un perfil
     }
@@ -55,21 +56,21 @@ export function listPerfiles() {
 }
 
 /** Error con `code = 'EPERFIL'` si `perfil` no es un perfil existente. */
-export function perfilDir(perfil) {
-  if (typeof perfil !== 'string' || !PERFIL_ID.test(perfil) || !listPerfiles().some((p) => p.id === perfil)) {
+export function perfilDir(perfil, templatesDir = TEMPLATES_DIR) {
+  if (typeof perfil !== 'string' || !PERFIL_ID.test(perfil) || !listPerfiles(templatesDir).some((p) => p.id === perfil)) {
     throw Object.assign(new Error(`Perfil de plantilla desconocido: ${perfil}`), { code: 'EPERFIL' });
   }
-  return path.join(PERFILES_DIR, perfil);
+  return path.join(templatesDir, 'perfiles', perfil);
 }
 
 /**
  * Copia base/ y encima el perfil (sin su perfil.json) en `dir`, que debe
  * existir. Sin git ni comprobaciones de carpeta vacía (para tests y herramientas).
  */
-export function copyTemplate(dir, { perfil = DEFAULT_PERFIL } = {}) {
-  const src = perfilDir(perfil);
+export function copyTemplate(dir, { perfil = DEFAULT_PERFIL, templatesDir = TEMPLATES_DIR } = {}) {
+  const src = perfilDir(perfil, templatesDir);
   // La copia nativa de directorios de Node 24 falla con EACCES en Docker Desktop.
-  fs.cpSync(BASE_DIR, dir, { recursive: true, force: false, errorOnExist: false, filter: () => true });
+  fs.cpSync(path.join(templatesDir, 'base'), dir, { recursive: true, force: false, errorOnExist: false, filter: () => true });
   fs.cpSync(src, dir, {
     recursive: true,
     force: true,
@@ -101,14 +102,14 @@ export function hasGit() {
  * si el perfil no existe, con `code = 'EPERFIL'` (antes de crear nada).
  * @returns {{ dir: string, git: boolean, perfil: string, warning?: string }} git = se creó el repositorio.
  */
-export function createMemoriaFromTemplate(dir, { perfil = DEFAULT_PERFIL } = {}) {
-  perfilDir(perfil);
+export function createMemoriaFromTemplate(dir, { perfil = DEFAULT_PERFIL, templatesDir = TEMPLATES_DIR } = {}) {
+  perfilDir(perfil, templatesDir);
   if (!isEmptyDir(dir)) {
     throw Object.assign(new Error(`La carpeta no está vacía: ${dir}`), { code: 'ENOTEMPTY' });
   }
   const available = hasGit(); // Comprobar antes de copiar para no fallar por Git ausente a mitad.
   fs.mkdirSync(dir, { recursive: true });
-  copyTemplate(dir, { perfil });
+  copyTemplate(dir, { perfil, templatesDir });
   if (!available) return { dir, git: false, perfil, warning: NO_GIT_WARNING };
   if (fs.existsSync(path.join(dir, '.git'))) return { dir, git: false, perfil };
   const git = (...a) => execFileSync('git', [...gitPlatformArgs(), ...a], { cwd: dir, stdio: 'ignore' });
@@ -141,8 +142,8 @@ export function templateHash(buf, rel) {
  * Archivos que `copyTemplate` crearía con ese perfil: Map ruta relativa → ruta absoluta
  * (base/ y encima el perfil, sin perfil.json), ordenado por ruta.
  */
-export function templateFiles(perfil = DEFAULT_PERFIL) {
-  const src = perfilDir(perfil);
+export function templateFiles(perfil = DEFAULT_PERFIL, templatesDir = TEMPLATES_DIR) {
+  const src = perfilDir(perfil, templatesDir);
   const out = new Map();
   const walk = (dir, rel) => {
     for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -152,7 +153,7 @@ export function templateFiles(perfil = DEFAULT_PERFIL) {
       else if (ent.isFile() && !(dir === src && ent.name === 'perfil.json')) out.set(r, path.join(dir, ent.name));
     }
   };
-  walk(BASE_DIR, '');
+  walk(path.join(templatesDir, 'base'), '');
   walk(src, '');
   return new Map([...out].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
 }
@@ -174,9 +175,9 @@ export function comandosDatos(src) {
  * Manifiesto de la plantilla actual (todos los perfiles). Si un archivo es igual en todos
  * los perfiles que lo tienen y lo tienen todos, clave "<ruta>"; si no, "<perfil>:<ruta>".
  */
-export function buildManifest() {
-  const perfiles = listPerfiles().map((p) => p.id);
-  const porPerfil = new Map(perfiles.map((id) => [id, templateFiles(id)]));
+export function buildManifest(templatesDir = TEMPLATES_DIR) {
+  const perfiles = listPerfiles(templatesDir).map((p) => p.id);
+  const porPerfil = new Map(perfiles.map((id) => [id, templateFiles(id, templatesDir)]));
   const rutas = [...new Set([...porPerfil.values()].flatMap((m) => [...m.keys()]))].sort();
   const archivos = {};
   for (const rel of rutas) {
@@ -187,7 +188,7 @@ export function buildManifest() {
     if (hashes.every((h) => h && h === hashes[0])) archivos[rel] = hashes[0];
     else perfiles.forEach((id, i) => hashes[i] && (archivos[`${id}:${rel}`] = hashes[i]));
   }
-  const clase = claseDe(fs.readFileSync(path.join(BASE_DIR, 'estilo', 'memoria.cls'), 'utf8'));
+  const clase = claseDe(fs.readFileSync(path.join(templatesDir, 'base', 'estilo', 'memoria.cls'), 'utf8'));
   const cmds = [...new Set(perfiles.flatMap((id) => comandosDatos(fs.readFileSync(porPerfil.get(id).get('datos.tex'), 'utf8'))))];
   return { version: PLANTILLA_VERSION, clase, comandosDatos: cmds, archivos: Object.fromEntries(Object.entries(archivos).sort()) };
 }
@@ -213,13 +214,14 @@ export function mergeManifest(fresh, old) {
 }
 
 /** Lee templates/manifiestos/*.json. */
-export function readManifiestos() {
-  if (!fs.existsSync(MANIFIESTOS_DIR)) return [];
+export function readManifiestos(templatesDir = TEMPLATES_DIR) {
+  const manifiestosDir = path.join(templatesDir, 'manifiestos');
+  if (!fs.existsSync(manifiestosDir)) return [];
   return fs
-    .readdirSync(MANIFIESTOS_DIR)
+    .readdirSync(manifiestosDir)
     .filter((f) => f.endsWith('.json'))
     .sort()
-    .map((f) => JSON.parse(fs.readFileSync(path.join(MANIFIESTOS_DIR, f), 'utf8')));
+    .map((f) => JSON.parse(fs.readFileSync(path.join(manifiestosDir, f), 'utf8')));
 }
 
 /** Diferencias entre el manifiesto guardado de la versión actual y la plantilla (vacío = al día). */

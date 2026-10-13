@@ -70,7 +70,7 @@ interface Integration {
 }
 const operationDir = (ctx: Ctx, id: string) => {
   if (!UUID.test(id)) throw badRequest('ID de integración no válido');
-  return path.join(path.dirname(ctx.cfg.buildDir), 'library', libraryId(ctx.cfg), 'integrations', id);
+  return path.join(ctx.cfg.dataDir, 'library', libraryId(ctx.cfg), 'integrations', id);
 };
 const fingerprint = (title: string, bibliography: unknown) => rev(JSON.stringify({ title, bibliography }));
 async function readMemory(ctx: Ctx, rel: string, max = 20 * 1024 * 1024) {

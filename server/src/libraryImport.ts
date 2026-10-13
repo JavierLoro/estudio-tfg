@@ -65,7 +65,7 @@ interface ImportOperation {
 const originalPath = (ctx: Ctx, source: ImportSource) =>
   `${ctx.cfg.resourcesSubdir}/originales/${sourceHash(source.text)}.${source.format === 'bibtex' ? 'bib' : source.format === 'ris' ? 'ris' : 'json'}`;
 const operationPath = (ctx: Ctx, id: string) =>
-  path.join(path.dirname(ctx.cfg.buildDir), 'library', libraryId(ctx.cfg), 'imports', `${id}.json`);
+  path.join(ctx.cfg.dataDir, 'library', libraryId(ctx.cfg), 'imports', `${id}.json`);
 const fold = (v: string) =>
   cleanTex(v)
     .normalize('NFD')

@@ -33,12 +33,15 @@ jobs:
             server/package-lock.json
             web/package-lock.json
             test/e2e/package-lock.json
+            desktop/package-lock.json
       - name: Instalar API
         run: npm ci --prefix server
       - name: Instalar web
         run: npm ci --prefix web
       - name: Typecheck de la API
         run: npm run typecheck --prefix server
+      - name: Servidor JavaScript reubicado sin fuentes ni tsx
+        run: npm run bundle --prefix server && npm run test:bundle --prefix server
       - name: Tests del lanzador y de la API
         run: npm test
       - name: Typecheck y build de la web
@@ -50,6 +53,24 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Recorridos básicos de biblioteca y conflictos
         run: npm run test:e2e -- --grep "@smoke"
+      - name: Validar enlaces de escritorio
+        run: node --test desktop/*.test.mjs
+      - name: Instalar Electron para macOS
+        if: matrix.os == 'macos-latest'
+        run: npm ci --prefix desktop && node desktop/node_modules/electron/install.js
+      - name: Recorrido de Electron en macOS con datos ficticios
+        if: matrix.os == 'macos-latest'
+        run: E2E_DESKTOP=1 E2E_SYSTEM_FOCUS=1 npm run test:e2e -- --grep "@desktop"
+      - name: Conservar evidencias nativas de Electron
+        if: always() && matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: electron-macos
+          path: |
+            test/e2e/test-results/
+            test/e2e/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Conservar evidencias de navegador al fallar
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -84,6 +105,7 @@ jobs:
       - run: npm ci --prefix server
       - run: npm ci --prefix web
       - run: npm ci --prefix test/e2e
+      - run: npm run bundle --prefix server
       - run: npm run build --prefix web
       - name: Instalar Chromium para los recorridos completos
         working-directory: test/e2e
@@ -111,6 +133,8 @@ jobs:
             }
             throw new Error("El worker de prueba no terminó de arrancar");
           '
+      - name: Bundle reubicado con worker real
+        run: node scripts/bundle-smoke.mjs --worker-url http://127.0.0.1:8097 --output-dir "$TEMPLATE_OUT"
       - name: Verificar configuraciones y límites de acceso con fuentes ficticias
         run: WORKER_SECURITY_URL=http://127.0.0.1:8097 WORKER_SECURITY_OUT="$TEMPLATE_OUT" node --test worker/security.integration.test.mjs
       - name: Compilar todos los perfiles y exigir cero avisos
