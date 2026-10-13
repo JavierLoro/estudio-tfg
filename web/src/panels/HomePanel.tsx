@@ -84,8 +84,8 @@ export function HomePanel() {
               <Button onClick={() => openFile('memoria', status?.memoriaMain ?? 'tfg.tex')}>Abrir {status?.memoriaMain ?? 'tfg.tex'}</Button>
               <Button onClick={() => openPdf()}>Ver PDF</Button>
             </div>
-            {status?.worker === 'down' && (
-              <p className="text-danger">El worker de LaTeX no responde: no se podrá compilar hasta que arranque.</p>
+            {(status?.motor?.estado ?? status?.worker) === 'down' && (
+              <p className="text-danger">{status?.motor?.tipo === 'local' ? 'TeX del sistema no está disponible: revisa las herramientas detectadas en Ajustes.' : 'El worker de LaTeX no responde: no se podrá compilar hasta que arranque.'}</p>
             )}
           </div>
         </Card>

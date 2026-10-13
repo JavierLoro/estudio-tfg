@@ -71,6 +71,7 @@ export async function buildApp(cfg: Config, opts: BuildOptions = {}): Promise<{ 
   // settings.json > .env > defaults (invalid stored values fall back and are reported as checks).
   settings.load();
   const outline = new OutlineService(cfg, compiler, bus);
+  app.addHook('preClose', async () => compiler.close());
   app.addHook('onClose', async () => outline.close());
   const ctx: Ctx = { fetchMetadata: opts.fetchMetadata, cfg, bus, compiler, locks: new KeyedLock(), settings, watcher, outline };
   await compiler.load();

@@ -40,6 +40,7 @@ const LABEL: Record<SettingKey, string> = {
   resourcesSubdir: 'Subcarpeta de recursos',
   memoriaDir: 'Carpeta de la memoria',
   memoriaMain: 'Archivo principal',
+  compileEngine: 'Motor de compilación',
 };
 
 /** 400 `{ error, field }`. */
@@ -149,6 +150,11 @@ function normalizeRelative(key: string, raw: unknown): string {
 /** Validate and normalise one setting. `mustExist` = strict (PUT); false = loading settings.json. */
 export function normalizeSetting(cfg: Config, key: SettingKey, raw: unknown, mustExist: boolean): string {
   switch (key) {
+    case 'compileEngine': {
+      const value = requireStringField(key, raw);
+      if (!['auto', 'docker', 'local'].includes(value)) throw fieldError(key, 'Motor de compilación: debe ser auto, docker o local');
+      return value;
+    }
     case 'notesDir':
     case 'memoriaDir':
       return normalizeDir(cfg, key, raw, mustExist);

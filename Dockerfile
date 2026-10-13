@@ -29,6 +29,7 @@ COPY --from=server-deps /app/server/node_modules server/node_modules
 COPY server/package.json server/tsconfig.json server/
 COPY server/src server/src
 COPY scripts scripts
+COPY worker/*.mjs worker/
 COPY templates templates
 COPY --from=web /app/web/dist web/dist
 RUN mkdir -p /data/notes /data/memoria /data/app/builds && chown -R node:node /data

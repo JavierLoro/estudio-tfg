@@ -46,7 +46,7 @@ RUN (getent passwd 1000 >/dev/null && userdel -r "$(getent passwd 1000 | cut -d:
  && node --version && latexmk -v | head -2
 
 WORKDIR /app
-COPY server.mjs parse-log.mjs untar.mjs svg.mjs ./
+COPY server.mjs engine.mjs parse-log.mjs untar.mjs svg.mjs ./
 RUN { printf 'Distribución: ' && kpsewhich -var-value=TEXMFROOT \
       && pdflatex --version && latexmk -norc -v && biber --noconf --version \
       && printf 'Node: ' && node --version && rsvg-convert --version; \

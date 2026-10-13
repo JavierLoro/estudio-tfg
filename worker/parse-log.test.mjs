@@ -36,6 +36,13 @@ test('normaliza rutas del temporal, ./ y /src', () => {
   assert.equal(parseLog(log, { rootDir: '/tmp/build-x' })[0].file, 'cap/a.tex');
 });
 
+test('diagnósticos Windows quedan relativos aunque TeX use barras distintas', () => {
+  const root = 'C:\\Temp\\build-ficticio\\sources';
+  assert.equal(normalizeFile('C:/Temp/build-ficticio/sources/cap/intro.tex', root), 'cap/intro.tex');
+  assert.equal(normalizeFile('C:\\Temp\\build-ficticio\\sources\\cap\\intro.tex', root), 'cap/intro.tex');
+  assert.equal(parseLog('C:/Temp/build-ficticio/sources/cap/intro.tex:3: Undefined control sequence.', { rootDir: root })[0].file, 'cap/intro.tex');
+});
+
 test('"! LaTeX Error" clásico toma archivo de la pila y línea de l.N', () => {
   const log = `(./main.tex (./cap1.tex
 ! LaTeX Error: Environment foo undefined.
