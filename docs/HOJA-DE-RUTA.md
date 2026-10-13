@@ -6,7 +6,7 @@
 >
 > Fuentes: [PLATAFORMAS.md](PLATAFORMAS.md) (50 hallazgos de portabilidad; los IDs como `S1`, `P2`, `F4` se refieren a él), [CONTRACT.md](CONTRACT.md) y la auditoría del 09-10-2026, cuyas evidencias y acciones se describen en R1–R8 y L1–L5.
 >
-> **Estado actualizado:** A–D, R y L1–L9 completadas y fusionadas. **Bloque actual: `e-motores` (E1–E2)**, sujeto a comprobar reservas y PR abiertos. Orden de continuación: **R → L → E → F → G**. R y L se insertan aquí sin renumerar las tareas anteriores; sus letras no determinan la prioridad.
+> **Estado actualizado:** A–D, R, L1–L9 y E1–E2 completadas y fusionadas. **Bloque actual: `e-validacion` (E3–E4)**, sujeto a comprobar reservas y PR abiertos. Orden de continuación: **R → L → E → F → G**. R y L se insertan aquí sin renumerar las tareas anteriores; sus letras no determinan la prioridad.
 
 ## Índice
 
@@ -762,6 +762,8 @@ Resultado: el servidor compila con el motor que elija el usuario: **Docker** (el
 
 <a id="e3"></a>
 ### E3 · Validar la plantilla con TeX del sistema
+
+**Plan del bloque `e-validacion`:** probar ambos perfiles y sus citas/figuras con TeX Live 2026 nativo en macOS (instalación temporal ligera) y Linux; documentar paquetes, instalación y límites en README/Ajustes; evaluar Tectonic con copias sin modificar la plantilla principal y publicar resultados reproducibles en `docs/MOTORES.md`. MiKTeX se prueba solo si existe acceso a ese entorno.
 
 **Issue**: [#25](https://github.com/JavierLoro/estudio-tfg/issues/25)
 

@@ -465,6 +465,11 @@ export function SettingsPanel() {
                   {detecting && <Spinner size={11} />} Detectar herramientas
                 </Button>
               </header>
+              <p className="px-3 py-2 text-[12px] text-muted">
+                Para la plantilla, usa TeX Live/MacTeX 2026 con pdfLaTeX, latexmk y biber en PATH.
+                En MiKTeX necesitas también Perl y los paquetes instalados previamente.
+                Mantén biber y biblatex actualizados juntos. rsvg-convert solo es necesario para exportar diagramas a PDF.
+              </p>
               {(status?.motor?.tipo === 'local' || form.compileEngine === 'local' || (form.compileEngine === 'auto' && !engines?.docker.ok)) && (
                 <Banner kind="warn">TeX del sistema no es un sandbox: compila solo fuentes de confianza. Las herramientas se ejecutan en este equipo.</Banner>
               )}
