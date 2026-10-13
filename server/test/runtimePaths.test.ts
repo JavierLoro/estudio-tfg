@@ -16,6 +16,12 @@ it('elige datos por sistema sin escribir y respeta APPDATA/XDG absolutos', () =>
   expect(userDataDir('linux', { XDG_DATA_HOME: 'relativa' }, '/home/ficticio')).toBe('/home/ficticio/.local/share/estudio-tfg');
 });
 
+it('el directorio privado de TeX debe ser absoluto y no admitir caracteres de control', () => {
+  expect(() => loadConfig({ TEX_BIN_DIR: './tex/bin' })).toThrow('TEX_BIN_DIR');
+  expect(() => loadConfig({ TEX_BIN_DIR: path.join(REPO_ROOT, 'tex\nbin') })).toThrow('TEX_BIN_DIR');
+  expect(loadConfig({ TEX_BIN_DIR: path.join(REPO_ROOT, 'tex-ficticio/bin') }).texBinDir).toBe(path.join(REPO_ROOT, 'tex-ficticio/bin'));
+});
+
 it('conserva el almacenamiento previo sin DATA_DIR y separa BUILD_DIR cuando se proporciona', () => {
   const original = loadConfig({}, REPO_ROOT);
   expect(original.dataDir).toBe(path.join(REPO_ROOT, 'data'));

@@ -33,6 +33,7 @@ jobs:
             server/package-lock.json
             web/package-lock.json
             test/e2e/package-lock.json
+            desktop/package-lock.json
       - name: Instalar API
         run: npm ci --prefix server
       - name: Instalar web
@@ -52,6 +53,24 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Recorridos básicos de biblioteca y conflictos
         run: npm run test:e2e -- --grep "@smoke"
+      - name: Validar enlaces de escritorio
+        run: node --test desktop/*.test.mjs
+      - name: Instalar Electron para macOS
+        if: matrix.os == 'macos-latest'
+        run: npm ci --prefix desktop && node desktop/node_modules/electron/install.js
+      - name: Recorrido de Electron en macOS con datos ficticios
+        if: matrix.os == 'macos-latest'
+        run: E2E_DESKTOP=1 E2E_SYSTEM_FOCUS=1 npm run test:e2e -- --grep "@desktop"
+      - name: Conservar evidencias nativas de Electron
+        if: always() && matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: electron-macos
+          path: |
+            test/e2e/test-results/
+            test/e2e/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Conservar evidencias de navegador al fallar
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

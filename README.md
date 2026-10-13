@@ -122,7 +122,7 @@ y memoria fuera de OneDrive, Dropbox o Google Drive; si usas OneDrive, marca
 si chocan con el navegador, usa los botones. Más detalles en
 [docs/PLATAFORMAS.md](docs/PLATAFORMAS.md).
 
-### Elegir motor de compilación
+### Servidor reubicable
 
 Para arrancar el servidor fuera del checkout, `DATA_DIR` selecciona ajustes,
 historial, papelera y operaciones recuperables; `BUILD_DIR` puede separar los
@@ -137,6 +137,16 @@ dependencias de producción en `server/node_modules` y los módulos JavaScript
 compartidos de `scripts/` y `worker/`; no es un ejecutable autónomo. Comprueba la
 reubicación con `npm run test:bundle --prefix server`. Desarrollo, `npm start` y
 Docker conservan `tsx` para evitar cambiar sus recorridos en esta entrega.
+
+### Base de escritorio
+
+Tras construir web y bundle, instala `desktop/` y ejecuta `npm start --prefix desktop`.
+Electron guarda sus datos por sistema, arranca la API local con autenticación y
+conserva borradores y adjuntos pendientes al reiniciar. Puede usar un TeX ya
+preparado mediante `TEX_BIN_DIR`; el motor incluido/descargado y los instaladores
+offline/online se preparan en G4/G5. Comandos y pruebas: [desktop/README.md](desktop/README.md).
+
+### Elegir motor de compilación
 
 En **Ajustes → Motor de compilación**, elige Docker, TeX del sistema o Automático.
 Docker se mantiene por defecto para instalaciones anteriores. Automático prefiere

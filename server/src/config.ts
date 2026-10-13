@@ -12,6 +12,7 @@ export interface Config {
   checkoutRoot: string | null;
   dataDir: string;
   templatesDir: string;
+  texBinDir?: string;
   notesDir: string;
   resourcesSubdir: string;
   memoriaDir: string;
@@ -120,6 +121,8 @@ export function parseAllowedRoots(v: string | undefined, base: string, paths = p
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env, repoRoot = REPO_ROOT): Config {
+  const texBinDir = env.TEX_BIN_DIR?.trim();
+  if (texBinDir && (!path.isAbsolute(texBinDir) || /[\0\r\n]/.test(texBinDir))) throw new Error('TEX_BIN_DIR debe ser una ruta absoluta válida');
   const watchPolling = str(env.WATCH_POLLING, 'auto');
   if (!['auto', 'on', 'off'].includes(watchPolling)) throw new Error('WATCH_POLLING debe ser auto, on u off');
   const compileEngine = str(env.COMPILE_ENGINE, 'docker');
@@ -143,6 +146,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, repoRoot = REPO
     checkoutRoot: checkout,
     dataDir,
     templatesDir: expandPath(str(env.TEMPLATES_DIR, path.join(REPO_ROOT, 'templates')), repoRoot),
+    ...(texBinDir ? { texBinDir: realpathLoose(texBinDir) } : {}),
     notesDir,
     resourcesSubdir,
     memoriaDir,
