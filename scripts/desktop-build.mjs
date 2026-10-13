@@ -3,6 +3,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { buildConfig } from '../desktop/electron-builder.mjs';
 import { command } from './desktop-tex.mjs';
+import { writeCredits } from '../desktop/credits.mjs';
 
 const require = createRequire(new URL('../desktop/package.json', import.meta.url));
 const { build } = require('electron-builder');
@@ -35,6 +36,7 @@ for (const folder of ['server/dist', 'web/dist', 'templates']) await fs.cp(path.
 await fs.copyFile(path.join(repo, 'LICENSE'), path.join(runtime, 'LICENSE'));
 await command(process.execPath, ['--input-type=module', '-e', 'import {pathToFileURL} from "node:url"; const file=process.argv[1]; delete process.argv[1]; await import(pathToFileURL(file).href);', path.join(runtime, 'server/dist/server.mjs')], runtime);
 const manifest = JSON.parse(await fs.readFile(path.join(assets, `engine-${platform}.json`), 'utf8'));
+await writeCredits({ repo, runtime, assets, manifest, source: `https://github.com/JavierLoro/estudio-tfg/tree/${releaseTag}` });
 await fs.writeFile(path.join(runtime, 'desktop/engine-manifest.json'), JSON.stringify(manifest, null, 2));
 await fs.writeFile(path.join(runtime, 'desktop/distribution.json'), JSON.stringify({ variant, releaseTag, platform }));
 if (variant === 'offline') await fs.copyFile(path.join(assets, new URL(manifest.url).pathname.split('/').at(-1)), path.join(runtime, 'desktop/engine.tar.gz'));

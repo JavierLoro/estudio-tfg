@@ -6,6 +6,7 @@ import { startServer, userDataDir } from '../server/dist/server.mjs';
 import { APP_ORIGIN, isAppUrl, isExternalUrl } from './security.mjs';
 import { setupRoutes } from './setup.mjs';
 import { checkUpdates } from './updater.mjs';
+import { aboutOptions } from './about.mjs';
 
 app.setName('Estudio TFG');
 app.commandLine.appendSwitch('lang', 'es-ES');
@@ -111,6 +112,12 @@ else {
     };
     Menu.setApplicationMenu(Menu.buildFromTemplate([
       { label: 'Estudio TFG', submenu: [
+        { id: 'about', label: 'Acerca de Estudio TFG…', click: async () => {
+          const { source, ...options } = aboutOptions(app.getVersion(), distribution.releaseTag);
+          const { response } = await dialog.showMessageBox(mainWindow, options);
+          if (response === 0) openExternal(source);
+          if (response === 1) createWindow(APP_ORIGIN + '/licencias.html', mainWindow);
+        } },
         { label: 'Buscar actualizaciones…', click: () => void checkUpdates({ app, dialog, shell, window: mainWindow, variant: distribution.variant }) },
         { label: 'Salir', role: 'quit' },
       ] },

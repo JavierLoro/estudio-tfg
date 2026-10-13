@@ -15,8 +15,8 @@ constructor, no del usuario de la app. La extracción de prueba de NSIS utiliza
 ```sh
 npm run build --prefix web
 npm run bundle --prefix server
-npm run desktop:tex -- /ruta/temporal/tex-assets v0.2.0-rc.1
-npm run desktop:build -- /ruta/temporal/tex-assets v0.2.0-rc.1 offline
+npm run desktop:tex -- /ruta/temporal/tex-assets v0.2.0-rc.3
+npm run desktop:build -- /ruta/temporal/tex-assets v0.2.0-rc.3 offline
 npm run desktop:verify -- desktop/dist/darwin-arm64/offline /ruta/temporal/tex-assets
 ```
 
@@ -28,11 +28,18 @@ El biber arm64 de este snapshot exige macOS 26; el instalador Apple Silicon decl
 ese mínimo y se comprueba en `macos-26`. Intel declara macOS 13 (mínimo de Electron),
 compatible con el biber x64 de la misma distribución. No se ofrece el paquete ARM
 como compatible con macOS anteriores.
+La compilación de Perl fija `MACOSX_DEPLOYMENT_TARGET` por arquitectura y comprueba
+`LC_BUILD_VERSION` con `otool`; la caché distingue ese mínimo y la receta completa.
 
 `desktop/tex/lock.json` fija el snapshot del **13-10-2026**, hashes del índice e
 instaladores y Perl **5.42.2** en Unix. El índice fija revisiones/SHA-512 de todos
-los paquetes transitivos; Windows utiliza `tlperl.windows` del mismo snapshot.
-Se verifica cada descarga antes de instalar desde un repositorio local. No se
+los paquetes transitivos; Windows utiliza `tlperl.windows` del mismo snapshot (Perl 5.42.0). Sus textos
+originales [GPL](https://github.com/Perl/perl5/blob/v5.42.0/Copying) y
+[Artistic](https://github.com/Perl/perl5/blob/v5.42.0/Artistic) se conservan en
+`desktop/licenses/` y se incluyen en el motor y la ventana de licencias.
+El compilador crea un perfil temporal Windows con `AppData/Roaming` y
+`AppData/Local`, para que la inclusión PDF funcione sin reutilizar el perfil del
+usuario. Se verifica cada descarga antes de instalar desde un repositorio local. No se
 resuelve `latest` ni se actualiza TeX al arrancar la app.
 
 El runtime conserva servidor JavaScript, recursos, plantillas y helpers, con
