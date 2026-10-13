@@ -33,7 +33,8 @@ export function compileEnvironment(runtimeDir, { tools = {}, platform = process.
     TEXMFVAR: join(runtimeDir, 'texmf-var'),
     TEXMFCONFIG: join(runtimeDir, 'texmf-config'),
     TEXMFCACHE: join(runtimeDir, 'texmf-cache'),
-    ...(platform === 'win32' ? { SystemRoot: windowsRoot, WINDIR: windowsRoot, APPDATA: join(runtimeDir, 'appdata'), LOCALAPPDATA: join(runtimeDir, 'localappdata') } : {}),
+    // Shell/Xpdf resuelve AppData desde USERPROFILE; conservar la estructura del perfil privado.
+    ...(platform === 'win32' ? { SystemRoot: windowsRoot, WINDIR: windowsRoot, APPDATA: join(runtimeDir, 'home', 'AppData', 'Roaming'), LOCALAPPDATA: join(runtimeDir, 'home', 'AppData', 'Local') } : {}),
     // Kpathsea limita escrituras; openin_any ya no protege lecturas en TeX Live 2026.
     openout_any: 'p', shell_escape: '0',
     max_print_line: '10000', error_line: '254', half_error_line: '238',
