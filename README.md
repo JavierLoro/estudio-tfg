@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/JavierLoro/estudio-tfg/actions/workflows/ci.yml/badge.svg)](https://github.com/JavierLoro/estudio-tfg/actions/workflows/ci.yml)
 
-Entorno self-hosted para escribir la memoria del TFG en LaTeX con el PDF al lado, consultar tus notas de Obsidian y capturar recursos sin perderlos. Es una herramienta local: los archivos en disco son la fuente de verdad, no hay base de datos, y tu trabajo vive fuera de este repositorio.
+Entorno local para escribir la memoria del TFG en LaTeX con el PDF al lado, consultar notas de Obsidian y reunir bibliografía, imágenes y webs en una biblioteca. Los archivos en disco son la fuente de verdad, no hay base de datos y tu trabajo vive fuera de este repositorio.
 
 Se desarrolla y prueba en macOS. El modo Docker y el arranque nativo están preparados para Windows, Mac y Linux; las verificaciones pendientes por plataforma se recogen en [docs/PLATAFORMAS.md](docs/PLATAFORMAS.md) y [docs/HOJA-DE-RUTA.md](docs/HOJA-DE-RUTA.md).
 
@@ -15,6 +15,48 @@ de Biblioteca y recuperación con PDF real en Chromium/Linux.
 Para repetir esa comprobación: `node scripts/compile-template.mjs --output-dir <carpeta>`;
 la carpeta debe coincidir con el volumen `/out` del worker. Se usan copias temporales
 de la plantilla y no se lee `.env`. Los logs de CI se conservan durante 7 días.
+
+## Instalar la app de escritorio
+
+Los builds se preparan en [GitHub Releases](https://github.com/JavierLoro/estudio-tfg/releases)
+como **borradores de prueba sin firma**; el mantenedor decide cuándo publicarlos.
+No necesitas Node, Git, Docker, TeX ni Perl para utilizar la app instalada.
+
+| Variante | Primer arranque | Después |
+|---|---|---|
+| **Completa / offline** | Incluye y prepara TeX sin conexión. | Compilación local sin red. |
+| **Ligera / online** | Descarga y verifica el mismo TeX una vez. | Compilación local sin red. |
+
+1. Elige el archivo de tu plataforma y variante. macOS: `mac-arm64` para Apple
+   Silicon (macOS 26 o posterior, por biber) o `mac-x64` para Intel (macOS 13 o
+   posterior). Windows: `win-x64`; Linux: `linux-x64`.
+2. **Mac:** abre el `.dmg` y arrastra Estudio TFG a Aplicaciones. Al ser una prueba
+   sin firma, puede ser necesario autorizarla desde Privacidad y seguridad →
+   Abrir igualmente. No desactives la protección global del sistema.
+   **Windows:** ejecuta el instalador `.exe`, o la variante `-portable.exe` si no
+   quieres instalarla. SmartScreen puede pedir «Más información → Ejecutar de
+   todas formas» para el archivo de esta release sin firma.
+   **Linux:** concede permiso de ejecución a `.AppImage` y ábrela; puede requerir
+   el soporte FUSE de la distribución o `--appimage-extract-and-run`.
+3. Sigue el asistente: elige tu vault o crea notas, crea una memoria desde un
+   perfil, prepara TeX y genera el primer PDF. Se repite desde Ajustes.
+
+Las notas y la memoria están en carpetas elegidas por ti, separadas de los datos
+internos de la app. TeX, su caché y preferencias viven en Application Support
+(Mac), AppData (Windows) o el directorio de datos de usuario (Linux). No se toca
+el PATH global ni otra instalación TeX. Una preparación cancelada se puede
+reintentar; se conserva el motor anterior si una actualización falla.
+
+«Acerca de Estudio TFG…» muestra versión, AGPL, código fuente y licencias de los
+componentes/fuentes realmente incluidos. «Buscar actualizaciones…» es manual;
+macOS requiere la firma de G6 para actualizar automáticamente y la portable de
+Windows se reemplaza por una nueva descarga.
+
+Tamaños, hashes y resultados por plataforma aparecen en el `manifest.json` de
+cada release. Los **+170 MB de E3 eran una referencia del motor**, no el tamaño
+total de Electron ni un límite de los instaladores; el paquete privado con todos
+sus auxiliares se mide durante los builds. Receta y verificación:
+[docs/DISTRIBUCION.md](docs/DISTRIBUCION.md).
 
 ## Usarlo con Docker (Windows, Mac, Linux)
 

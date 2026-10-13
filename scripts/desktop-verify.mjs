@@ -133,6 +133,21 @@ try {
   const health = await json(page, '/api/engines');
   assert.equal(health.local.ok, true);
   for (const name of ['latexmk', 'biber', 'pdflatex']) assert(health.local.tools[name].path.startsWith(dataDir + path.sep));
+  const licensesPromise = electron.waitForEvent('window');
+  const about = await electron.evaluate(async ({ Menu, dialog }) => {
+    const show = dialog.showMessageBox;
+    let captured;
+    dialog.showMessageBox = async (_window, options) => { captured = options; return { response: 1 }; };
+    try { await Menu.getApplicationMenu().getMenuItemById('about').click(); return captured; }
+    finally { dialog.showMessageBox = show; }
+  });
+  assert(about.detail.includes('AGPL-3.0') && about.detail.includes('https://github.com/JavierLoro/estudio-tfg/tree/'));
+  const licenses = await licensesPromise;
+  assert(licenses, 'El menú Acerca de abre el inventario');
+  await licenses.getByRole('heading', { name: 'Licencias y componentes', exact: true }).waitFor();
+  assert(await licenses.getByText('Plantilla ARCO — GNU GPL-2.0', { exact: true }).count());
+  await licenses.screenshot({ path: path.join(packageRoot, 'licencias.png') });
+  await electron.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(window => !!window.getParentWindow())?.close());
   const synctex = await json(page, '/api/synctex/forward?file=1-capitulos%2F01-introduccion.tex&line=5');
   assert(synctex.boxes?.length || synctex.page, 'SyncTeX debe resolver una línea');
   const inverse = await json(page, `/api/synctex/inverse?page=${synctex.page}&x=${synctex.x}&y=${synctex.y}`);
