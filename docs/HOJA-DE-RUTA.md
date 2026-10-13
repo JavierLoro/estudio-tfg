@@ -86,7 +86,7 @@ Agrupación prevista de 2–4 tareas relacionadas; una tarea autónoma o con una
 | `e-validacion` | Requisitos de TeX y evaluación de Tectonic | E3, E4 | #25, #26 |
 | `f-diagramas` | Exportación de diagramas sin Docker | F1 | #27 |
 | `g-base` | Servidor empaquetable y app Electron funcional | G1, G2, G3 | #28, #29, #30 |
-| `g-entrega` | Primer arranque, instaladores, licencia y guía | G4, G5, G7 | #31, #32, #34 |
+| `g-entrega` | TeX privado, primer arranque e instaladores offline/online, licencia y guía | G4, G5, G7 | #31, #32, #34 |
 | `g-firma` | Firma y notarización de los instaladores | G6 | #33 |
 
 **Replanificación del 09-10-2026:** A–D permanecen cerradas. Se añaden R y L antes de E; E1/E2 se actualizan con las nuevas puertas de entrega y seguridad. Crear estas issues no las reserva ni inicia su implementación. No se publica ninguna funcionalidad por este cambio de planificación.
@@ -811,7 +811,9 @@ Resultado: el servidor compila con el motor que elija el usuario: **Docker** (el
 <a id="fase-g"></a>
 ## Fase G — App de escritorio con Electron
 
-Resultado: instaladores y versión portable para Windows y Mac (y AppImage para Linux), publicados en GitHub Releases. Se elige **Electron** porque el servidor es Node y corre dentro de la app sin reescribirlo, y `electron-builder` genera .dmg, instalador NSIS y .exe portable desde los runners de GitHub Actions. Esfuerzo ≈ 1–2 semanas. Depende de B1, C, D1, E1–E2 y F1.
+Resultado: app con **TeX Live reducido privado**, instaladores y versión portable para Windows y Mac (y AppImage para Linux), publicados en GitHub Releases. Se elige **Electron** porque el servidor es Node y corre dentro de la app sin reescribirlo, y `electron-builder` genera .dmg, instalador NSIS y .exe portable desde los runners de GitHub Actions. Depende de B1, C, D1, E1–E2 y F1. Incluir y verificar TeX amplía G4/G5; revisar el esfuerzo tras validar el paquete por plataforma.
+
+**Decisión del 13-10-2026:** dos variantes de la misma app, con el mismo motor/versiones/paquetes fijados: **completa / offline**, que incluye TeX y compila la primera memoria sin red, y **ligera / online**, que descarga ese mismo paquete al primer arranque y después también compila sin conexión. La compilación siempre es local; no envía la memoria a un servicio remoto. No exige instalar MacTeX, MiKTeX, Perl ni Docker por separado. Docker y TeX externo permanecen como alternativas. La preparación y publicación del motor se concretan en G4/G5; este cambio solo actualiza la planificación. Medidas y justificación: [MOTORES.md](MOTORES.md#distribución-elegida-para-electron).
 
 <a id="g1"></a>
 ### G1 · Desacoplar el servidor del checkout del repo
@@ -847,6 +849,7 @@ Resultado: instaladores y versión portable para Windows y Mac (y AppImage para 
 - **Objetivo**: una app que arranca el servidor y muestra la interfaz en su ventana.
 - **Contexto**: la web usa URLs relativas `/api/...`, `EventSource('/api/events')` y la cookie `et_token` (`web/src/api.ts`, `web/src/state/events.ts`, `server/src/auth.ts`), así que debe cargarse desde el servidor HTTP, **no** con `file://`. Servidor de G1/G2.
 - **Alcance**: carpeta `desktop/` con `package.json` propio; el proceso principal arranca el servidor (en el mismo proceso o con `utilityProcess`) en `127.0.0.1` con puerto libre y `AUTH_TOKEN` aleatorio, fija la cookie `et_token` en la sesión y abre la ventana en esa URL; una sola instancia; cierre limpio del servidor; carpeta de datos por sistema (G1).
+- **Motor en escritorio**: preparar el arranque para usar el adaptador local E2 con rutas absolutas del TeX privado, fuera de memoria/notas; no modificar el PATH global. El modo desde checkout conserva sus opciones actuales. G4/G5 preparan y distribuyen el paquete; durante G3 se puede proporcionar una instalación de prueba como la de E3. No añadir un nuevo motor ni exigir Docker como paso del primer arranque de la app final.
 - **Criterios de aceptación**: `npm start --prefix desktop` en macOS abre la app, que funciona como en el navegador (abrir, editar, compilar con el motor elegido); cerrar la ventana para el servidor; una segunda instancia enfoca la primera.
 - **Verificación**: manual en macOS; «a verificar en Windows» hasta G5.
 - **Archivos**: `desktop/*`.
@@ -858,25 +861,34 @@ Resultado: instaladores y versión portable para Windows y Mac (y AppImage para 
 **Issue**: [#31](https://github.com/JavierLoro/estudio-tfg/issues/31)
 
 - **Objetivo**: que alguien sin conocimientos técnicos deje la app lista en pocos pasos.
-- **Contexto**: Ajustes (carpetas, crear memoria desde perfil: `web/src/panels/SettingsPanel.tsx`), detección de motor (E2), perfiles (`GET /api/templates/perfiles`).
-- **Alcance**: asistente en la interfaz cuando la app no está configurada: elegir vault de Obsidian (o crear carpeta de notas), crear la memoria desde un perfil, detectar motor TeX (si no hay, explicar las opciones: instalar MacTeX/MiKTeX con enlace, usar Docker o Tectonic si E4 lo valida) y compilar una primera vez.
-- **Criterios de aceptación**: con datos vacíos, el asistente lleva hasta un PDF compilado; se puede repetir desde Ajustes.
-- **Verificación**: navegador y app (instancia aparte / datos limpios).
-- **Archivos**: componentes nuevos en `web/src/`, quizá endpoints de detección.
-- **Contrato**: sí si hay endpoints nuevos. **Depende de**: E2, G3. **Modelo**: Sonnet. **Esfuerzo**: M.
+- **Contexto**: Ajustes (carpetas, crear memoria desde perfil: `web/src/panels/SettingsPanel.tsx`), detección de motor (E2), perfiles (`GET /api/templates/perfiles`), TeX ligero validado en E3 y decisión de distribución de E4. G5 crea el paquete de release; usar fixtures con el mismo manifiesto/formato para desarrollar el aprovisionamiento antes de esa publicación.
+- **Alcance**:
+  - Asistente: elegir vault de Obsidian (o crear carpeta de notas), crear la memoria desde un perfil, preparar el TeX privado y compilar una primera vez. Docker/TeX externo quedan como elección avanzada; no presentar Tectonic como opción disponible.
+  - Completa/offline: utilizar el paquete incluido. Ligera/online: informar del tamaño y necesidad de conexión inicial, descargar el paquete fijado para la plataforma desde la release y mostrar progreso/reintento/cancelación. Después ambas usan el mismo motor local y funcionan sin red.
+  - Manifiesto de versión/plataforma/paquetes/hash fijado por la app; verificar antes de ejecutar. Extraer en staging confinado con límites y enlaces solo internos; una descarga cortada, hash incorrecto, ruta escapada o falta de espacio no deja una instalación activa a medias. Publicar por versión solo al terminar y conservar el motor válido durante cambios/reintentos.
+  - Binarios y cachés en carpetas privadas de la app, originales fuera de memoria/notas. No cambiar PATH global, pedir instalación manual de Perl ni actualizar el TeX del sistema. Mantener las protecciones de E2/R6; el motor privado no es un sandbox. No añadir instalación automática de paquetes solicitados por una memoria en esta entrega.
+- **Criterios de aceptación**: con datos vacíos y sin TeX/Docker/Perl externos, offline llega a un PDF con red bloqueada; online descarga/verifica, compila y vuelve a compilar tras reiniciar sin red. Interrupción, cancelación o hash incorrecto permiten reintentar sin perder configuración/documentos ni reemplazar un motor válido. El asistente se puede repetir desde Ajustes.
+- **Verificación**: navegador y app sobre datos limpios; archivos de descarga ficticios para los errores y el paquete real en la prueba final de G5. Probar rutas con espacios y PATH sin TeX/Perl externos.
+- **Archivos**: componentes nuevos en `web/src/`, preparación del motor en `desktop/`, quizá endpoints de detección/preparación, contrato y pruebas con fixtures.
+- **Contrato**: sí (primer arranque, preparación del motor y endpoints/eventos nuevos si los hay). **Depende de**: E2, E3, G3. **Modelo**: Opus. **Esfuerzo**: L.
 
 <a id="g5"></a>
 ### G5 · Empaquetado y publicación
 
 **Issue**: [#32](https://github.com/JavierLoro/estudio-tfg/issues/32)
 
-- **Objetivo**: generar instaladores y versión portable automáticamente al publicar una versión.
-- **Contexto**: app de G3.
-- **Alcance**: `electron-builder` con: macOS `.dmg` (arm64 y x64), Windows instalador NSIS y `.exe` portable (x64), Linux AppImage; incluir `templates/`, `scripts/` necesarios, `web/dist` y el servidor de G2; workflow `.github/workflows/release.yml` que, al crear un tag `v*`, construye en `macos-latest` y `windows-latest` (y ubuntu) y sube a GitHub Releases; actualización automática con `electron-updater` desde Releases; **sin firmar** al principio, con instrucciones en el README para abrirla (macOS: clic derecho → Abrir; Windows: «Más información → Ejecutar de todas formas»).
-- **Criterios de aceptación**: un tag de prueba genera los artefactos en una release borrador; el .dmg se instala y abre en macOS; el .exe se marca «a verificar en Windows» si no hay equipo.
-- **Verificación**: ejecución del workflow enlazada; prueba del .dmg.
-- **Archivos**: `desktop/electron-builder.yml` (o en `package.json`), `.github/workflows/release.yml`, `README.md`.
-- **Contrato**: no. **Depende de**: G3. **Modelo**: Sonnet. **Esfuerzo**: M.
+- **Objetivo**: generar variantes completa/offline y ligera/online de los instaladores y versiones portables, listas para compilar sin instalaciones manuales adicionales.
+- **Contexto**: app G3, aprovisionamiento G4, conjunto ligero E3, decisión E4 y exportación sin Docker F1.
+- **Alcance**:
+  - `electron-builder`: macOS `.dmg` (arm64 y x64), Windows NSIS y `.exe` portable (x64), Linux AppImage; incluir `templates/`, scripts necesarios, `web/dist` y servidor G2. Generar las dos variantes con la misma funcionalidad y nombres inequívocos, p. ej. `estudio-tfg-<versión>-<plataforma>-offline` / `-online`.
+  - Construir un paquete TeX Live reducido y reubicable por plataforma con versiones y paquetes fijados, pdfLaTeX, biber, latexmk y todos sus auxiliares (incluido Perl donde haga falta), fuentes/licencias y manifiesto/hash. Reutilizar E3 como base; no distribuir TeX Live full ni resolver «latest» al instalar. Verificar ejecución fuera de la carpeta original y sin herramientas TeX/Perl del host.
+  - Offline incluye ese paquete; online lo obtiene como asset separado de **la misma release**, usando G4. Publicar ambos formatos y el manifiesto en una release borrador de prueba. El presupuesto del motor (+170 MB descarga / +350 MB instalado medidos como referencia macOS) se contrasta con tamaños reales por plataforma; no es un límite certificado ni el tamaño total de Electron.
+  - Workflow `.github/workflows/release.yml`: tag `v*`, builds en macOS/Windows/Ubuntu, pruebas de ambos perfiles con cero diagnósticos y navegación SyncTeX, y actualización de la app con `electron-updater`. Actualizar el motor como un conjunto compatible ligado a una release; no ejecutar actualizaciones TeX no fijadas al arrancar. Conservar el motor activo si falla la preparación de otro.
+  - Al principio sin firmar, con instrucciones para abrirla; G6 firma/notariza también los binarios auxiliares incluidos cuando corresponda. No añadir compra ni credenciales en este bloque.
+- **Criterios de aceptación**: tag de prueba produce los artefactos offline/online y TeX por plataforma en release borrador. En una máquina limpia, offline crea/compila ambos perfiles sin red y online prepara el mismo motor, compila y funciona tras reiniciar sin red; ninguna exige TeX/Docker/Perl externos. Citas/figuras portables, SyncTeX y F1 funcionan. Mac y Windows deben verificarse realmente (runner/VM/equipo); una plataforma sin acceso queda pendiente y no se presenta como entrega validada.
+- **Verificación**: workflow enlazado, instalación/apertura del .dmg y .exe o prueba equivalente automatizada del paquete final, PATH limitado y red bloqueada en las comprobaciones offline. Registrar versión, hashes, tamaño de descarga/disco y tabla plataforma × variante × perfil.
+- **Archivos**: `desktop/electron-builder.yml` (o `package.json`), scripts/manifiesto del TeX privado, `.github/workflows/release.yml`, `README.md`, pruebas de empaquetado. Los binarios se publican como artefactos, no se versionan en git.
+- **Contrato**: solo si se precisa el aprovisionamiento de G4. **Depende de**: G3, G4, E3, F1. **Modelo**: Opus. **Esfuerzo**: L.
 
 <a id="g6"></a>
 ### G6 · Firma y notarización
@@ -886,6 +898,7 @@ Resultado: instaladores y versión portable para Windows y Mac (y AppImage para 
 - **Objetivo**: que macOS y Windows no avisen de «app no verificada».
 - **Contexto**: requiere una cuenta de Apple Developer (99 $/año) y un certificado de firma de código para Windows. **Las credenciales y el pago los gestiona el usuario**; nunca se guardan en el repo.
 - **Alcance**: el agente prepara el workflow de G5 para firmar y notarizar usando secretos de GitHub (`APPLE_ID`, `APPLE_TEAM_ID`, certificado en base64, contraseña…) y documenta qué secretos crear y cómo; si los secretos no existen, el build sigue sin firmar.
+- **TeX privado**: incluir en el proceso los ejecutables/auxiliares distribuidos que requiera la firma/notarización; comprobar ambas variantes y el motor descargado por online. No sustituir hashes de G4 por la mera existencia de una firma.
 - **Criterios de aceptación**: workflow que firma cuando hay secretos y no falla cuando no; guía paso a paso para el usuario.
 - **Verificación**: ejecución sin secretos (sin firmar) y revisión de la configuración.
 - **Archivos**: `.github/workflows/release.yml`, configuración de electron-builder, `docs/` (guía).
@@ -899,10 +912,11 @@ Resultado: instaladores y versión portable para Windows y Mac (y AppImage para 
 - **Objetivo**: cumplir la AGPL al distribuir binarios y explicar la instalación.
 - **Contexto**: licencia en `LICENSE` y README (AGPL-3.0, plantilla derivada de ARCO GPL-2.0+, fuentes y componentes de terceros).
 - **Alcance**: ventana o panel «Acerca de» con versión, licencia, enlace al código fuente y créditos de terceros; guía de instalación en el README (descargar, abrir sin firmar, primer arranque).
+- **TeX incluido**: inventario y avisos de los componentes realmente distribuidos, fuentes y auxiliares; documentar las variantes offline/online, descarga inicial, trabajo posterior sin red y la carpeta privada del motor. No describir Tectonic ni TeX instalado manualmente como requisito de la app final.
 - **Criterios de aceptación**: el enlace al código y la licencia son visibles en la app; la guía cubre macOS y Windows.
 - **Verificación**: revisión en la app.
 - **Archivos**: componente en `web/src/` o menú de `desktop/`, `README.md`.
-- **Contrato**: no. **Depende de**: G3. **Modelo**: Haiku. **Esfuerzo**: S.
+- **Contrato**: no. **Depende de**: G3, G4, G5. **Modelo**: Haiku/Sonnet. **Esfuerzo**: M.
 
 ---
 

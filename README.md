@@ -206,6 +206,17 @@ No lee `.env` ni utiliza la memoria o notas personales. Si cambias la clase o su
 paquetes, repite la prueba para todos los perfiles. La CI conserva además la
 referencia Docker y verifica TeX Live nativo en Linux.
 
+### Distribución de escritorio prevista
+
+La futura app Electron tendrá dos descargas: **completa / offline**, con TeX Live
+reducido incluido, y **ligera / online**, que descarga y prepara el mismo motor al
+primer arranque. Ambas compilarán localmente y sin conexión una vez preparadas,
+sin exigir instalaciones manuales de TeX ni Docker. El motor tendrá versiones
+fijadas y vivirá en una carpeta privada de la app, sin cambiar el PATH del sistema.
+Esta distribución **aún no está implementada**: los pasos de instalación actuales
+de arriba siguen aplicándose al ejecutar desde el repositorio. Decisión y medidas:
+[Motores](docs/MOTORES.md#distribución-elegida-para-electron).
+
 ## Primeros pasos
 
 1. **Carpetas.** Define `NOTES_DIR` (tu vault de Obsidian) y `MEMORIA_DIR` en `.env` (hay un ejemplo en `.env.example`) o desde **Ajustes** en la interfaz, que las aplica en caliente.
