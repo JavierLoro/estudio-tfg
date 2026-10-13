@@ -53,8 +53,10 @@ async function probe(cfg: Config): Promise<LocalHealth> {
     await Promise.all(Object.entries(tools).map(async ([key, tool]) => {
       if (!tool.path) return;
       const args = key === 'latexmk' ? ['-norc', '-v'] : key === 'biber' ? ['--noconf', '--version'] : ['--version'];
-      const result = await run(tool.path, args, { cwd: runtime, env, timeoutMs: 10_000 });
+      // Biber empaquetado extrae PAR al primer uso; los runners Windows/Mac pueden necesitar más tiempo.
+      const result = await run(tool.path, args, { cwd: runtime, env, timeoutMs: cfg.texBinDir ? 30_000 : 10_000 });
       if (result.code === 0 && !result.timedOut) tool.version = result.output.trim().split(/\r?\n/)[0]?.slice(0, 300) || null;
+      else console.warn(`No se pudo detectar ${COMMANDS[key as ToolName]} (${result.timedOut ? 'tiempo agotado' : `salida ${result.code}`}): ${result.output.slice(-2000)}`);
     }));
   } finally { await fs.rm(runtime, { recursive: true, force: true }); }
   const missing = (['latexmk', 'biber', 'pdflatex'] as const).filter((key) => !tools[key].version);
@@ -67,7 +69,9 @@ async function probe(cfg: Config): Promise<LocalHealth> {
     warnings.push('La distribución detectada difiere de TeX Live 2026; se permite compilar y se registran sus versiones.');
   return { ok: !missing.length, version: tools.pdflatex.version, tools, warnings,
     capabilities: { compile: !missing.length, svg2pdf: true },
-    ...(missing.length ? { message: `No están disponibles ${missing.map((key) => COMMANDS[key]).join(', ')} en PATH; instala una distribución TeX o utiliza Docker.` } : {}) };
+    ...(missing.length ? { message: cfg.texBinDir
+      ? `El motor TeX privado no responde (${missing.map((key) => COMMANDS[key]).join(', ')}). Reintenta la detección en Ajustes.`
+      : `No están disponibles ${missing.map((key) => COMMANDS[key]).join(', ')} en PATH; instala una distribución TeX o utiliza Docker.` } : {}) };
 }
 
 export function detectLocal(cfg: Config, refresh = false): Promise<LocalHealth> {
@@ -112,8 +116,9 @@ export function localEngine(cfg: Config): Engine {
       const next = svgQueue.then(async () => {
         const problem = checkSvg(svg);
         if (problem) throw new HttpError(400, problem);
-        const health = await detectLocal(cfg);
-        if (!health.tools.rsvg.version) {
+        // Sin rsvg, el PDF del navegador no necesita volver a arrancar TeX/Perl.
+        const health = await findTool('rsvg-convert', cfg) ? await detectLocal(cfg) : null;
+        if (!health?.tools.rsvg.version) {
           if (!browserPdf) throw new HttpError(422, 'El diagrama necesita conversión a PDF en el navegador', { code: 'PDF_BROWSER_REQUIRED' });
           return browserPdf;
         }

@@ -1,0 +1,141 @@
+name: App instalable offline y online
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: App (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-26, platform: darwin-arm64 }
+          - { os: macos-15-intel, platform: darwin-x64 }
+          - { os: windows-latest, platform: win32-x64 }
+          - { os: ubuntu-latest, platform: linux-x64 }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            server/package-lock.json
+            web/package-lock.json
+            desktop/package-lock.json
+            test/e2e/package-lock.json
+      - name: Elegir versión de prueba o tag
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            echo "RELEASE_TAG=${GITHUB_REF#refs/tags/}" >> "$GITHUB_ENV"
+          else
+            echo "RELEASE_TAG=v0.2.0-rc.3" >> "$GITHUB_ENV"
+          fi
+      - name: Instalar dependencias fijadas
+        run: |
+          npm ci --prefix server
+          npm ci --prefix web
+          npm ci --prefix desktop
+          for attempt in 1 2 3; do
+            if node desktop/node_modules/electron/install.js; then break; fi
+            if [[ "$attempt" == 3 ]]; then exit 1; fi
+          done
+          npm ci --prefix test/e2e
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        id: tex-cache
+        with:
+          path: ${{ runner.temp }}/tex-assets/cache
+          key: tex-${{ matrix.os }}-${{ matrix.platform }}-${{ hashFiles('desktop/tex/lock.json', 'scripts/desktop-tex.mjs') }}
+      - name: Preparar bibliotecas de Electron en Linux
+        if: runner.os == 'Linux'
+        run: cd test/e2e && npx playwright install-deps chromium
+      - name: Construir interfaz y servidor
+        run: npm run build --prefix web && npm run bundle --prefix server
+      - name: Construir TeX y Perl privados desde el snapshot fijado
+        run: npm run desktop:tex -- "$RUNNER_TEMP/tex-assets" "$RELEASE_TAG"
+      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        if: steps.tex-cache.outputs.cache-hit != 'true'
+        with:
+          path: ${{ runner.temp }}/tex-assets/cache
+          key: tex-${{ matrix.os }}-${{ matrix.platform }}-${{ hashFiles('desktop/tex/lock.json', 'scripts/desktop-tex.mjs') }}
+      - name: Empaquetar y verificar ambas variantes reales
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: |
+          for variant in offline online; do
+            npm run desktop:build -- "$RUNNER_TEMP/tex-assets" "$RELEASE_TAG" "$variant"
+            if [[ "$RUNNER_OS" == Linux ]]; then
+              xvfb-run -a npm run desktop:verify -- "desktop/dist/${{ matrix.platform }}/$variant" "$RUNNER_TEMP/tex-assets"
+            else
+              npm run desktop:verify -- "desktop/dist/${{ matrix.platform }}/$variant" "$RUNNER_TEMP/tex-assets"
+            fi
+          done
+      - name: Conservar paquetes y evidencia de cada plataforma
+        if: '!cancelled()'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: distribucion-${{ matrix.platform }}
+          path: |
+            desktop/dist/${{ matrix.platform }}/*/release/*.dmg
+            desktop/dist/${{ matrix.platform }}/*/release/*.zip
+            desktop/dist/${{ matrix.platform }}/*/release/*.exe
+            desktop/dist/${{ matrix.platform }}/*/release/*.AppImage
+            desktop/dist/${{ matrix.platform }}/*/release/*.blockmap
+            desktop/dist/${{ matrix.platform }}/*/release/*.yml
+            desktop/dist/${{ matrix.platform }}/*/verificacion.json
+            desktop/dist/${{ matrix.platform }}/*/app.log
+            desktop/dist/${{ matrix.platform }}/*/compile-error.log
+            desktop/dist/${{ matrix.platform }}/*/latexmk-error.log
+            desktop/dist/${{ matrix.platform }}/*/error.txt
+            desktop/dist/${{ matrix.platform }}/*/*.png
+            desktop/dist/${{ matrix.platform }}/*/biblioteca/*.json
+            ${{ runner.temp }}/tex-assets/*.tar.gz
+            ${{ runner.temp }}/tex-assets/engine-*.json
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+  draft:
+    name: Release borrador verificada
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+      - run: npm ci --prefix server
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: distribucion-*
+          path: artifacts
+      - name: Reunir manifiestos, tamaños y evidencias
+        run: node scripts/desktop-release.mjs artifacts release "$GITHUB_REF_NAME"
+      - name: Publicar únicamente una release borrador
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --draft --title "Estudio TFG $GITHUB_REF_NAME (prueba sin firma)" --notes-file release/NOTAS.md --verify-tag
+          gh release upload "$GITHUB_REF_NAME" release/*

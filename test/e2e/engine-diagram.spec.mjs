@@ -10,6 +10,7 @@ async function openDiagram(page, name) {
   const open = page.getByRole('dialog', { name: 'Abrir o buscar' });
   await open.getByLabel('Buscar', { exact: true }).fill(`${name}.mmd`);
   await open.getByRole('option').filter({ hasText: `${name}.mmd` }).first().click();
+  await expect(page.getByTitle(`Guardar y exportar a figuras/diagramas/${name}.pdf (y .svg)`, { exact: true })).toBeVisible();
 }
 
 async function pdfText(pdf) {

@@ -32,7 +32,8 @@ test('entorno local aislado en POSIX y Windows con binarios explícitos y sin cr
   const win = compileEnvironment('C:\\Temp\\ficticio\\runtime', { platform: 'win32', windowsRoot: 'C:\\Windows', tools: { latexmk: 'C:\\Program Files\\TeX\\bin\\latexmk.exe' } });
   assert.equal(win.PATH, 'C:\\Program Files\\TeX\\bin;C:\\Windows\\System32;C:\\Windows');
   assert.equal(win.USERPROFILE, 'C:\\Temp\\ficticio\\runtime\\home');
-  assert.equal(win.LOCALAPPDATA, 'C:\\Temp\\ficticio\\runtime\\localappdata');
+  assert.equal(win.APPDATA, path.win32.join(win.USERPROFILE, 'AppData', 'Roaming'));
+  assert.equal(win.LOCALAPPDATA, path.win32.join(win.USERPROFILE, 'AppData', 'Local'));
   for (const env of [posix, win]) for (const key of ['AUTH_TOKEN', 'PERL5OPT', 'LD_PRELOAD', 'TEXMFCNF', 'BIBINPUTS', 'LATEXMKRCSYS']) assert.equal(Object.hasOwn(env, key), false, key);
   assert.throws(() => compileEnvironment('/tmp/ficticio', { tools: { latexmk: 'latexmk' } }), /absolutas/);
   for (const name of ['%USERPROFILE%', '!VARIABLE!', '"comilla']) {
