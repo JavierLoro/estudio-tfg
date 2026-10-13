@@ -9,6 +9,8 @@ worker/*
 !worker/parse-log.mjs
 !worker/untar.mjs
 !worker/svg.mjs
+!worker/woff2sfnt.mjs
+!worker/woff2sfnt.d.mts
 docs
 **/*.log
 .DS_Store

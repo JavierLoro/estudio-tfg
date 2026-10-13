@@ -22,7 +22,7 @@ export interface Engine {
   type: 'docker' | 'local';
   health(): Promise<EngineHealth>;
   compile(sources: Readable, main: string, signal?: AbortSignal): Promise<EngineResult>;
-  svg2pdf(svg: string): Promise<Buffer>;
+  svg2pdf(svg: string, browserPdf?: Buffer): Promise<Buffer>;
 }
 
 export async function createEngine(cfg: Config): Promise<Engine> {

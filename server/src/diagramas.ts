@@ -9,8 +9,8 @@ import { stripComment } from './outline.ts';
 
 // Diagramas de la memoria (v0.8): fuente Mermaid en diagramas/<nombre>.mmd y figura
 // exportada en figuras/diagramas/<nombre>.{pdf,svg}. El SVG lo dibuja el navegador; el
-// worker lo convierte a PDF (POST /svg2pdf). El SVG guardado lleva en un <metadata> la
-// revisión de la fuente que lo generó: así se sabe si la figura está desactualizada.
+// motor lo convierte a PDF, o recibe la conversión del navegador. El SVG guardado lleva
+// en un <metadata> la revisión que lo generó: así se sabe si está desactualizada.
 
 export const DIAGRAMAS_DIR = 'diagramas';
 export const FIGURAS_DIR = 'figuras/diagramas';
@@ -185,8 +185,20 @@ export async function listEstados(ctx: Ctx): Promise<EstadoItem[]> {
 }
 
 /** SVG → PDF con el motor elegido. */
-async function svgToPdf(ctx: Ctx, svg: string): Promise<Buffer> {
-  return (await createEngine({ ...ctx.cfg })).svg2pdf(svg);
+async function svgToPdf(ctx: Ctx, svg: string, browserPdf?: Buffer): Promise<Buffer> {
+  return (await createEngine({ ...ctx.cfg })).svg2pdf(svg, browserPdf);
+}
+
+/** El PDF del navegador es un adjunto, nunca una ruta ni una fuente para ejecutar. */
+function readBrowserPdf(value: unknown): Buffer | undefined {
+  if (value === undefined) return undefined;
+  const max = 10 * 1024 * 1024;
+  if (typeof value !== 'string' || !value || value.length > Math.ceil(max / 3) * 4 ||
+    value.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(value)) throw badRequest('pdf debe ser base64 válido de hasta 10 MB');
+  const pdf = Buffer.from(value, 'base64');
+  if (pdf.toString('base64') !== value || pdf.length > max || pdf.subarray(0, 5).toString('latin1') !== '%PDF-' || !/%%EOF\s*$/.test(pdf.subarray(-1024).toString('latin1')))
+    throw badRequest('El adjunto no es un PDF válido de hasta 10 MB');
+  return pdf;
 }
 
 /** Escribe un archivo de la memoria con copia en el historial (si existía y cambia) y de forma atómica. */
@@ -204,6 +216,7 @@ export async function exportar(ctx: Ctx, body: unknown): Promise<{ status: 200 |
   const r = await resolveSafe(ctx.cfg, 'memoria', b.path);
   const name = diagramName(r.rel);
   const svgIn = checkSvgBasic(b.svg);
+  const browserPdf = readBrowserPdf(b.pdf);
   const src = await readOrNull(r.abs);
   if (!src) throw notFound('El diagrama no existe');
   const conflict = (cur: string) => ({ status: 409 as const, body: { error: 'La fuente del diagrama cambió desde que se dibujó', rev: cur } });
@@ -212,7 +225,7 @@ export async function exportar(ctx: Ctx, body: unknown): Promise<{ status: 200 |
   const exportadoEn = new Date().toISOString();
   const svg = withMeta(svgIn, { fuente: r.rel, rev: b.rev, exportadoEn });
   // La conversión (lo lento) va fuera de los bloqueos; la revisión se vuelve a comprobar al escribir.
-  const pdf = await svgToPdf(ctx, svg);
+  const pdf = await svgToPdf(ctx, svg, browserPdf);
   const p = figurePaths(name);
   const { locks } = ctx;
   return locks.run(`memoria:${r.rel}`, () =>

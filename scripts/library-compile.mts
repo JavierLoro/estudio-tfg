@@ -8,6 +8,7 @@ import { buildApp } from '../server/src/app.ts';
 import { loadConfig } from '../server/src/config.ts';
 import { libraryId } from '../server/src/libraryIdentity.ts';
 import { instanceId } from '../server/src/settings.ts';
+import { DIAGRAM_TEMPLATES } from '../web/src/lib/diagramTemplates.ts';
 
 const args = process.argv.slice(2),
   arg = (name: string) => args[args.indexOf(name) + 1];
@@ -21,6 +22,9 @@ const realOutput = await fs.realpath(output),
   allowed = [await fs.realpath(os.tmpdir()), ...(process.env.RUNNER_TEMP ? [await fs.realpath(process.env.RUNNER_TEMP)] : [])];
 if (!allowed.some((root) => realOutput === root || realOutput.startsWith(root + path.sep)))
   throw new Error('La verificación solo escribe fixtures y resultados en carpetas temporales');
+const diagrams = args.includes('--diagrams-dir') ? await fs.realpath(arg('--diagrams-dir')) : null;
+if (diagrams && !allowed.some(root => diagrams.startsWith(root + path.sep)))
+  throw new Error('--diagrams-dir debe contener figuras ficticias en una carpeta temporal');
 const scratch = await fs.mkdtemp(path.join(os.tmpdir(), 'estudio-tfg-library-compile-'));
 const png = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAKklEQVR4nGPwd3tKU8QwasGoBaMWjFowasGoBaMWjFowasGoBaMWDBULAE0y6EwonOyyAAAAAElFTkSuQmCC',
@@ -120,6 +124,21 @@ try {
       path.join(memoria, '1-capitulos/01-introduccion.tex'),
       `\nReferencia importada ${reference.snippet}.\n${figure.snippet}\n`,
     );
+    if (diagrams) {
+      const figures = path.join(memoria, 'figuras/diagramas');
+      await fs.mkdir(figures, { recursive: true });
+      for (const { id } of DIAGRAM_TEMPLATES) {
+        await fs.copyFile(path.join(diagrams, `${id}-js.pdf`), path.join(figures, `${id}.pdf`));
+        await fs.appendFile(path.join(memoria, '1-capitulos/01-introduccion.tex'), String.raw`
+\clearpage
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.65\textwidth,height=0.45\textheight,keepaspectratio]{diagramas/${id}}
+\caption{Diagrama ficticio: ${id}.}
+\end{figure}
+`);
+      }
+    }
     async function compile(label: string) {
       const result = await app!.inject({ method: 'POST', url: '/api/compile' }),
         value = result.json();
@@ -127,7 +146,7 @@ try {
       assert.equal(result.statusCode, 200, result.body);
       assert.equal(value.ok, true, result.body);
       assert.deepEqual(value.diagnostics, [], result.body);
-      console.log(`✓ ${profile.id} (${label}): cita y figura compiladas, 0 avisos LaTeX/biber`);
+      console.log(`✓ ${profile.id} (${label}): cita y figura${diagrams ? ' y seis diagramas PDF' : ''} compiladas, 0 avisos LaTeX/biber`);
     }
     await compile('original');
     assert.deepEqual(await fs.readFile(path.join(memoria, 'bibliografia.bib')), manual);
