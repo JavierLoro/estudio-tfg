@@ -22,8 +22,8 @@ La app ignora `.env`; no abre automáticamente la memoria del checkout.
 El motor inicial es local. Para probar un TeX privado ya preparado, proporciona
 `TEX_BIN_DIR` absoluto, fuera de notas/memoria; no se cambia el PATH global ni se
 mezclan herramientas TeX de otra instalación. Sin esa variable se conserva la
-detección E2 del PATH. Ajustes puede seleccionar Docker o Automático. Los paquetes
-TeX completos, aprovisionamiento e instaladores offline/online llegan en G4/G5.
+detección E2 del PATH. Ajustes puede seleccionar Docker o Automático. La receta de
+paquetes e instaladores offline/online está en [DISTRIBUCION.md](../docs/DISTRIBUCION.md).
 
 La ventana usa un origen HTTP estable que reenvía al puerto libre del servidor;
 así borradores, preferencias e IndexedDB sobreviven a los reinicios. Token nuevo
@@ -37,8 +37,8 @@ E2E_DESKTOP=1 npm run test:e2e -- --grep '@desktop'
 
 `E2E_TEX_BIN` activa la compilación real del fixture; `E2E_SYSTEM_FOCUS=1`
 comprueba también el foco físico del sistema en una sesión gráfica que lo permita.
-Las pruebas usan carpetas temporales y datos ficticios. Windows y los instaladores
-se validarán en G5; esta entrega prueba la ejecución nativa en macOS.
+Las pruebas usan carpetas temporales y datos ficticios. El workflow de distribución
+verifica los artefactos reales en runners Mac arm64/x64, Windows x64 y Linux x64.
 
 El asistente aparece cuando faltan carpetas o está pendiente el paquete de la
 release y se repite desde Ajustes. `engine-manifest.json` fija plataforma, versión,

@@ -14,6 +14,10 @@ const args = process.argv.slice(2),
   arg = (name: string) => args[args.indexOf(name) + 1];
 const engine = args.includes('--engine') ? arg('--engine') : 'docker';
 if (!['docker', 'local'].includes(engine)) throw new Error('--engine debe ser docker o local');
+const texBin = args.includes('--tex-bin') ? arg('--tex-bin') : undefined;
+const texPerl = args.includes('--tex-perl') ? arg('--tex-perl') : undefined;
+for (const dir of [texBin, texPerl]) if (dir !== undefined && (!path.isAbsolute(dir) || /[\0\r\n]/.test(dir)))
+  throw new Error('Las rutas privadas de TeX/Perl deben ser absolutas');
 const worker = args.includes('--worker-url') ? arg('--worker-url') : 'http://127.0.0.1:1',
   output = path.resolve(arg('--output-dir') ?? '');
 if ((engine === 'docker' && !args.includes('--worker-url')) || !worker || !/^http:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):\d+$/.test(worker) || !args.includes('--output-dir'))
@@ -51,10 +55,12 @@ try {
         AUTH_TOKEN: '',
         RESOURCES_SUBDIR: 'Recursos',
         MEMORIA_MAIN: 'tfg.tex',
+        ...(texBin ? { TEX_BIN_DIR: texBin } : {}),
       },
       root,
     );
     cfg.settingsFile = path.join(root, 'settings.json');
+    if (texPerl) cfg.texPerlDir = await fs.realpath(texPerl);
     cfg.historyDir = path.join(root, 'history');
     ({ app } = await buildApp(cfg, { serveWeb: false }));
     const manual = await fs.readFile(path.join(memoria, 'bibliografia.bib'));

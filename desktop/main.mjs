@@ -5,6 +5,7 @@ import path from 'node:path';
 import { startServer, userDataDir } from '../server/dist/server.mjs';
 import { APP_ORIGIN, isAppUrl, isExternalUrl } from './security.mjs';
 import { setupRoutes } from './setup.mjs';
+import { checkUpdates } from './updater.mjs';
 
 app.setName('Estudio TFG');
 app.commandLine.appendSwitch('lang', 'es-ES');
@@ -42,6 +43,8 @@ else {
     const packageFile = path.join(root, 'desktop', 'engine-manifest.json');
     const manifest = existsSync(packageFile) ? JSON.parse(readFileSync(packageFile, 'utf8')) : null;
     const archive = manifest && existsSync(path.join(root, 'desktop', 'engine.tar.gz')) ? path.join(root, 'desktop', 'engine.tar.gz') : null;
+    const distributionFile = path.join(root, 'desktop', 'distribution.json');
+    const distribution = existsSync(distributionFile) ? JSON.parse(readFileSync(distributionFile, 'utf8')) : { variant: 'online' };
     const token = crypto.randomBytes(32).toString('hex');
     server = await startServer({ ...process.env, DATA_DIR: dataDir, HOST: '127.0.0.1', PORT: '0', AUTH_TOKEN: token,
       TEMPLATES_DIR: process.env.TEMPLATES_DIR || path.join(root, 'templates'),
@@ -107,7 +110,10 @@ else {
       return window;
     };
     Menu.setApplicationMenu(Menu.buildFromTemplate([
-      { label: 'Estudio TFG', submenu: [{ label: 'Salir', role: 'quit' }] },
+      { label: 'Estudio TFG', submenu: [
+        { label: 'Buscar actualizaciones…', click: () => void checkUpdates({ app, dialog, shell, window: mainWindow, variant: distribution.variant }) },
+        { label: 'Salir', role: 'quit' },
+      ] },
       { label: 'Editar', submenu: [{ label: 'Cortar', role: 'cut' }, { label: 'Copiar', role: 'copy' }, { label: 'Pegar', role: 'paste' }, { label: 'Seleccionar todo', role: 'selectAll' }] },
       { label: 'Ver', submenu: [{ label: 'Recargar', role: 'reload' }, { label: 'Pantalla completa', role: 'togglefullscreen' }] },
     ]));

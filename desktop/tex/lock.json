@@ -1,0 +1,21 @@
+{
+  "id": "texlive-2026-20261013",
+  "repository": "https://texlive.info/tlnet-archive/2026/10/13/tlnet",
+  "databaseSha256": "b7760c9a4434ecfae4ab2ee53298b4b5ab3550af3c8cc10a80e9448f712d10df",
+  "installers": {
+    "unix": { "file": "install-tl-unx.tar.gz", "sha256": "2f1a84148bd5e55ea1d560d82aeee98026cac4245de38245aeb5296ef9b40b86" },
+    "windows": { "file": "install-tl.zip", "sha256": "d8bd4912a9b09b2da3625f5b1ef9507eba42958226294c29942a55fc5b48c795" }
+  },
+  "perl": {
+    "version": "5.42.2",
+    "url": "https://www.cpan.org/src/5.0/perl-5.42.2.tar.gz",
+    "sha256": "9384e8deb75b7b1695e5637971b752281aaecd025a3d5d4734d33c1d0adfee47"
+  },
+  "packages": ["latexmk", "biber", "babel-spanish", "hyphen-spanish", "hyphen-german", "newtx", "tex-gyre", "bera", "lm", "microtype", "geometry", "setspace", "enumitem", "xcolor", "caption", "booktabs", "listings", "acronym", "tocbibind", "csquotes", "biblatex", "biblatex-ieee", "titlesec", "hyperref", "xpatch", "xstring", "xkeyval", "fontaxes", "mweights", "textcase", "anyfontsize", "ly1", "bigfoot"],
+  "platforms": {
+    "darwin-arm64": "universal-darwin",
+    "darwin-x64": "universal-darwin",
+    "win32-x64": "windows",
+    "linux-x64": "x86_64-linux"
+  }
+}
