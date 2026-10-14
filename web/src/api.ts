@@ -534,6 +534,14 @@ async function guarded<T>(p: Promise<T>): Promise<T> {
 // ---- Endpoints ----
 
 export const api = {
+  desktopSetup: async (): Promise<DesktopSetup | null> => {
+    try { return await json<DesktopSetup>('/api/desktop/setup'); }
+    catch (error) { if (error instanceof ApiError && error.status === 404) return null; throw error; }
+  },
+  prepareDesktopEngine: () => json<DesktopEngine>('/api/desktop/engine/prepare', { method: 'POST' }),
+  cancelDesktopEngine: () => json<DesktopEngine>('/api/desktop/engine/cancel', { method: 'POST' }),
+  completeDesktopSetup: () => json<DesktopSetup>('/api/desktop/setup/complete', { method: 'POST' }),
+  initNotes: (dir: string) => guarded(json<SettingsResponse>('/api/settings/init-notes', jsonBody('POST', { dir }))),
   status: () => json<Status>('/api/status'),
   engines: () => guarded(json<EnginesResponse>('/api/engines')),
 
@@ -722,6 +730,14 @@ export const api = {
     }
   },
 };
+
+export interface DesktopEngine {
+  phase: 'idle' | 'copying' | 'downloading' | 'extracting' | 'publishing' | 'ready' | 'cancelled' | 'error';
+  available: boolean; installed: boolean; current: boolean;
+  received: number; total: number; message: string | null;
+  version: string | null; variant: 'offline' | 'online';
+}
+export interface DesktopSetup { engine: DesktopEngine; needsSetup: boolean }
 
 export function errorMessage(e: unknown): string {
   if (e instanceof NetworkError) return 'Sin conexión con el servidor';

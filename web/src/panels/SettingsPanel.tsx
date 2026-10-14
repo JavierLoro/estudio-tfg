@@ -19,6 +19,7 @@ import { isAbsPath, joinAbs, parentAbs, relUnder } from '../lib/abspath';
 import { kbd } from '../lib/kbd';
 import { notifySettingsChanged, useSettings } from '../state/settings';
 import { toast, useUI } from '../state/ui';
+import { useDesktop } from '../state/desktop';
 
 const LABELS: Record<SettingsKey, string> = {
   notesDir: 'Carpeta de notas (vault)',
@@ -64,6 +65,7 @@ function levelText(level: SettingsCheck['level']) {
 type Picker = { kind: 'dir'; key: 'notesDir' | 'memoriaDir' | 'resourcesSubdir' } | { kind: 'create' } | null;
 
 export function SettingsPanel() {
+  const desktop = useDesktop(s => s.info);
   const data = useSettings((s) => s.data);
   const loadError = useSettings((s) => s.error);
   const loading = useSettings((s) => s.loading);
@@ -303,6 +305,7 @@ export function SettingsPanel() {
       <div className="flex h-10 shrink-0 items-center gap-2 border-b border-line bg-bg px-3">
         <Settings size={15} className="text-muted" />
         <h1 className="text-[13px] font-semibold">Ajustes</h1>
+        {desktop && <Button onClick={() => useDesktop.getState().setOpen(true)}>Asistente inicial</Button>}
         {loading && <Spinner size={11} />}
         <div className="flex-1" />
         {dirty && (

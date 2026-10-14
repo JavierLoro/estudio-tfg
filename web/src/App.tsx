@@ -26,6 +26,7 @@ import { initInstance, useSettings, watchSettingsTransitions } from './state/set
 import { useUI } from './state/ui';
 import { activeFile } from './state/workspace';
 const BibliotecaPanel = lazy(() => import('./panels/BibliotecaPanel'));
+const DesktopSetup = lazy(() => import('./components/DesktopSetup'));
 
 function useBoot() {
   useEffect(() => {
@@ -202,6 +203,7 @@ export function App() {
       <PromptDialog />
       <ContextMenuHost />
       <Toasts />
+      {ready && <Suspense fallback={null}><DesktopSetup /></Suspense>}
     </div>
   );
 }

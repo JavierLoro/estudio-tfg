@@ -211,6 +211,16 @@ it('compila una copia temporal, conserva originales y aplica rc/biber/entorno co
   expect(log).toContain('latexmk: Latexmk, Version 4.88'); expect(log).toContain('biber version: 2.22');
 });
 
+it('exporta con el navegador sin detectar TeX cuando el paquete privado no incluye rsvg', async () => {
+  t.cfg.texBinDir = bin;
+  await fs.rm(path.join(bin, 'rsvg-convert' + (process.platform === 'win32' ? '.exe' : '')));
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg"></svg>';
+  const pdf = Buffer.from('%PDF-1.7\nFicticio\n%%EOF\n');
+  await expect(localEngine(t.cfg).svg2pdf(svg)).rejects.toMatchObject({ statusCode: 422, body: { code: 'PDF_BROWSER_REQUIRED' } });
+  expect(await localEngine(t.cfg).svg2pdf(svg, pdf)).toEqual(pdf);
+  expect(calls).toHaveLength(0);
+});
+
 it('local conserva rsvg cuando está disponible aunque reciba un PDF del navegador', async () => {
   const pdf = await localEngine(t.cfg).svg2pdf('<svg xmlns="http://www.w3.org/2000/svg"></svg>', Buffer.from('%PDF-1.7\nAdjunto ficticio\n%%EOF\n'));
   expect(pdf.toString()).toContain('Convertido por rsvg ficticio');

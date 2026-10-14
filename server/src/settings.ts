@@ -118,6 +118,8 @@ function normalizeDir(cfg: Config, key: string, raw: unknown, mustExist: boolean
   const v = expandUserPath(requireStringField(key, raw));
   if (!path.isAbsolute(v)) throw fieldError(key, `${label}: la ruta debe ser absoluta (o empezar por ~)`);
   const abs = path.resolve(v);
+  if (cfg.desktopDataDir && (isInside(cfg.desktopDataDir, realpathLoose(abs)) || isInside(realpathLoose(abs), cfg.desktopDataDir)))
+    throw fieldError(key, `${label}: elige una carpeta separada de los datos internos de la app`);
   if (mustExist) {
     let st: fss.Stats;
     try {
@@ -307,6 +309,19 @@ export class Settings {
   }
 
   /** Create a memoria from templates/base + templates/perfiles/<perfil> in `dir` (missing or empty) and select it. */
+  initNotes(body: unknown): Promise<SettingsView> {
+    return this.serial(async () => {
+      const dir = normalizeDir(this.cfg, 'dir', (body as { dir?: unknown } | null)?.dir, false);
+      if (fss.existsSync(dir)) throw new HttpError(409, `La carpeta ya existe: ${dir}`, { field: 'dir' });
+      await fs.mkdir(dir);
+      const notesDir = normalizeDir(this.cfg, 'dir', dir, true);
+      await this.ensureResources(notesDir, this.cfg.resourcesSubdir);
+      await this.persist({ ...this.stored, notesDir });
+      return this.apply();
+    });
+  }
+
+  /** Crea una memoria solo en una carpeta vacía y la selecciona. */
   initMemoria(body: unknown): Promise<SettingsView & { warning?: string }> {
     return this.serial(async () => {
       const { dir: raw, perfil: rawPerfil } = (body as { dir?: unknown; perfil?: unknown } | null) ?? {};

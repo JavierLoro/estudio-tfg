@@ -11,6 +11,9 @@
     "worker": "docker compose up -d --build worker",
     "test": "node --test scripts/*.test.mjs && npm test --prefix server",
     "test:e2e": "npm test --prefix test/e2e --",
-    "template:manifest": "node scripts/template-manifest.mjs"
+    "template:manifest": "node scripts/template-manifest.mjs",
+    "desktop:tex": "node scripts/desktop-tex.mjs",
+    "desktop:build": "node scripts/desktop-build.mjs",
+    "desktop:verify": "node scripts/desktop-verify.mjs"
   }
 }
