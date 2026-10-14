@@ -9,6 +9,7 @@ import { pipeline } from 'node:stream/promises';
 import { Readable, Writable } from 'node:stream';
 import { createGunzip, createGzip } from 'node:zlib';
 import { pathToFileURL } from 'node:url';
+import { assetUrl, distributionTag } from '../desktop/distribution.mjs';
 
 const require = createRequire(new URL('../server/package.json', import.meta.url));
 const tar = require('tar');
@@ -198,7 +199,7 @@ export async function buildTex(output, releaseTag) {
     await packTex(tree, archive);
     let unpackedBytes = 0;
     await pipeline(createReadStream(archive), createGunzip(), new Writable({ write(chunk, _encoding, callback) { unpackedBytes += chunk.length; callback(); } }));
-    const manifest = { schema: 1, id: lock.id, platform, url: `https://github.com/JavierLoro/estudio-tfg/releases/download/${releaseTag}/${name}`,
+    const manifest = { schema: 1, id: lock.id, platform, url: assetUrl(distributionTag(releaseTag), name),
       sha256: await digest(archive), bytes: (await fs.stat(archive)).size, unpackedBytes, binDir, perlDir,
       versions: { texlive: 2026, latexmk: '4.88', biber: '2.22', pdftex: '1.40.29', perl: process.platform === 'win32' ? '5.42.0' : lock.perl.version },
       snapshot: lock.repository, packages: inventory };

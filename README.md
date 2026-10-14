@@ -21,6 +21,10 @@ de la plantilla y no se lee `.env`. Los logs de CI se conservan durante 7 días.
 Los builds se preparan en [GitHub Releases](https://github.com/JavierLoro/estudio-tfg/releases)
 como **borradores de prueba sin firma**; el mantenedor decide cuándo publicarlos.
 No necesitas Node, Git, Docker, TeX ni Perl para utilizar la app instalada.
+La release principal contiene los 10 instaladores/portables y `manifest.json`.
+Los motores y auxiliares se alojan en publicaciones técnicas del mismo repositorio;
+la app obtiene automáticamente los que necesita. El código fuente ZIP/TAR que
+GitHub añade por su cuenta sirve para desarrollo.
 
 | Variante | Primer arranque | Después |
 |---|---|---|

@@ -1,0 +1,31 @@
+name: Habilitar distribución publicada
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publicar-distribucion
+  cancel-in-progress: false
+
+jobs:
+  distribution:
+    if: startsWith(github.event.release.tag_name, 'v') && contains(github.event.release.body, '<!-- distribucion:')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+      - run: npm ci --prefix server
+      - name: Habilitar auxiliares y, para la última estable, sus canales
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: node scripts/desktop-publish.mjs "$RELEASE_TAG"

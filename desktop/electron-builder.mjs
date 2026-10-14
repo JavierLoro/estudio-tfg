@@ -1,3 +1,5 @@
+import { RELEASES_URL, UPDATE_TAG } from './distribution.mjs';
+
 export function buildConfig(runtime, output, variant, version) {
   return {
     appId: 'io.github.javierloro.estudio-tfg', productName: 'Estudio TFG',
@@ -7,7 +9,7 @@ export function buildConfig(runtime, output, variant, version) {
     electronVersion: '44.7.0',
     extraMetadata: { version },
     artifactName: `estudio-tfg-\${version}-\${os}-\${arch}-${variant}.\${ext}`,
-    publish: [{ provider: 'generic', url: 'https://github.com/JavierLoro/estudio-tfg/releases/latest/download/', channel: variant }],
+    publish: [{ provider: 'generic', url: `${RELEASES_URL}/download/${UPDATE_TAG}/`, channel: variant }],
     mac: { target: ['dmg', 'zip'], category: 'public.app-category.productivity', identity: null,
       minimumSystemVersion: process.arch === 'arm64' ? '26.0' : '13.0' },
     win: { target: ['nsis', 'portable'], verifyUpdateCodeSignature: false },

@@ -1,6 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { checkUpdates } from './updater.mjs';
+import { buildConfig } from './electron-builder.mjs';
+import { assetUrl, distributionTag } from './distribution.mjs';
+
+test('los nuevos builds separan el canal y fijan los motores a su distribución técnica', () => {
+  assert.equal(buildConfig('/runtime', '/output', 'online', '0.2.0').publish[0].url,
+    'https://github.com/JavierLoro/estudio-tfg/releases/download/actualizaciones/');
+  assert.equal(assetUrl(distributionTag('v0.2.0'), 'engine.tar.gz'),
+    'https://github.com/JavierLoro/estudio-tfg/releases/download/distribucion-v0.2.0/engine.tar.gz');
+  assert.throws(() => distributionTag('v0.2.0/../otro'), /no válido/);
+});
 
 test('desarrollo no busca actualizaciones y permite reintentar después del aviso', async () => {
   const messages = [];

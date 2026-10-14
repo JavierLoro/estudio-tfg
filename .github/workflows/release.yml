@@ -46,7 +46,7 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then
             echo "RELEASE_TAG=${GITHUB_REF#refs/tags/}" >> "$GITHUB_ENV"
           else
-            echo "RELEASE_TAG=v0.2.0-rc.3" >> "$GITHUB_ENV"
+            echo "RELEASE_TAG=v0.2.0-rc.4" >> "$GITHUB_ENV"
           fi
       - name: Instalar dependencias fijadas
         run: |
@@ -133,9 +133,14 @@ jobs:
           path: artifacts
       - name: Reunir manifiestos, tamaños y evidencias
         run: node scripts/desktop-release.mjs artifacts release "$GITHUB_REF_NAME"
-      - name: Publicar únicamente una release borrador
+      - name: Crear borradores separados para instaladores y auxiliares
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          gh release create "distribucion-$GITHUB_REF_NAME" --draft --prerelease --latest=false --target "$GITHUB_SHA" --title "Distribución técnica $GITHUB_REF_NAME" --notes "Motores y archivos de actualización. Se habilitan al publicar Estudio TFG $GITHUB_REF_NAME."
+          gh release upload "distribucion-$GITHUB_REF_NAME" release/auxiliares/*
           gh release create "$GITHUB_REF_NAME" --draft --title "Estudio TFG $GITHUB_REF_NAME (prueba sin firma)" --notes-file release/NOTAS.md --verify-tag
-          gh release upload "$GITHUB_REF_NAME" release/*
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            gh release edit "$GITHUB_REF_NAME" --prerelease
+          fi
+          gh release upload "$GITHUB_REF_NAME" release/app/*
