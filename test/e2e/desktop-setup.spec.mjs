@@ -31,6 +31,11 @@ test('asistente: crea carpetas, reintenta la preparación y vuelve desde Ajustes
   await wizard.getByRole('button', { name: 'Crear memoria', exact: true }).click();
   const memory = page.getByRole('dialog', { name: 'Carpeta de la memoria', exact: true });
   await memory.getByLabel('Nueva carpeta', { exact: true }).fill('Memoria nueva');
+  // Otra actualización de ajustes conserva el borrador del selector abierto.
+  const originalNotes = path.join(studio.root, 'notes');
+  await studio.json('/api/settings', { method: 'PUT', data: { notesDir: originalNotes } });
+  await expect(wizard.getByText(originalNotes, { exact: true })).toBeVisible();
+  await expect(memory.getByLabel('Nueva carpeta', { exact: true })).toHaveValue('Memoria nueva');
   await memory.getByRole('button', { name: /Crear/ }).click();
   await expect(memory).not.toBeVisible();
   expect(await fs.readFile(path.join(studio.root, 'Memoria nueva/tfg.tex'), 'utf8')).toContain('documentclass');

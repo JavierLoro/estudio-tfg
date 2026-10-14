@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowUp, BookMarked, ChevronRight, FileCode2, Folder, GitBranch, HardDrive } from 'lucide-react';
 import { absCrumbs, isAbsPath, joinAbs, relUnder, type PathSep } from '../lib/abspath';
 import { api, errorMessage, type FsDirsResponse } from '../api';
@@ -53,6 +53,7 @@ export function DirPicker({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState(defaultName);
+  const initialConfig = useRef<string | null>(null);
 
   const go = useCallback(async (path: string | null, fallback = false) => {
     setLoading(true);
@@ -81,7 +82,11 @@ export function DirPicker({
   }, []);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) { initialConfig.current = null; return; }
+    const config = JSON.stringify([initialPath, defaultName, allowedRoots]);
+    // Recargar ajustes con las mismas raíces no debe borrar el formulario.
+    if (initialConfig.current === config) return;
+    initialConfig.current = config;
     setName(defaultName);
     setError(null);
     setListing(null);

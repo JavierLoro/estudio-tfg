@@ -17,6 +17,23 @@ async function memoria(page) {
   await expect(page.getByRole('heading', { name: 'Ajustes', exact: true })).not.toBeVisible();
 }
 
+test('Ajustes espera al espacio de trabajo durante el arranque @smoke', async ({ studio, page }) => {
+  let release;
+  const statusReady = new Promise(resolve => { release = resolve; });
+  await page.route('**/api/status', async route => {
+    await statusReady;
+    await route.continue();
+  });
+  try {
+    await page.goto(studio.server.url);
+    const settings = page.getByRole('navigation', { name: 'Secciones' }).getByRole('button', { name: 'Ajustes', exact: true });
+    await expect(settings).toBeDisabled();
+    release();
+    await settings.click();
+    await expect(page.getByRole('heading', { name: 'Ajustes', exact: true })).toBeVisible();
+  } finally { release(); }
+});
+
 test('seleccionar motor, detectar herramientas y conservar ajustes al recargar @smoke', async ({ studio, page }) => {
   const detection = await studio.json('/api/engines');
   await ajustes(page, studio.server.url);
