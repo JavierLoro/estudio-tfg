@@ -48,7 +48,7 @@ function fakeEngine(t, mode = 'ok') {
     child.stdout = new PassThrough();
     child.stderr = new PassThrough();
     setImmediate(() => {
-      if (mode === 'timeout' || mode === 'wait') return;
+      if (mode === 'timeout') return;
       if (mode === 'error') { child.emit('error', new Error('Motor ficticio no disponible')); return; }
       fs.writeFileSync(path.join(options.cwd, 'main.pdf'), '%PDF-1.7\nFicticio');
       fs.writeFileSync(path.join(options.cwd, 'main.log'), 'This is pdfTeX\n');
@@ -137,15 +137,37 @@ test('un fallo al arrancar el motor libera el trabajo y conserva el diagnóstico
   assert.equal(fs.existsSync(path.dirname(calls[0].options.cwd)), false);
 });
 
-test('la cola admite como máximo cuatro trabajos y vuelve a aceptar tras terminarlos', async (t) => {
-  fakeEngine(t, 'wait');
-  const requests = Array.from({ length: 4 }, () => compile());
-  // Los cuatro POST entran antes del quinto: esperar a que se extraigan sus fuentes.
-  await new Promise((resolve) => setTimeout(resolve, 40));
+test('la cola admite cuatro trabajos incluyendo subidas y vuelve a aceptar tras terminarlos', { timeout: 10_000 }, async (t) => {
+  const { calls } = fakeEngine(t);
+  const uploads = Array.from({ length: 4 }, () => new PassThrough());
+  const controller = new AbortController();
+  let received = 0, admit;
+  const admitted = new Promise((resolve) => { admit = resolve; });
+  // Este listener se ejecuta después del handler, cuando ya ha reservado la plaza.
+  const countRequest = () => { if (++received === 4) admit(); };
+  server.on('request', countRequest);
+  const requests = uploads.map((body) => fetch(url, {
+    method: 'POST', headers: { 'content-type': 'application/x-tar' }, body, duplex: 'half', signal: controller.signal,
+  }));
+  t.after(async () => {
+    server.off('request', countRequest);
+    controller.abort();
+    for (const upload of uploads) upload.destroy();
+    await Promise.allSettled(requests);
+  });
+  for (const upload of uploads) upload.write(tarFiles({ 'main.tex': 'Documento ficticio' }));
+  await admitted;
   const extra = await compile();
   assert.equal(extra.status, 503);
   assert.match((await extra.json()).error, /ocupado/);
-  await Promise.all(requests.map(async (request) => assert.equal((await request).status, 200)));
+  assert.equal(calls.length, 0);
+  for (const upload of uploads) upload.end();
+  await Promise.all(requests.map(async (request) => {
+    const response = await request;
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).ok, true);
+  }));
+  assert.equal(calls.length, 4);
   const next = await compile({ '../fuera.tex': 'No escribir' });
   assert.equal(next.status, 400);
 });
