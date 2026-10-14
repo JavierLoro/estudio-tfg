@@ -65,6 +65,8 @@ test('separa instaladores y auxiliares, fija enlaces y rechaza una distribución
     assert.equal(manifest, await fs.readFile(path.join(root, 'release/auxiliares/manifest.json'), 'utf8'));
     assert.equal(JSON.parse(manifest).checks.length, 8);
     const notes = await fs.readFile(path.join(root, 'release/NOTAS.md'), 'utf8');
+    assert.ok(notes.includes('sin firma digital ni notarización'));
+    assert.ok(!notes.includes('No se publica automáticamente'));
     assert.ok(notes.includes(`<!-- distribucion:distribucion-${tag} -->`));
     for (const file of mainFiles.filter(name => name !== 'manifest.json')) assert.ok(notes.includes(assetUrl(tag, file)));
     const feed = path.join(root, 'input/darwin-arm64/offline/offline-mac.yml');

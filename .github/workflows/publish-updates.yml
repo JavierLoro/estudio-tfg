@@ -10,6 +10,7 @@ permissions:
 concurrency:
   group: publicar-distribucion
   cancel-in-progress: false
+  queue: max
 
 jobs:
   distribution:

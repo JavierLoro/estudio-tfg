@@ -6,7 +6,7 @@
 >
 > Fuentes: [PLATAFORMAS.md](PLATAFORMAS.md) (50 hallazgos de portabilidad; los IDs como `S1`, `P2`, `F4` se refieren a él), [CONTRACT.md](CONTRACT.md) y la auditoría del 09-10-2026, cuyas evidencias y acciones se describen en R1–R8 y L1–L5.
 >
-> **Estado actualizado:** A–D, R, L1–L9, E1–E4, F1 y G1–G3 completadas y fusionadas. **Bloque actual: `g-entrega` (G4, G5, G7)**, sujeto a comprobar reservas y PR abiertos. Orden de continuación: **R → L → E → F → G**. R y L se insertan aquí sin renumerar las tareas anteriores; sus letras no determinan la prioridad.
+> **Estado actualizado:** A–D, R, L1–L9, E1–E4, F1 y G1–G5/G7 completadas y fusionadas; `v0.2.0` publicada como estable sin firma. **G6 (firma/notarización) está aplazada** por decisión del usuario. Las ideas finales siguen pendientes de evaluación y planificación.
 
 ## Índice
 
@@ -37,11 +37,19 @@ Las issues siguen siendo la unidad de seguimiento; la unidad de trabajo y revisi
 
 ## Cómo seguir la hoja de ruta
 
+**Organización acordada tras v0.2.0:** las nuevas ramas de trabajo parten de
+`develop` actualizado y sus PR se dirigen a `develop`. El mantenedor agrupa una
+entrega en un PR `develop` → `main`; cada integración en `main` publica el siguiente
+parche únicamente tras CI y las pruebas nativas. Esta decisión sustituye la base
+`main` de las instrucciones anteriores de trabajo; `main` se reserva para entregas.
+Antes de iniciar un bloque, sincronizar `develop` con `main` mediante una fusión
+normal si hace falta, sin resetear ni reescribir la rama.
+
 Un agente puede recibir una tarea concreta («haz la issue #4»), un bloque («haz el bloque de configuración») o simplemente **«sigue la hoja de ruta»**. Una tarea concreta mantiene ese alcance; el encargo general autoriza a completar **un bloque**, siguiendo estos pasos:
 
 1. **Elige el siguiente bloque disponible** de la tabla de abajo: el primero **en el orden explícito de filas de «Bloques de entrega»**, no por letra de fase ni por número de issue, que cumpla estas condiciones:
    - sus tareas pendientes tienen la issue abierta, **sin** `en-curso` y sin un PR abierto que ya las cubra;
-   - todas las dependencias **externas al bloque** («Depende de») tienen la issue **cerrada** por un PR fusionado en `main`;
+   - todas las dependencias **externas al bloque** («Depende de») tienen la issue **cerrada** con su PR fusionado en `develop` o `main`;
    - la unión de los archivos de sus tareas pendientes («Archivos») no se solapa con los de tareas abiertas `en-curso` ajenas al bloque.
 
    Las tareas ya cerradas se omiten. Si una tarea pendiente del bloque tiene reserva o PR abierto, ese bloque aún no está disponible. Las dependencias **internas** se implementan y verifican en orden dentro de la misma rama; sus issues se cierran juntas al fusionar el PR. No hace falta un PR intermedio para cada dependencia interna.
@@ -54,9 +62,9 @@ Un agente puede recibir una tarea concreta («haz la issue #4»), un bloque («h
    ```
 
 2. **Reserva todas las issues pendientes del bloque**: comprueba de nuevo que siguen libres, añade `en-curso` a cada una (`gh issue edit <n> --add-label en-curso`) y comenta «Empiezo con esta tarea dentro del bloque <id>; se entregará en un PR conjunto». Si aparece una reserva o un PR antes de completar la reserva, libera solo las reservas que acabas de hacer, explica el motivo y elige otro bloque.
-3. **Implementa el bloque** en `hoja/<id-del-bloque>` (p. ej. `hoja/a-configuracion`), creada desde `main` actualizado. Haz **un commit por tarea**, en orden de dependencias, con un mensaje español que incluya su ID (p. ej. «A4: Rutas de Windows en Ajustes»). Verifica cada tarea con sus pruebas específicas y ejecuta las comprobaciones comunes sobre el conjunto antes de entregarlo.
-4. **Abre un único PR** con el resultado del bloque, las tareas incluidas y un `Closes #<n>` por cada issue completada. Una tarea incompleta no lleva `Closes`. El informe final va como comentario del PR: criterios de aceptación y pendientes separados por tarea, archivos tocados y resultados de las pruebas del conjunto.
-5. **Al terminar, para**: un bloque por encargo; no encadenes otro sin que te lo pidan. Conserva `en-curso` mientras el PR esté abierto. Si abandonas tareas sin PR, libera esas issues y explica por qué. Tras la fusión, las issues completadas se cierran por `Closes` y se les quita `en-curso`; fusionar sigue siendo decisión del usuario. Para conservar la separación por tarea, la fusión debe mantener los commits del bloque (merge o rebase).
+3. **Implementa el bloque** en `hoja/<id-del-bloque>` (p. ej. `hoja/a-configuracion`), creada desde `develop` actualizado. Haz **un commit por tarea**, en orden de dependencias, con un mensaje español que incluya su ID (p. ej. «A4: Rutas de Windows en Ajustes»). Verifica cada tarea con sus pruebas específicas y ejecuta las comprobaciones comunes sobre el conjunto antes de entregarlo.
+4. **Abre un único PR hacia `develop`** con el resultado del bloque, las tareas incluidas y un `Closes #<n>` por cada issue completada. Una tarea incompleta no lleva `Closes`. El informe final va como comentario del PR: criterios de aceptación y pendientes separados por tarea, archivos tocados y resultados de las pruebas del conjunto.
+5. **Al terminar, para**: un bloque por encargo; no encadenes otro sin que te lo pidan. Conserva `en-curso` mientras el PR esté abierto. Si abandonas tareas sin PR, libera esas issues y explica por qué. Tras confirmar la fusión en `develop`, cierra las issues completadas enlazando el PR y quita `en-curso`: GitHub solo aplica `Closes` automáticamente hacia la rama predeterminada. El cierre indica integración, no publicación; esta llega con el PR de entrega a `main`. Fusionar sigue siendo decisión del usuario. Para conservar la separación por tarea, la fusión debe mantener los commits del bloque (merge o rebase).
 
 Si ningún bloque está disponible porque sus dependencias, reservas o PR siguen pendientes, dilo y para.
 

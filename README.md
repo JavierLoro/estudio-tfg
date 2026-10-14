@@ -18,8 +18,10 @@ de la plantilla y no se lee `.env`. Los logs de CI se conservan durante 7 días.
 
 ## Instalar la app de escritorio
 
-Los builds se preparan en [GitHub Releases](https://github.com/JavierLoro/estudio-tfg/releases)
-como **borradores de prueba sin firma**; el mantenedor decide cuándo publicarlos.
+Las versiones estables se publican en [GitHub Releases](https://github.com/JavierLoro/estudio-tfg/releases)
+automáticamente al integrar una entrega en `main`, después de superar CI y las
+pruebas de los paquetes en las cuatro plataformas. Continúan **sin firma ni
+notarización** mientras G6 esté aplazado. Los tags manuales preparan borradores.
 No necesitas Node, Git, Docker, TeX ni Perl para utilizar la app instalada.
 La release principal contiene los 10 instaladores/portables y `manifest.json`.
 Los motores y auxiliares se alojan en publicaciones técnicas del mismo repositorio;
@@ -34,7 +36,7 @@ GitHub añade por su cuenta sirve para desarrollo.
 1. Elige el archivo de tu plataforma y variante. macOS: `mac-arm64` para Apple
    Silicon (macOS 26 o posterior, por biber) o `mac-x64` para Intel (macOS 13 o
    posterior). Windows: `win-x64`; Linux: `linux-x64`.
-2. **Mac:** abre el `.dmg` y arrastra Estudio TFG a Aplicaciones. Al ser una prueba
+2. **Mac:** abre el `.dmg` y arrastra Estudio TFG a Aplicaciones. Al estar
    sin firma, puede ser necesario autorizarla desde Privacidad y seguridad →
    Abrir igualmente. No desactives la protección global del sistema.
    **Windows:** ejecuta el instalador `.exe`, o la variante `-portable.exe` si no
@@ -61,6 +63,20 @@ cada release. Los **+170 MB de E3 eran una referencia del motor**, no el tamaño
 total de Electron ni un límite de los instaladores; el paquete privado con todos
 sus auxiliares se mide durante los builds. Receta y verificación:
 [docs/DISTRIBUCION.md](docs/DISTRIBUCION.md).
+
+## Desarrollo y entregas
+
+`develop` reúne las nuevas funcionalidades y correcciones. Las ramas de trabajo
+parten de `develop` y sus PR se dirigen a ella; CI las verifica sin publicar una
+release. Cuando el conjunto esté listo, el mantenedor fusiona un PR de `develop`
+a `main`: CI y las pruebas nativas generan y publican el siguiente parche
+(`v0.2.1`, `v0.2.2`…), con sus auxiliares y canales de actualización.
+
+Para un salto de versión, cambia `version` en `desktop/package.json` y su lockfile
+antes de la entrega, por ejemplo con `npm version 0.3.0 --prefix desktop --no-git-tag-version`.
+El empaquetado aplica esa versión a la app. No se hacen commits de versión
+automáticos en `main`. La [guía de distribución](docs/DISTRIBUCION.md#ramas-y-entregas-automáticas)
+detalla las reservas de tags y cómo reintentar una entrega fallida.
 
 ## Usarlo con Docker (Windows, Mac, Linux)
 

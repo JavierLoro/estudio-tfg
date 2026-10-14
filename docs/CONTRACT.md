@@ -697,3 +697,10 @@ Los diagramas viven en la memoria: fuente en `diagramas/<nombre>.mmd` (Mermaid) 
 
 - El botón «Ajustes» del panel de secciones se habilita cuando el área de trabajo puede abrir pestañas. Durante el arranque permanece deshabilitado, evitando perder una pulsación anterior a la inicialización de Dockview.
 - El selector de carpetas conserva el nombre escrito y la navegación cuando se recargan ajustes con la misma carpeta inicial, nombre predeterminado y raíces permitidas. Cerrar y volver a abrir, o cambiar esos valores, reinicia el selector. La selección y las escrituras mantienen la validación de rutas del servidor.
+
+## Entregas estables desde main (v0.37)
+
+- `develop` integra funcionalidades y correcciones; sus ramas y PR ejecutan CI sin publicar. Las integraciones en `main` se ponen en cola, pasan CI y reutilizan las cuatro construcciones nativas de G5. Solo después de verificar ambas variantes, perfiles y manifiestos se publica la app estable y se habilitan sus auxiliares y seis feeds mediante el proceso de v0.35. Un fallo previo no publica la app ni cambia el canal estable.
+- La versión base de `desktop/package.json` y los tags estables reservados determinan el siguiente parche. Elevar manualmente la base permite un salto minor/major. Cada tag queda fijado al SHA comprobado; reintentar ese commit reutiliza su reserva. No hay commits de incremento automático en `main`, ni se mueven tags fallidos para otra entrega.
+- Las subidas parciales se reintentan sobre borradores, conservando los archivos ya publicados. Una entrega antigua no desplaza Latest ni los canales de una posterior. Los tags manuales mantienen los borradores y su publicación manual; las candidatas no alteran el canal estable. La publicación automática activa directamente los auxiliares porque los eventos creados con `GITHUB_TOKEN` no encadenan el workflow `release`.
+- Se conserva la ausencia de firma/notarización mientras G6 esté aplazada, la separación app/auxiliares y las confirmaciones de actualización de v0.33. Los builds locales y manuales de prueba no publican estables por sí solos.
