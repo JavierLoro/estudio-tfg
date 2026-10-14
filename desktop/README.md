@@ -19,6 +19,11 @@ usa su subcarpeta `browser/`. Las carpetas se eligen desde Ajustes. Desarrollo
 puede usar `DATA_DIR` temporal y rutas `NOTES_DIR`, `MEMORIA_DIR`, `ALLOWED_ROOTS`.
 La app ignora `.env`; no abre automáticamente la memoria del checkout.
 
+Las ramas de trabajo parten de `develop` y sus PR se integran allí. El PR de
+entrega `develop` → `main` publica el siguiente parche solo tras CI y las pruebas
+nativas de distribución; las demás ramas no publican releases. Versión base,
+saltos manuales y reintentos: [DISTRIBUCION.md](../docs/DISTRIBUCION.md#ramas-y-entregas-automáticas).
+
 El motor inicial es local. Para probar un TeX privado ya preparado, proporciona
 `TEX_BIN_DIR` absoluto, fuera de notas/memoria; no se cambia el PATH global ni se
 mezclan herramientas TeX de otra instalación. Sin esa variable se conserva la

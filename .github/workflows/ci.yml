@@ -9,9 +9,20 @@ permissions:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  queue: ${{ github.ref == 'refs/heads/main' && 'max' || 'single' }}
 
 jobs:
+  release:
+    name: Entrega estable de main
+    needs: [checks, template]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'JavierLoro/estudio-tfg'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release.yml
+    with:
+      automatic: true
+
   checks:
     name: Comprobaciones (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

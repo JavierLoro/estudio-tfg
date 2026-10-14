@@ -59,7 +59,8 @@ release borrador no permite descargas públicas anónimas. La URL de producción
 sigue fijada al asset de su distribución técnica; los reinicios/recompilaciones bloquean la
 red externa. Las evidencias indican el artefacto ejecutado y las descargas.
 
-Un tag `v*` crea **dos borradores** después de pasar los cuatro runners:
+Una entrega de `main` o un tag manual `v*` crea **dos borradores** después de pasar
+los cuatro runners:
 
 - `vX.Y.Z`: 10 instaladores/portables (4 DMG, 4 EXE y 2 AppImage) y `manifest.json`.
   La descripción ofrece enlaces de descarga y tamaños; `NOTAS.md` no se adjunta.
@@ -72,7 +73,13 @@ Todo permanece en GitHub Releases, sin otro repositorio ni secretos adicionales.
 Conservar ambos tags y sus archivos: las apps fijan esas URLs y hashes. GitHub
 añade además sus dos enlaces automáticos al código fuente; no son instaladores.
 
-El mantenedor fusiona el workflow antes de publicar **solo el borrador principal**.
+En una entrega de `main`, el mismo workflow publica la app estable y ejecuta la
+habilitación de auxiliares y canales. Usa directamente `desktop-publish.mjs`:
+las publicaciones hechas con `GITHUB_TOKEN` no disparan otro workflow `release`.
+No necesita tokens personales ni secretos nuevos.
+
+Los tags manuales mantienen la revisión previa: el mantenedor publica **solo el
+borrador principal**.
 [`publish-updates.yml`](../.github/workflows/publish-updates.yml), presente en la rama
 por defecto, comprueba los feeds y habilita automáticamente su distribución técnica,
 siempre como prerelease y sin marcarla como última estable. Hasta que termina ese
@@ -83,6 +90,40 @@ Las publicaciones se serializan y una estable antigua no desplaza a la última.
 Las releases anteriores, incluida `v0.2.0-rc.3`, conservan sus archivos y URLs.
 Los builds nuevos cambian el destino del actualizador; los antiguos borradores
 de prueba deben reemplazarse manualmente para utilizar el nuevo canal.
+
+## Ramas y entregas automáticas
+
+- Las nuevas features/correcciones parten de `develop`, con PR hacia `develop`.
+  Un PR de `develop` a `main` agrupa la entrega. No se desarrolla directamente en
+  `main`; el mantenedor decide cuándo fusionar. Tras una entrega, sincronizar
+  `develop` con `main` antes del siguiente bloque.
+- Cada push de integración a `main` ejecuta CI; solo si sus cuatro jobs pasan
+  llama al workflow reutilizable de distribución. El checkout y los manifiestos
+  conservan el SHA de esa integración, aunque `main` avance mientras se construye.
+  PR y pushes de otras ramas solo ejecutan CI, sin reservar tags ni publicar.
+- `desktop/package.json` fija la versión base. Se reserva el siguiente parche
+  sobre los tags estables existentes; una base superior permite saltar a otra
+  minor/major. `0.2.0` con `v0.2.0` existente produce `v0.2.1`; una base `0.3.0`
+  produce `v0.3.0`. Candidatas y tags técnicos no cuentan. No se modifica el
+  código de `main` para incrementar versiones.
+- El tag se reserva en el SHA comprobado antes de construir. CI de `main` y las
+  entregas se ponen en cola (`queue: max`), sin cancelar integraciones anteriores.
+  El `GITHUB_TOKEN` crea el tag sin iniciar una segunda construcción por ese tag.
+- Si falla una plataforma, no se publica la estable ni se cambian sus feeds.
+  Reejecutar los jobs fallidos desde Actions conserva el tag. Una reserva fallida
+  puede dejar un salto entre versiones; nunca se mueve ni reutiliza para otro
+  commit. Reejecutar todos los jobs del mismo commit también conserva la reserva.
+- Las subidas incompletas pueden reintentarse sobre los borradores. Los archivos
+  de una app ya publicada no se reemplazan. Una entrega antigua reintentada no
+  desplaza Latest ni los canales de una versión posterior.
+- Para un build puntual sin publicación, ejecutar manualmente «App instalable
+  offline y online», indicando un tag de versión como `v0.3.0-rc.1`. Los tags
+  manuales conservan el flujo de borradores; las candidatas nunca activan el canal
+  estable.
+
+La versión de `desktop/package.json` es una base para las entregas, no un contador
+que el bot escriba tras cada parche. Para elevarla, usar
+`npm version 0.3.0 --prefix desktop --no-git-tag-version` y revisar ambos archivos.
 
 ## Actualizaciones
 

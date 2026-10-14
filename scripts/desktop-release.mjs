@@ -88,7 +88,7 @@ for (const variant of ['offline', 'online']) {
 }
 const manifest = JSON.stringify({ schema: 1, tag, auxiliaryTag, commit: process.env.GITHUB_SHA, assets, checks }, null, 2);
 for (const folder of ['app', 'auxiliares']) await fs.writeFile(path.join(output, folder, 'manifest.json'), manifest);
-await fs.writeFile(path.join(output, 'NOTAS.md'), `# Estudio TFG ${tag}\n\nRelease borrador de prueba sin firma. No se publica automáticamente.\n\n` +
+await fs.writeFile(path.join(output, 'NOTAS.md'), `# Estudio TFG ${tag}\n\nPaquetes sin firma digital ni notarización. macOS y Windows pueden mostrar avisos de seguridad. Consulta las [instrucciones de instalación](https://github.com/JavierLoro/estudio-tfg/blob/${tag}/README.md#instalar-la-app-de-escritorio).\n\n` +
   `<!-- distribucion:${auxiliaryTag} -->\n\n` +
   `Completa/offline incluye TeX; ligera/online descarga el paquete verificado una vez. Ambas compilan localmente y luego funcionan sin red, sin TeX/Docker/Perl externos.\n\n` +
   `## Descargas\n\n| Archivo | Tamaño (MB) |\n|---|---:|\n` +
