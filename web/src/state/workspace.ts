@@ -38,6 +38,7 @@ export const getDock = () => dock;
 
 export function setDock(api: DockviewApi | null) {
   dock = api;
+  useActivePanel.setState({ ready: api !== null });
 }
 
 export function panelIdFor(component: PanelComponent, path?: string) {
@@ -261,4 +262,4 @@ export function onPanelRemoved(panel: IDockviewPanel) {
 }
 
 // ---- Panel activo (para resaltar en el árbol) ----
-export const useActivePanel = create<{ id: string | null }>(() => ({ id: null }));
+export const useActivePanel = create<{ id: string | null; ready: boolean }>(() => ({ id: null, ready: false }));

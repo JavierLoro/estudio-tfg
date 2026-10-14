@@ -13,15 +13,16 @@ const ITEMS: { id: Section; label: string; icon: React.ReactNode }[] = [
   { id: 'search', label: 'Buscar', icon: <Search size={19} /> },
 ];
 
-function RailButton({ label, active, onClick, children }: { label: string; active?: boolean; onClick: () => void; children: React.ReactNode }) {
+function RailButton({ label, active, disabled, onClick, children }: { label: string; active?: boolean; disabled?: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
       type="button"
       aria-label={label}
       aria-pressed={active}
+      disabled={disabled}
       onClick={onClick}
       className={cx(
-        'group relative flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
+        'group relative flex h-10 w-10 items-center justify-center rounded-lg transition-colors disabled:opacity-40',
         active ? 'bg-active text-accent' : 'text-muted hover:bg-hover hover:text-fg',
       )}
     >
@@ -45,6 +46,7 @@ export function Rail() {
   const libraryView = useUI((s) => s.libraryView);
   const inbox = useUI((s) => s.resources?.filter((r) => r.status === 'inbox').length ?? 0);
   const settingsActive = useActivePanel((s) => s.id === 'settings');
+  const workspaceReady = useActivePanel((s) => s.ready);
   const unconfigured = useUI((s) => s.status?.configured === false);
   return (
     <nav className="flex w-[52px] shrink-0 flex-col items-center gap-1 border-r border-line bg-rail py-2" aria-label="Secciones">
@@ -74,7 +76,7 @@ export function Rail() {
       <RailButton label={`Añadir (${kbd(shortcutFor('capture'))})`} onClick={() => useUI.getState().setCaptureOpen(true)}>
         <Plus size={19} />
       </RailButton>
-      <RailButton label="Ajustes" active={settingsActive} onClick={() => openSettings()}>
+      <RailButton label="Ajustes" active={settingsActive} disabled={!workspaceReady} onClick={() => openSettings()}>
         <Settings size={19} />
         {unconfigured && <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-danger" aria-label="Falta configurar" />}
       </RailButton>
