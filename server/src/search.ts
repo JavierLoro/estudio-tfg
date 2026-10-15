@@ -44,7 +44,7 @@ function snippetAround(line: string, origIdx: number, max = 200): string {
   return (start > 0 ? '…' : '') + s + (start + max < trimmed.length ? '…' : '');
 }
 
-export async function search(cfg: Config, q: string, roots: RootName[], lookup?: OutlineLookup): Promise<SearchItem[]> {
+export async function search(cfg: Config, q: string, roots: RootName[], lookup?: OutlineLookup, allowed?: (root: RootName, rel: string) => boolean | Promise<boolean>): Promise<SearchItem[]> {
   const needle = foldSimple(q.trim());
   if (!needle) return [];
   const items: SearchItem[] = [];
@@ -53,7 +53,8 @@ export async function search(cfg: Config, q: string, roots: RootName[], lookup?:
     items.push(it);
   };
   for (const root of roots) {
-    const files = await walkFiles(cfg, root);
+    const files = [];
+    for (const f of await walkFiles(cfg, root)) if (!allowed || await allowed(root, f.rel)) files.push(f);
     files.sort((a, b) => a.rel.localeCompare(b.rel, 'es'));
     // Filename matches first.
     for (const f of files) {

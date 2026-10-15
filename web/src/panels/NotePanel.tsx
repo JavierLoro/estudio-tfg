@@ -14,6 +14,7 @@ import { docKey, ext, stripExt, basename } from '../lib/paths';
 import { ensureDoc, saveDoc, useDocs } from '../state/docs';
 import { onFileChange } from '../state/events';
 import { openFile, type FileParams } from '../state/workspace';
+import { AskAssistant } from '../components/AskAssistant';
 
 type Mode = 'read' | 'edit';
 
@@ -56,6 +57,7 @@ export function NotePanel({ params, api: panelApi }: IDockviewPanelProps<FilePar
           {path}
         </span>
         <SaveIndicator docKey={key} />
+        <AskAssistant root={root} path={path} />
         <IconButton label={`Guardar (${kbd('Mod-S')})`} onClick={() => saveDoc(key)} disabled={status !== 'ready'}>
           <Save size={14} />
         </IconButton>

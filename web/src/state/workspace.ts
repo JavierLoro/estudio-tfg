@@ -7,9 +7,10 @@ import { load, remove, save } from '../lib/storage';
 import { releaseDoc, requestReveal } from './docs';
 import { useUI } from './ui';
 import { api as http } from '../api';
+import { addAssistantContext, useAssistant, type AssistantContext } from './assistant';
 
 // Tipos de panel y sus parámetros.
-export type PanelComponent = 'latex' | 'note' | 'diagram' | 'pdf' | 'resource' | 'search' | 'home' | 'settings' | 'datos';
+export type PanelComponent = 'latex' | 'note' | 'diagram' | 'pdf' | 'resource' | 'search' | 'home' | 'settings' | 'datos' | 'assistant';
 
 export interface FileParams {
   root: Root;
@@ -112,6 +113,11 @@ export function openHome() {
 
 export function openSettings(opts: OpenOptions = {}) {
   addOrFocus('settings', 'settings', 'Ajustes', {}, opts);
+}
+
+export function openAssistant(context?: AssistantContext) {
+  if (context) addAssistantContext(context);
+  useAssistant.setState({ opened: true, visible: true, minimized: false });
 }
 
 export function openDatos(opts: OpenOptions = {}) {
@@ -217,6 +223,8 @@ export function restoreLayout(api: DockviewApi): boolean {
     api.fromJSON(data as Parameters<DockviewApi['fromJSON']>[0]);
     // Inicio ya no es una pestaña: se descarta si venía de un layout antiguo.
     api.getPanel('home')?.api.close();
+    const assistant = api.getPanel('assistant');
+    if (assistant) { assistant.api.close(); openAssistant(); save(layoutKey(), api.toJSON()); }
     return api.panels.length > 0;
   } catch (e) {
     console.warn('Layout guardado no válido, se descarta', e);

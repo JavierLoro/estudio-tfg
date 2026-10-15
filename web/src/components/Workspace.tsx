@@ -45,6 +45,7 @@ const components = {
   home: HomePanel,
   settings: SettingsPanel,
   datos: DatosPanel,
+  assistant: () => null, // Solo para retirar la pestaña de layouts anteriores.
 };
 
 const ICONS: Record<string, React.ReactNode> = {

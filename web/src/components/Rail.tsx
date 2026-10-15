@@ -1,6 +1,8 @@
-import { BookMarked, FileCode2, Home, Plus, Search, Settings, Workflow } from 'lucide-react';
+import { Bot, BookMarked, FileCode2, Home, Plus, Search, Settings, Workflow } from 'lucide-react';
 import { useUI, type Section } from '../state/ui';
-import { openHome, openSettings, useActivePanel } from '../state/workspace';
+import { openHome, openSettings, openAssistant, useActivePanel } from '../state/workspace';
+import { useDesktop } from '../state/desktop';
+import { useAssistant } from '../state/assistant';
 import { kbd } from '../lib/kbd';
 import { shortcutFor } from '../lib/shortcuts';
 import { cx } from './ui';
@@ -39,6 +41,8 @@ function RailButton({ label, active, disabled, onClick, children }: { label: str
 }
 
 export function Rail() {
+  const desktop = useDesktop(s => !!s.info);
+  const assistantVisible = useAssistant(s => s.visible);
   const section = useUI((s) => s.section);
   const open = useUI((s) => s.sidebarOpen);
   const setSection = useUI((s) => s.setSection);
@@ -73,6 +77,7 @@ export function Rail() {
         </RailButton>
       ))}
       <div className="flex-1" />
+      {desktop && <RailButton label="Asistente" active={assistantVisible} disabled={!workspaceReady} onClick={() => openAssistant()}><Bot size={19} /></RailButton>}
       <RailButton label={`Añadir (${kbd(shortcutFor('capture'))})`} onClick={() => useUI.getState().setCaptureOpen(true)}>
         <Plus size={19} />
       </RailButton>
