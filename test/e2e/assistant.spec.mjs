@@ -46,6 +46,11 @@ test('el asistente flotante conserva posición y borrador, revisa cambios y recu
     await page.getByRole('button', { name: 'Asistente', exact: true }).click();
     await expect(page.getByRole('textbox', { name: 'Mensaje al asistente' })).toHaveValue('Borrador ficticio conservado');
     expect((await floating.boundingBox()).x).toBe(moved.x + 10);
+    const composer = page.getByRole('textbox', { name: 'Mensaje al asistente' });
+    await composer.evaluate(el => { el.style.height = '900px'; });
+    expect((await composer.boundingBox()).height).toBeLessThanOrEqual(128);
+    await expect(page.getByRole('button', { name: 'Enviar', exact: true })).toBeInViewport();
+    await composer.evaluate(el => { el.style.height = ''; });
     await editor.locator('.cm-content').click(); await expect(editor.locator('.cm-content')).toBeFocused();
     await page.getByRole('button', { name: 'Inicio', exact: true }).click(); await expect(floating).toBeVisible();
     await page.getByRole('button', { name: 'Memoria', exact: true }).click(); await expect(floating).toBeVisible();
