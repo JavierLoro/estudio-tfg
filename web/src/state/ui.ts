@@ -7,7 +7,7 @@ export type Section = 'memoria' | 'diagramas' | 'notes' | 'resources' | 'search'
 
 export const SIDEBAR_MIN = 180;
 export const SIDEBAR_MAX = 600;
-export const SIDEBAR_DEFAULT = 260;
+export const SIDEBAR_DEFAULT = 300;
 const clampWidth = (w: number) => Math.round(Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, w)));
 
 export interface Toast {

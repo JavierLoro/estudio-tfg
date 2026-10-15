@@ -8,7 +8,7 @@ import { fold } from '../lib/search';
 import { useUI } from '../state/ui';
 import { findOutlineItem, outlineLabel, outlineOrder, useOutline } from '../state/outline';
 import { openFile } from '../state/workspace';
-import { Empty, Spinner, cx } from './ui';
+import { Banner, Empty, Select, Spinner, cx } from './ui';
 
 export { fold } from '../lib/search';
 
@@ -33,7 +33,7 @@ export function highlight(text: string, q: string): ReactNode {
     const e = map[idx + needle.length - 1] + 1;
     if (s > last) out.push(chars.slice(last, s).join(''));
     out.push(
-      <mark key={idx} className="rounded-sm bg-yellow-300/50 text-inherit">
+      <mark key={idx} className="rounded-sm bg-mark text-inherit">
         {chars.slice(s, e).join('')}
       </mark>,
     );
@@ -89,7 +89,7 @@ export function SearchResults({ q, scope, dense }: { q: string; scope: Root | 'a
   const groups = useMemo(() => groupHits(items ?? [], outlineOrder(outline)), [items, outline]);
 
   if (q.trim().length < 2) return <Empty>Escribe al menos 2 caracteres.</Empty>;
-  if (error) return <div className="px-3 py-2 text-[12px] text-danger">{error}</div>;
+  if (error) return <Banner kind="danger">{error}</Banner>;
   if (!items)
     return (
       <div className="flex justify-center py-4 text-muted">
@@ -100,7 +100,7 @@ export function SearchResults({ q, scope, dense }: { q: string; scope: Root | 'a
 
   return (
     <div className={cx('pb-2', loading && 'opacity-60')}>
-      <div className="px-3 py-1 text-[11px] text-faint">
+      <div className="px-3 py-1 text-sm text-muted">
         {items.length >= 200 ? 'Más de 200' : items.length} coincidencias en {files} {files === 1 ? 'archivo' : 'archivos'} · {sideHint()} abre al lado
       </div>
       {groups.map((g) =>
@@ -110,13 +110,13 @@ export function SearchResults({ q, scope, dense }: { q: string; scope: Root | 'a
         <div key={`${g.root}:${g.path}`} className="mb-1">
           <button
             type="button"
-            className="flex w-full items-center gap-1.5 px-3 py-0.5 text-left text-[12px] font-medium hover:bg-hover"
+            className="et-focus-inset flex min-h-(--et-row) w-full items-center gap-1.5 px-3 py-0.5 text-left text-ui font-medium hover:bg-hover"
             {...openActions((side) => openFile(g.root, g.path, { side }))}
             title={`${g.root === 'memoria' ? 'Memoria' : 'Notas'} · ${g.path}`}
           >
-            {g.root === 'memoria' ? <FileCode2 size={13} className="shrink-0 text-muted" /> : <FileText size={13} className="shrink-0 text-muted" />}
+            {g.root === 'memoria' ? <FileCode2 size={16} className="shrink-0 text-muted" aria-hidden /> : <FileText size={16} className="shrink-0 text-muted" aria-hidden />}
             <span className="truncate">{highlight(basename(g.path), q)}</span>
-            {!dense && <span className="truncate text-[11px] font-normal text-faint">{g.path}</span>}
+            {!dense && <span className="truncate text-sm font-normal text-muted">{g.path}</span>}
           </button>
           {g.hits
             .filter((h) => h.line > 0)
@@ -124,10 +124,10 @@ export function SearchResults({ q, scope, dense }: { q: string; scope: Root | 'a
               <button
                 key={i}
                 type="button"
-                className="flex w-full items-baseline gap-2 py-0.5 pr-3 pl-7 text-left text-[12px] hover:bg-hover"
+                className="et-focus-inset flex min-h-(--et-row) w-full items-baseline gap-2 py-1 pr-3 pl-8 text-left text-ui hover:bg-hover"
                 {...openActions((side) => openFile(h.root, h.path, { line: h.line, side }))}
               >
-                <span className="w-7 shrink-0 text-right font-mono text-[10.5px] text-faint">{h.line}</span>
+                <span className="w-7 shrink-0 text-right font-mono text-xs text-muted">{h.line}</span>
                 <span className={cx('min-w-0 flex-1 text-muted', dense ? 'truncate' : 'line-clamp-2')}>{highlight(h.snippet, q)}</span>
               </button>
             ))}
@@ -187,25 +187,25 @@ function OutlineGroup({ group: g, q, dense }: { group: OutlineHitGroup; q: strin
     <div className="mb-1">
       <button
         type="button"
-        className="flex w-full items-center gap-1.5 px-3 py-0.5 text-left text-[12px] font-medium hover:bg-hover"
+        className="et-focus-inset flex min-h-(--et-row) w-full items-center gap-1.5 px-3 py-0.5 text-left text-ui font-medium hover:bg-hover"
         {...openActions((side) => openFile('memoria', file, { line: item?.line ?? first.line, side }))}
         title={`Memoria · ${label} · ${file}`}
       >
-        <ListTree size={13} className="shrink-0 text-muted" />
+        <ListTree size={16} className="shrink-0 text-muted" aria-hidden />
         <span className="truncate">{highlight(label, q)}</span>
-        {!dense && <span className="truncate text-[11px] font-normal text-faint">{file}</span>}
+        {!dense && <span className="truncate text-sm font-normal text-muted">{file}</span>}
       </button>
       {g.hits.map((h, i) => (
         <button
           key={i}
           type="button"
-          className="flex w-full items-baseline gap-2 py-0.5 pr-3 pl-7 text-left text-[12px] hover:bg-hover"
+          className="et-focus-inset flex min-h-(--et-row) w-full items-baseline gap-2 py-1 pr-3 pl-8 text-left text-ui hover:bg-hover"
           {...openActions((side) => openFile(h.root, h.path, { line: h.line, side }))}
           title={`${h.path}:${h.line}`}
         >
-          <span className="w-7 shrink-0 text-right font-mono text-[10.5px] text-faint">{h.line}</span>
+          <span className="w-7 shrink-0 text-right font-mono text-xs text-muted">{h.line}</span>
           <span className={cx('min-w-0 flex-1 text-muted', dense ? 'truncate' : 'line-clamp-2')}>{highlight(h.snippet, q)}</span>
-          {multiFile && <span className="shrink-0 text-[10.5px] text-faint">{basename(h.path)}</span>}
+          {multiFile && <span className="shrink-0 text-xs text-muted">{basename(h.path)}</span>}
         </button>
       ))}
     </div>
@@ -214,15 +214,16 @@ function OutlineGroup({ group: g, q, dense }: { group: OutlineHitGroup; q: strin
 
 export function ScopeSelect({ value, onChange }: { value: Root | 'all'; onChange: (v: Root | 'all') => void }) {
   return (
-    <select
+    <Select
+      inputSize="sm"
       value={value}
       onChange={(e) => onChange(e.target.value as Root | 'all')}
       aria-label="Ámbito de búsqueda"
-      className="h-6 rounded-md border border-line bg-bg px-1 text-[11.5px] text-muted"
+      className="w-auto shrink-0"
     >
       <option value="all">Todo</option>
       <option value="memoria">Memoria</option>
       <option value="notes">Notas</option>
-    </select>
+    </Select>
   );
 }

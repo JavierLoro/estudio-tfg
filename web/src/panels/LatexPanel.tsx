@@ -81,27 +81,28 @@ export function LatexPanel({ params, api }: IDockviewPanelProps<FileParams>) {
 
   return (
     <div className="flex h-full flex-col bg-bg">
-      <div className="flex h-7 shrink-0 items-center gap-2 border-b border-line px-2 text-[11.5px] text-muted">
+      <div className="flex h-(--et-toolbar) shrink-0 items-center gap-1.5 border-b border-line px-2 text-sm text-muted">
         <span className="min-w-0 flex-1 truncate font-mono" title={path}>
           {path}
         </span>
         <SaveIndicator docKey={key} />
         {canSync && (
           <IconButton label={`Ver en PDF (${kbd(shortcutFor('showInPdf'))})`} onClick={() => showHere()} disabled={!hasPdf}>
-            <FileSearch size={14} />
+            <FileSearch size={17} />
           </IconButton>
         )}
         <IconButton label={`Guardar (${kbd('Mod-S')})`} onClick={() => saveDoc(key)} disabled={status !== 'ready'}>
-          <Save size={14} />
+          <Save size={17} />
         </IconButton>
         <Button
           variant="primary"
+          size="sm"
           onClick={() => saveAndCompile(key)}
           disabled={compiling}
           title={`Guardar y compilar (${kbd('Mod-Enter')})`}
           aria-label="Guardar y compilar"
         >
-          {compiling ? <Spinner size={11} /> : <Play size={12} />}
+          {compiling ? <Spinner size={14} /> : <Play size={15} />}
           Compilar
         </Button>
       </div>
@@ -125,21 +126,21 @@ export function LatexPanel({ params, api }: IDockviewPanelProps<FileParams>) {
         <div className="flex max-h-[35%] shrink-0 flex-col border-t border-line bg-soft">
           <button
             type="button"
-            className="flex h-6 shrink-0 items-center gap-1.5 px-2 text-left text-[11.5px] text-muted hover:text-fg"
+            className="et-focus-inset flex h-(--et-control-sm) shrink-0 items-center gap-1.5 px-2 text-left text-sm text-muted hover:text-fg"
             onClick={() => setShowList((v) => !v)}
             aria-expanded={showList}
           >
-            {showList ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+            {showList ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
             Diagnósticos de la última compilación
             <span className="ml-auto flex items-center gap-2">
               {errors > 0 && (
                 <span className="flex items-center gap-0.5 text-danger">
-                  <AlertCircle size={12} /> {errors}
+                  <AlertCircle size={15} aria-label="Errores" /> {errors}
                 </span>
               )}
               {warnings > 0 && (
                 <span className="flex items-center gap-0.5 text-warn">
-                  <AlertTriangle size={12} /> {warnings}
+                  <AlertTriangle size={15} aria-label="Avisos" /> {warnings}
                 </span>
               )}
             </span>
@@ -166,7 +167,7 @@ export function DiagnosticList({
         <li key={i}>
           <button
             type="button"
-            className={cx('flex w-full items-start gap-2 px-2 py-0.5 text-left text-[12px]', d.path ? 'hover:bg-hover' : 'cursor-default opacity-70')}
+            className={cx('et-focus-inset flex min-h-(--et-control-sm) w-full items-start gap-2 px-2 py-1 text-left text-ui', d.path ? 'hover:bg-hover' : 'cursor-default')}
             disabled={!d.path}
             {...openActions((side) => {
               if (!side && d.path === currentPath && currentKey && d.line != null) requestReveal(currentKey, d.line);
@@ -175,11 +176,11 @@ export function DiagnosticList({
             title={`${d.path ?? d.file}${d.line != null ? `:${d.line}` : ''} — ${d.message}`}
           >
             {d.severity === 'error' ? (
-              <AlertCircle size={13} className="mt-0.5 shrink-0 text-danger" />
+              <AlertCircle size={15} aria-label="Error" className="mt-0.5 shrink-0 text-danger" />
             ) : (
-              <AlertTriangle size={13} className="mt-0.5 shrink-0 text-warn" />
+              <AlertTriangle size={15} aria-label="Aviso" className="mt-0.5 shrink-0 text-warn" />
             )}
-            <span className={cx('shrink-0 font-mono text-[11px]', d.path === currentPath ? 'text-fg' : 'text-muted')}>
+            <span className={cx('shrink-0 font-mono text-sm', d.path === currentPath ? 'text-fg' : 'text-muted')}>
               {d.path ?? d.file.split('/').pop()}
               {d.line != null ? `:${d.line}` : ''}
             </span>

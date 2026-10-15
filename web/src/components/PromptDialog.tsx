@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from 'react';
 import { useUI } from '../state/ui';
-import { Button, Modal } from './ui';
+import { Button, Input, Modal } from './ui';
 
 /** Diálogo de texto genérico (nombre de archivo, token…). */
 export function PromptDialog() {
@@ -19,7 +19,7 @@ export function PromptDialog() {
       width={420}
       footer={
         <>
-          <Button variant="ghost" onClick={() => close(null)}>
+          <Button variant="subtle" onClick={() => close(null)}>
             Cancelar
           </Button>
           <Button
@@ -34,22 +34,21 @@ export function PromptDialog() {
       }
     >
       <form
-        className="p-3"
+        className="p-4"
         onSubmit={(e) => {
           e.preventDefault();
           if (prompt?.confirm) close('ok');
           else if (value.trim()) close(value);
         }}
       >
-        {prompt?.label && <label htmlFor={prompt.confirm ? undefined : fieldId} className={prompt.confirm ? 'block text-[13px]' : 'mb-1 block text-[12px] text-muted'}>{prompt.label}</label>}
-        {!prompt?.confirm && <input
+        {prompt?.label && <label htmlFor={prompt.confirm ? undefined : fieldId} className={prompt.confirm ? 'block text-ui' : 'mb-1 block text-sm font-bold text-fg'}>{prompt.label}</label>}
+        {!prompt?.confirm && <Input
           id={fieldId}
           autoFocus
           type={prompt?.password ? 'password' : 'text'}
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder={prompt?.placeholder}
-          className="h-8 w-full rounded-md border border-line-strong bg-bg px-2 text-[13px] outline-none focus:border-accent"
         />}
       </form>
     </Modal>

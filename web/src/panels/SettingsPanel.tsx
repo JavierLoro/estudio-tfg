@@ -14,7 +14,8 @@ import {
   type SettingsValues,
 } from '../api';
 import { DirPicker } from '../components/DirPicker';
-import { Banner, Button, Spinner, cx } from '../components/ui';
+import { Banner, Button, Card, ChoiceGroup, Input, Select, Spinner, StatusPill, cx, inputClass } from '../components/ui';
+import { useAppearance, type Density, type TextSize, type Theme } from '../state/appearance';
 import { isAbsPath, joinAbs, parentAbs, relUnder } from '../lib/abspath';
 import { kbd } from '../lib/kbd';
 import { notifySettingsChanged, useSettings } from '../state/settings';
@@ -49,10 +50,9 @@ const SOURCE_TITLE: Record<SettingsSource, string> = {
   default: 'Valor por defecto',
 };
 
-const inputCls =
-  'h-7 min-w-0 flex-1 rounded-md border bg-bg px-2 font-mono text-[12px] outline-none focus:border-accent disabled:opacity-60';
+const inputCls = 'flex-1 font-mono';
 
-function LevelIcon({ level, size = 13 }: { level: SettingsCheck['level']; size?: number }) {
+function LevelIcon({ level, size = 16 }: { level: SettingsCheck['level']; size?: number }) {
   if (level === 'ok') return <CheckCircle2 size={size} className="shrink-0 text-ok" />;
   if (level === 'warning') return <AlertTriangle size={size} className="shrink-0 text-warn" />;
   return <AlertCircle size={size} className="shrink-0 text-danger" />;
@@ -302,22 +302,18 @@ export function SettingsPanel() {
 
   return (
     <div className="flex h-full flex-col bg-soft" onKeyDown={onKeyDown}>
-      <div className="flex h-10 shrink-0 items-center gap-2 border-b border-line bg-bg px-3">
-        <Settings size={15} className="text-muted" />
-        <h1 className="text-[13px] font-semibold">Ajustes</h1>
-        {desktop && <Button onClick={() => useDesktop.getState().setOpen(true)}>Asistente inicial</Button>}
-        {loading && <Spinner size={11} />}
+      <div className="flex min-h-(--et-toolbar) shrink-0 flex-wrap items-center gap-2 border-b border-line bg-bg px-3 py-1">
+        <Settings size={18} className="text-muted" />
+        <h1 className="font-serif text-xl font-semibold">Ajustes</h1>
+        {desktop && <Button size="sm" onClick={() => useDesktop.getState().setOpen(true)}>Asistente inicial</Button>}
+        {loading && <Spinner size={14} />}
         <div className="flex-1" />
-        {dirty && (
-          <span className="flex items-center gap-1.5 text-[12px] text-warn">
-            <span className="h-2 w-2 rounded-full bg-warn" /> Cambios sin guardar
-          </span>
-        )}
-        <Button variant="ghost" onClick={discard} disabled={!dirty || saving}>
+        {dirty && <StatusPill tone="warn">Cambios sin guardar</StatusPill>}
+        <Button variant="subtle" size="sm" onClick={discard} disabled={!dirty || saving}>
           Descartar
         </Button>
-        <Button variant="primary" onClick={() => void save()} disabled={!dirty || saving} title={`Guardar y aplicar (${kbd('Mod-S')})`}>
-          {saving ? <Spinner size={11} /> : <Save size={12} />} Guardar
+        <Button variant="primary" size="sm" onClick={() => void save()} disabled={!dirty || saving} title={`Guardar y aplicar (${kbd('Mod-S')})`}>
+          {saving ? <Spinner size={14} /> : <Save size={15} />} Guardar
         </Button>
       </div>
 
@@ -338,7 +334,10 @@ export function SettingsPanel() {
         </Banner>
       )}
 
-      <div className="min-h-0 flex-1 overflow-auto p-3">
+      <div className="min-h-0 flex-1 overflow-auto p-4">
+        <div className="mx-auto mb-4 max-w-3xl">
+          <AppearanceSection />
+        </div>
         {!data || !form ? (
           !loadError && (
             <div className="flex justify-center py-6 text-muted">
@@ -346,9 +345,9 @@ export function SettingsPanel() {
             </div>
           )
         ) : (
-          <div className="mx-auto flex max-w-3xl flex-col gap-3">
+          <div className="mx-auto flex max-w-3xl flex-col gap-4">
             <section className="rounded-lg border border-line bg-bg">
-              <header className="flex h-8 items-center border-b border-line px-3 text-[12px] font-semibold">Configuración</header>
+              <header className="flex min-h-(--et-toolbar) items-center border-b border-line px-4 text-base font-bold">Configuración</header>
               <div className="divide-y divide-line">
                 {SETTINGS_KEYS.map((k) => {
                   const source = data.sources[k];
@@ -357,54 +356,55 @@ export function SettingsPanel() {
                   const fieldChecks = checks.filter((c) => c.key === k && c.level !== 'ok');
                   const id = `setting-${k}`;
                   return (
-                    <div key={k} className="px-3 py-2.5">
+                    <div key={k} className="px-4 py-3">
                       <div className="mb-1 flex flex-wrap items-center gap-2">
-                        <label htmlFor={id} className="text-[12.5px] font-medium">
+                        <label htmlFor={id} className="text-ui font-bold">
                           {LABELS[k]}
                         </label>
                         {source && (
                           <span
                             title={SOURCE_TITLE[source]}
                             className={cx(
-                              'rounded border px-1 text-[10.5px] leading-4',
+                              'rounded border px-1.5 text-xs leading-5',
                               source === 'settings' ? 'border-accent/40 bg-active text-accent' : 'border-line bg-soft text-muted',
                             )}
                           >
                             {SOURCE_LABEL[source] ?? source}
                           </span>
                         )}
-                        {changed && <span className="text-[11px] text-warn">modificado</span>}
+                        {changed && <StatusPill tone="warn">modificado</StatusPill>}
                         <div className="flex-1" />
                         {source === 'settings' && (
                           <Button
-                            variant="ghost"
+                            variant="subtle"
+                            size="sm"
                             onClick={() => void reset(k)}
                             disabled={resetting === k || saving}
                             title="Quitar de los ajustes y volver al valor de .env o por defecto"
                           >
-                            {resetting === k ? <Spinner size={11} /> : <RotateCcw size={12} />} Restablecer
+                            {resetting === k ? <Spinner size={14} /> : <RotateCcw size={15} />} Restablecer
                           </Button>
                         )}
                       </div>
                       <div className="flex items-center gap-1.5">
                         {k === 'compileEngine' ? (
-                          <select
+                          <Select
                             id={id}
                             value={form.compileEngine}
                             onChange={(e) => setField(k, e.target.value)}
-                            className={cx(inputCls, err ? 'border-danger' : 'border-line-strong')}
+                            className="flex-1"
                             aria-invalid={!!err}
                           >
                             <option value="auto">Automático</option>
                             <option value="docker">Docker</option>
                             <option value="local">TeX del sistema</option>
-                          </select>
+                          </Select>
                         ) : k === 'memoriaMain' && !memoriaDirChanged && !memoriaTreeError && memoriaTree ? (
-                          <select
+                          <Select
                             id={id}
                             value={form.memoriaMain}
                             onChange={(e) => setField('memoriaMain', e.target.value)}
-                            className={cx(inputCls, err ? 'border-danger' : 'border-line-strong')}
+                            className={inputCls}
                             aria-invalid={!!err}
                           >
                             {!texFiles.includes(form.memoriaMain) && (
@@ -415,16 +415,16 @@ export function SettingsPanel() {
                                 {f}
                               </option>
                             ))}
-                          </select>
+                          </Select>
                         ) : (
-                          <input
+                          <Input
                             id={id}
                             value={form[k]}
                             onChange={(e) => setField(k, e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && void save()}
                             spellCheck={false}
                             placeholder={k === 'memoriaMain' ? 'tfg.tex' : k === 'resourcesSubdir' ? 'Recursos' : pathSep === '\\' ? 'C:\\ruta o ~\\…' : '/ruta/absoluta o ~/…'}
-                            className={cx(inputCls, err ? 'border-danger' : 'border-line-strong')}
+                            className={inputCls}
                             aria-invalid={!!err}
                           />
                         )}
@@ -434,27 +434,27 @@ export function SettingsPanel() {
                             disabled={k === 'resourcesSubdir' && !isAbsPath(notesBase)}
                             title={k === 'resourcesSubdir' && !isAbsPath(notesBase) ? 'Define antes la carpeta de notas' : 'Elegir carpeta'}
                           >
-                            <FolderOpen size={12} /> Elegir…
+                            <FolderOpen size={16} /> Elegir…
                           </Button>
                         )}
                       </div>
-                      {err && <p className="mt-1 text-[12px] text-danger" role="alert">{err}</p>}
+                      {err && <p className="mt-1 text-ui text-danger" role="alert">{err}</p>}
                       {changed && (
-                        <p className="mt-1 truncate text-[11px] text-faint" title={data.values[k]}>
+                        <p className="mt-1 truncate text-sm text-muted" title={data.values[k]}>
                           Valor actual: <span className="font-mono">{data.values[k] || '(vacío)'}</span>
                         </p>
                       )}
                       {k === 'memoriaMain' && memoriaDirChanged && (
-                        <p className="mt-1 text-[11px] text-faint">La carpeta de la memoria ha cambiado: escribe el nombre del archivo principal.</p>
+                        <p className="mt-1 text-sm text-muted">La carpeta de la memoria ha cambiado: escribe el nombre del archivo principal.</p>
                       )}
                       {!changed &&
                         fieldChecks.map((c, i) => (
-                          <p key={i} className={cx('mt-1 flex items-start gap-1 text-[12px]', levelText(c.level))}>
-                            <LevelIcon level={c.level} size={12} />
+                          <p key={i} className={cx('mt-1 flex items-start gap-1 text-ui', levelText(c.level))}>
+                            <LevelIcon level={c.level} size={15} />
                             <span>{c.message}</span>
                           </p>
                         ))}
-                      <p className="mt-1 text-[11px] text-faint">{HELP[k]}</p>
+                      <p className="mt-1 text-sm text-muted">{HELP[k]}</p>
                     </div>
                   );
                 })}
@@ -462,13 +462,13 @@ export function SettingsPanel() {
             </section>
 
             <section className="rounded-lg border border-line bg-bg" aria-label="Disponibilidad de compilación">
-              <header className="flex h-8 items-center gap-2 border-b border-line px-3 text-[12px] font-semibold">
+              <header className="flex min-h-(--et-toolbar) items-center gap-2 border-b border-line px-4 py-1 text-base font-bold">
                 <span className="flex-1">Compilación</span>
-                <Button onClick={() => void detectEngines()} disabled={detecting}>
-                  {detecting && <Spinner size={11} />} Detectar herramientas
+                <Button size="sm" onClick={() => void detectEngines()} disabled={detecting}>
+                  {detecting && <Spinner size={14} />} Detectar herramientas
                 </Button>
               </header>
-              <p className="px-3 py-2 text-[12px] text-muted">
+              <p className="px-4 py-3 text-ui text-muted">
                 Para la plantilla, usa TeX Live/MacTeX 2026 con pdfLaTeX, latexmk y biber en PATH.
                 En MiKTeX necesitas también Perl y los paquetes instalados previamente.
                 Mantén biber y biblatex actualizados juntos. rsvg-convert solo es necesario para exportar diagramas a PDF.
@@ -478,7 +478,7 @@ export function SettingsPanel() {
               )}
               {engineError && <Banner kind="danger">No se pudieron detectar los motores: {engineError}</Banner>}
               {engines && (
-                <div className="space-y-2 px-3 py-2.5 text-[12px]">
+                <div className="space-y-2 px-4 py-3 text-ui">
                   <p>Motor actual: <strong>{status?.motor?.tipo === 'local' ? 'TeX del sistema' : 'Docker'}</strong>.</p>
                   <p>Docker: <span className={engines.docker.ok ? 'text-ok' : 'text-warn'}>{engines.docker.ok ? 'Disponible' : 'No responde'}</span>{engines.docker.version && ` · ${engines.docker.version}`}</p>
                   <p>TeX del sistema: <span className={engines.local.ok ? 'text-ok' : 'text-warn'}>{engines.local.ok ? 'Disponible' : 'No disponible'}</span>{engines.local.version && ` · ${engines.local.version}`}</p>
@@ -501,21 +501,21 @@ export function SettingsPanel() {
             </section>
 
             <section className="rounded-lg border border-line bg-bg">
-              <header className="flex h-8 items-center gap-2 border-b border-line px-3 text-[12px] font-semibold">
+              <header className="flex min-h-(--et-toolbar) items-center gap-2 border-b border-line px-4 text-base font-bold">
                 <span className="flex-1">Memoria nueva</span>
               </header>
-              <div className="flex flex-wrap items-center gap-3 px-3 py-2.5 text-[12px] text-muted">
+              <div className="flex flex-wrap items-end gap-3 px-4 py-3 text-ui text-muted">
                 <p className="min-w-0 flex-[1_1_16rem]">
                   Crea una carpeta con la plantilla de la memoria y la usa como carpeta de la memoria. Si Git está instalado, inicia un repositorio git.
                 </p>
                 {perfiles && (
-                  <label className="flex min-w-0 flex-col gap-0.5 text-[11px]">
+                  <label className="flex min-w-0 flex-col gap-1 text-sm font-bold text-fg">
                     Perfil de institución
                     <select
                       value={perfil}
                       onChange={(e) => setPerfil(e.target.value)}
                       disabled={creating}
-                      className="h-7 min-w-0 rounded-md border border-line-strong bg-bg px-2 text-[12px] text-fg outline-none focus:border-accent"
+                      className={cx(inputClass(), 'pr-1 font-normal')}
                       title={perfiles.find((p) => p.id === perfil)?.descripcion}
                     >
                       {perfiles.map((p) => (
@@ -527,22 +527,22 @@ export function SettingsPanel() {
                   </label>
                 )}
                 <Button onClick={() => setPicker({ kind: 'create' })} disabled={creating}>
-                  <FolderPlus size={12} /> Crear memoria desde la plantilla
+                  <FolderPlus size={16} /> Crear memoria desde la plantilla
                 </Button>
               </div>
             </section>
 
             <section className="rounded-lg border border-line bg-bg">
-              <header className="flex h-8 items-center border-b border-line px-3 text-[12px] font-semibold">Comprobaciones</header>
+              <header className="flex min-h-(--et-toolbar) items-center border-b border-line px-4 text-base font-bold">Comprobaciones</header>
               {checks.length === 0 ? (
-                <p className="px-3 py-2 text-[12px] text-faint">Sin comprobaciones.</p>
+                <p className="px-4 py-3 text-ui text-muted">Sin comprobaciones.</p>
               ) : (
                 <ul className="py-1">
                   {checks.map((c, i) => (
-                    <li key={i} className={cx('flex items-start gap-2 px-3 py-1 text-[12px]', levelText(c.level))}>
+                    <li key={i} className={cx('flex items-start gap-2 px-4 py-1.5 text-ui', levelText(c.level))}>
                       <LevelIcon level={c.level} />
                       <span className="min-w-0 flex-1">
-                        {c.key in LABELS && <span className="font-medium text-fg">{LABELS[c.key as SettingsKey]}: </span>}
+                        {c.key in LABELS && <span className="font-bold text-fg">{LABELS[c.key as SettingsKey]}: </span>}
                         {c.message}
                       </span>
                     </li>
@@ -552,7 +552,7 @@ export function SettingsPanel() {
             </section>
 
             {allowedRoots.length > 0 && (
-              <p className="px-1 text-[11.5px] text-faint">
+              <p className="px-1 text-sm text-muted">
                 Carpetas permitidas: <span className="font-mono">{allowedRoots.join(' · ')}</span>. Los cambios se aplican al guardar, sin reiniciar el servidor.
               </p>
             )}
@@ -570,5 +570,42 @@ export function SettingsPanel() {
         />
       )}
     </div>
+  );
+}
+
+const THEMES: { value: Theme; label: string }[] = [
+  { value: 'light', label: 'Claro' },
+  { value: 'dark', label: 'Oscuro' },
+  { value: 'system', label: 'Sistema' },
+];
+const SIZES: { value: TextSize; label: string; hint: string }[] = [
+  { value: 'normal', label: 'Normal', hint: '16 px' },
+  { value: 'grande', label: 'Grande', hint: '18 px' },
+  { value: 'muy-grande', label: 'Muy grande', hint: '20 px' },
+];
+const DENSITIES: { value: Density; label: string }[] = [
+  { value: 'comoda', label: 'Cómoda' },
+  { value: 'compacta', label: 'Compacta' },
+];
+
+/** Apariencia: preferencias de este navegador; se aplican al momento, sin guardar. */
+function AppearanceSection() {
+  const { theme, textSize, density, set } = useAppearance();
+  return (
+    <Card title="Apariencia" aria-label="Apariencia">
+      <div className="flex flex-col gap-4 px-4 py-3">
+        <ChoiceGroup legend="Tema" name="et-theme" value={theme} options={THEMES} onChange={(v) => set({ theme: v })} help="«Sistema» sigue el modo claro u oscuro del equipo." />
+        <ChoiceGroup legend="Tamaño de texto" name="et-text-size" value={textSize} options={SIZES} onChange={(v) => set({ textSize: v })} />
+        <ChoiceGroup
+          legend="Densidad"
+          name="et-density"
+          value={density}
+          options={DENSITIES}
+          onChange={(v) => set({ density: v })}
+          help="Compacta reduce el alto de botones, filas y barras para ver más a la vez."
+        />
+        <p className="text-sm text-muted">Se guarda en este navegador y se aplica al momento.</p>
+      </div>
+    </Card>
   );
 }

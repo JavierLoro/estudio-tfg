@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Check, Circle, OctagonX, TriangleAlert } from 'lucide-react';
 import {
   discardDraft,
   indicatorOf,
@@ -16,7 +16,7 @@ import { formatDate } from '../lib/paths';
 import { ReadOnlyEditor } from './CodeEditor';
 import { Banner, Button, Modal, Spinner, cx } from './ui';
 
-const LABEL: Record<DocIndicator, string> = {
+export const INDICATOR_LABEL: Record<DocIndicator, string> = {
   guardado: 'Guardado',
   'sin guardar': 'Sin guardar',
   conflicto: 'Conflicto',
@@ -39,12 +39,27 @@ export function indicatorColor(i: DocIndicator) {
   }
 }
 
+/**
+ * Marca de estado de un documento: cada estado tiene forma propia además del color
+ * (guardado ✓, sin guardar ●, conflicto ▲, error ⬣, cargando ○), y texto accesible.
+ */
+export function IndicatorMark({ ind, size = 12, label = true }: { ind: DocIndicator; size?: number; label?: boolean }) {
+  const a11y = label ? { role: 'img' as const, 'aria-label': INDICATOR_LABEL[ind] } : { 'aria-hidden': true as const };
+  if (ind === 'guardando') return <span {...a11y} className="inline-flex text-muted"><Spinner size={size - 2} /></span>;
+  const common = { size, strokeWidth: 2.5, className: 'shrink-0' };
+  return (
+    <span {...a11y} title={INDICATOR_LABEL[ind]} className={cx('inline-flex shrink-0', ind === 'guardado' ? 'text-ok' : ind === 'sin guardar' ? 'text-warn' : ind === 'cargando' ? 'text-muted' : 'text-danger')}>
+      {ind === 'guardado' ? <Check {...common} /> : ind === 'sin guardar' ? <Circle {...common} fill="currentColor" strokeWidth={0} size={size - 3} /> : ind === 'conflicto' ? <TriangleAlert {...common} /> : ind === 'error' ? <OctagonX {...common} /> : <Circle {...common} />}
+    </span>
+  );
+}
+
 export function SaveIndicator({ docKey, compact }: { docKey: string; compact?: boolean }) {
   const ind = useDocs((s) => indicatorOf(s.docs[docKey]));
   return (
-    <span className="inline-flex items-center gap-1.5 text-[11px] text-muted" title={LABEL[ind]} aria-label={`Estado: ${LABEL[ind]}`}>
-      {ind === 'guardando' ? <Spinner size={9} /> : <span className={cx('inline-block h-2 w-2 rounded-full', indicatorColor(ind))} />}
-      {!compact && <span>{LABEL[ind]}</span>}
+    <span className="inline-flex items-center gap-1.5 text-sm text-muted" title={INDICATOR_LABEL[ind]} aria-label={`Estado: ${INDICATOR_LABEL[ind]}`}>
+      <IndicatorMark ind={ind} label={false} />
+      {!compact && <span>{INDICATOR_LABEL[ind]}</span>}
     </span>
   );
 }
@@ -125,7 +140,7 @@ export function DocBanners({ docKey, lang }: { docKey: string; lang: EditorLang 
         width={480}
         footer={
           <>
-            <Button variant="ghost" onClick={() => setDialog('both')}>
+            <Button variant="subtle" onClick={() => setDialog('both')}>
               Ver ambos
             </Button>
             <Button onClick={disk}>Cargar lo del disco</Button>
@@ -135,7 +150,7 @@ export function DocBanners({ docKey, lang }: { docKey: string; lang: EditorLang 
           </>
         }
       >
-        <div className="space-y-2 p-4 text-[13px] leading-relaxed">
+        <div className="space-y-2 p-4 text-ui leading-relaxed">
           <p>
             «{doc.path}» ha cambiado en disco (otro dispositivo, Syncthing u otro programa) desde que lo abriste. No se ha
             sobrescrito nada.
@@ -154,7 +169,7 @@ export function DocBanners({ docKey, lang }: { docKey: string; lang: EditorLang 
         width="min(1200px, 96vw)"
         footer={
           <>
-            <Button variant="ghost" onClick={close}>
+            <Button variant="subtle" onClick={close}>
               Cerrar
             </Button>
             <Button onClick={disk}>Cargar lo del disco</Button>
@@ -167,11 +182,11 @@ export function DocBanners({ docKey, lang }: { docKey: string; lang: EditorLang 
         {doc.conflict && (
           <div className="grid h-[65vh] grid-cols-2 divide-x divide-line">
             <div className="flex min-h-0 flex-col">
-              <div className="border-b border-line bg-soft px-3 py-1 text-[11px] font-semibold text-muted">Lo mío (editor)</div>
+              <div className="border-b border-line bg-soft px-3 py-1 text-sm font-semibold text-muted">Lo mío (editor)</div>
               <ReadOnlyEditor content={doc.content} lang={lang} />
             </div>
             <div className="flex min-h-0 flex-col">
-              <div className="border-b border-line bg-soft px-3 py-1 text-[11px] font-semibold text-muted">
+              <div className="border-b border-line bg-soft px-3 py-1 text-sm font-semibold text-muted">
                 En disco (rev {doc.conflict.rev})
               </div>
               <ReadOnlyEditor content={doc.conflict.content} lang={lang} />

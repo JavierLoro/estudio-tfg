@@ -6,7 +6,8 @@ import { useConnection } from '../state/events';
 import { useUI } from '../state/ui';
 import { kbd } from '../lib/kbd';
 import { shortcutFor } from '../lib/shortcuts';
-import { Button, Spinner, cx } from './ui';
+import { Button, Spinner } from './ui';
+import { IndicatorMark } from './DocBanners';
 
 export function Header() {
   const setQuickOpen = useUI((s) => s.setQuickOpen);
@@ -19,82 +20,78 @@ export function Header() {
   const [dirty, conflicts, saving] = useGlobalSaveState().split('|').map(Number);
 
   return (
-    <header className="flex h-10 shrink-0 items-center gap-2 border-b border-line bg-soft px-3">
-      <div className="flex items-center gap-1.5 pr-2 text-[13px] font-semibold">
-        <span className="inline-flex h-5 items-center rounded bg-accent px-1 text-[10px] font-bold text-accent-fg">TFG</span>
+    <header className="flex h-(--et-toolbar) shrink-0 items-center gap-2 border-b border-line bg-soft px-3">
+      <div className="flex items-center gap-1.5 pr-2 text-ui font-bold">
+        <span className="inline-flex items-center rounded bg-accent px-1.5 py-0.5 text-xs font-bold text-accent-fg">TFG</span>
         <span>Estudio</span>
       </div>
 
       <button
         type="button"
         onClick={() => setQuickOpen(true)}
-        className="flex h-7 w-full max-w-[420px] min-w-0 items-center gap-2 rounded-md border border-line bg-bg px-2 text-[12px] text-faint hover:border-line-strong"
+        className="flex h-(--et-control-sm) w-full max-w-[420px] min-w-0 items-center gap-2 rounded-md border border-line-strong bg-bg px-2.5 text-ui text-muted hover:bg-hover"
         aria-label={`Abrir o buscar (${kbd('Mod-K')})`}
       >
-        <Search size={13} />
+        <Search size={16} />
         <span className="flex-1 truncate text-left">Abrir archivo o buscar…</span>
-        <kbd className="rounded border border-line px-1 font-mono text-[10.5px]">{kbd('Mod-K')}</kbd>
+        <kbd className="rounded border border-line px-1 font-mono text-xs">{kbd('Mod-K')}</kbd>
       </button>
 
       <div className="flex-1" />
 
       {/* Estado global de guardado */}
-      <div className="flex items-center gap-1.5 text-[12px]" aria-live="polite">
+      <div className="flex items-center gap-1.5 text-ui" aria-live="polite">
         {saving > 0 ? (
           <span className="flex items-center gap-1.5 text-muted">
-            <Spinner size={11} /> Guardando…
+            <Spinner size={14} /> Guardando…
           </span>
         ) : conflicts > 0 ? (
           <span className="flex items-center gap-1 font-medium text-danger">
-            <AlertTriangle size={13} /> {conflicts === 1 ? '1 conflicto' : `${conflicts} conflictos`}
+            <AlertTriangle size={16} /> {conflicts === 1 ? '1 conflicto' : `${conflicts} conflictos`}
           </span>
         ) : dirty > 0 ? (
-          <button
-            type="button"
-            className="flex items-center gap-1.5 rounded px-1.5 py-0.5 text-warn hover:bg-hover"
-            onClick={() => void saveAll()}
-            title={`Guardar todo`}
-          >
-            <span className="h-2 w-2 rounded-full bg-warn" /> {dirty === 1 ? '1 sin guardar' : `${dirty} sin guardar`}
-          </button>
+          <Button variant="subtle" size="sm" className="text-warn!" onClick={() => void saveAll()} title="Guardar todo">
+            <IndicatorMark ind="sin guardar" label={false} /> {dirty === 1 ? '1 sin guardar' : `${dirty} sin guardar`}
+          </Button>
         ) : (
           <span className="flex items-center gap-1 text-muted">
-            <CheckCircle2 size={13} className="text-ok" /> Todo guardado
+            <CheckCircle2 size={16} className="text-ok" /> Todo guardado
           </span>
         )}
       </div>
 
       {(queued > 0 || queueError) && (
-        <button
-          type="button"
-          className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[12px] text-warn hover:bg-hover"
+        <Button
+          variant="subtle"
+          size="sm"
+          className="text-warn!"
           onClick={() => useCaptureQueue.setState({ open: true })}
           title="Capturas conservadas en este navegador. Clic para revisar, editar o reintentar."
         >
-          <Inbox size={13} /> {queued > 0 ? `${queued} pendiente${queued > 1 ? 's' : ''}` : 'Revisar cola'}
-        </button>
+          <Inbox size={16} /> {queued > 0 ? `${queued} pendiente${queued > 1 ? 's' : ''}` : 'Revisar cola'}
+        </Button>
       )}
 
       {(!connected || statusError) && (
-        <span className="flex items-center gap-1 text-[12px] text-danger" title={statusError ?? 'Sin conexión en tiempo real con el servidor'}>
-          <CloudOff size={13} /> Sin conexión
+        <span className="flex items-center gap-1 text-ui text-danger" title={statusError ?? 'Sin conexión en tiempo real con el servidor'}>
+          <CloudOff size={16} /> Sin conexión
         </span>
       )}
       {(status?.motor?.estado ?? status?.worker) === 'down' && (
-        <span className="flex items-center gap-1 text-[12px] text-warn" title={status?.motor?.tipo === 'local' ? 'TeX del sistema no está disponible; revisa Ajustes' : 'El worker de LaTeX no responde'}>
-          <ServerCrash size={13} /> LaTeX
+        <span className="flex items-center gap-1 text-ui text-warn" title={status?.motor?.tipo === 'local' ? 'TeX del sistema no está disponible; revisa Ajustes' : 'El worker de LaTeX no responde'}>
+          <ServerCrash size={16} /> LaTeX
         </span>
       )}
 
       <SyncConflicts list={status?.syncConflicts ?? []} />
       {status?.watcher === 'error' && (
-        <span role="status" className="flex items-center gap-1 text-[12px] text-warn" title={status.watcherMessage}>
-          <AlertTriangle size={13} /> Cambios en disco sin vigilar
+        <span role="status" className="flex items-center gap-1 text-ui text-warn" title={status.watcherMessage}>
+          <AlertTriangle size={16} /> Cambios en disco sin vigilar
         </span>
       )}
 
-      <Button variant="primary" onClick={() => setCaptureOpen(true)} title={`Añadir (${kbd(shortcutFor('capture'))})`} className="h-7!">
-        <Plus size={13} /> Añadir
+      <Button variant="primary" size="sm" onClick={() => setCaptureOpen(true)} title={`Añadir (${kbd(shortcutFor('capture'))})`}>
+        <Plus size={16} /> Añadir
       </Button>
     </header>
   );
@@ -118,19 +115,19 @@ function SyncConflicts({ list }: { list: string[] }) {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className={cx('flex h-6 items-center gap-1 rounded-full bg-warn-bg px-2 text-[11.5px] font-semibold text-warn')}
+        className="flex h-(--et-control-sm) items-center gap-1 rounded-full border border-warn/40 bg-warn-bg px-2.5 text-sm font-bold text-warn hover:brightness-95"
         title="Conflictos de Syncthing"
       >
-        <AlertTriangle size={12} /> {list.length} conflicto{list.length > 1 ? 's' : ''} Syncthing
+        <AlertTriangle size={15} /> {list.length} conflicto{list.length > 1 ? 's' : ''} Syncthing
       </button>
       {open && (
-        <div className="absolute top-8 right-0 z-[900] w-[380px] rounded-md border border-line bg-bg p-2 shadow-pop">
-          <p className="mb-1.5 text-[12px] text-muted">
+        <div className="absolute top-full right-0 z-[900] mt-1 w-[380px] max-w-[90vw] rounded-md border border-line bg-bg p-3 shadow-pop">
+          <p className="mb-1.5 text-ui text-muted">
             Syncthing ha creado copias en conflicto. Revísalas y bórralas a mano cuando hayas fusionado los cambios:
           </p>
           <ul className="max-h-[260px] space-y-0.5 overflow-auto">
             {list.map((p) => (
-              <li key={p} className="truncate font-mono text-[11px]" title={p}>
+              <li key={p} className="truncate font-mono text-sm" title={p}>
                 {p}
               </li>
             ))}

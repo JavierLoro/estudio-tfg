@@ -7,7 +7,7 @@ import { useCompile } from '../state/compile';
 import { openSettings, openPdf } from '../state/workspace';
 import { parentAbs } from '../lib/abspath';
 import { DirPicker } from './DirPicker';
-import { Banner, Button, Modal, Spinner } from './ui';
+import { Banner, Button, Modal, Select, Spinner } from './ui';
 
 type Picker = { root: 'notes' | 'memoria'; create: boolean };
 const phases = { idle: 'Por preparar', copying: 'Leyendo el paquete incluido…', downloading: 'Descargando TeX…',
@@ -79,20 +79,20 @@ export default function DesktopSetup() {
           await api.completeDesktopSetup(); useDesktop.getState().setOpen(false);
         })}>Terminar</Button>}
     </>}>
-      <div className="space-y-4 p-4 text-[13px]">
+      <div className="space-y-4 p-4 text-ui">
         <p className="text-muted" aria-live="polite">Paso {step + 1} de 3 · {['Tus carpetas', 'Motor de compilación', 'Primer PDF'][step]}</p>
-        {error && <Banner kind="danger">{error}</Banner>}
+        {error && <Banner kind="danger" inline>{error}</Banner>}
         {step === 0 && <>
           <p>Elige tus notas de Obsidian y la memoria. Si empiezas de cero, crea carpetas nuevas desde aquí.</p>
           {(['notes', 'memoria'] as const).map(root => <section key={root} className="space-y-2 rounded-lg border border-line p-3">
-            <h2 className="font-semibold">{root === 'notes' ? 'Notas y biblioteca' : 'Memoria LaTeX'}</h2>
+            <h2 className="font-bold">{root === 'notes' ? 'Notas y biblioteca' : 'Memoria LaTeX'}</h2>
             <p className="break-all text-muted">{settings.values[root === 'notes' ? 'notesDir' : 'memoriaDir']}</p>
             {root === 'memoria' && <label className="flex items-center gap-2">Plantilla
-              <select aria-label="Perfil de institución" value={perfil} onChange={e => setPerfil(e.target.value)} className="rounded border border-line bg-bg px-2 py-1">
+              <Select aria-label="Perfil de institución" inputSize="sm" className="w-auto" value={perfil} onChange={e => setPerfil(e.target.value)}>
                 {perfiles.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-              </select>
+              </Select>
             </label>}
-            <div className="flex gap-2"><Button onClick={() => setPicker({ root, create: false })}>Elegir carpeta de {root === 'notes' ? 'notas' : 'memoria'}</Button>
+            <div className="flex flex-wrap gap-2"><Button onClick={() => setPicker({ root, create: false })}>Elegir carpeta de {root === 'notes' ? 'notas' : 'memoria'}</Button>
               <Button onClick={() => setPicker({ root, create: true })}>{root === 'notes' ? 'Crear carpeta de notas' : 'Crear memoria'}</Button></div>
           </section>)}
         </>}
@@ -101,17 +101,17 @@ export default function DesktopSetup() {
             : `Esta versión descargará TeX (${Math.ceil(engine.total / 1_000_000)} MB) una sola vez. Después podrás compilar sin conexión.`}</p>
           <p>La memoria se compila en tu equipo. No se envía a un servicio remoto ni necesitas instalar TeX, Perl o Docker.</p>
           <p role="status">{phases[engine.phase]}{engine.current && ' ✓'}</p>
-          {preparing && <progress aria-label="Preparación de TeX" className="w-full" max={engine.total || 1} value={engine.received} />}
-          {engine.message && <Banner kind="warn">{engine.message}</Banner>}
-          {!engine.available && <Banner kind="warn">Esta ejecución de desarrollo no incluye el paquete. Puedes configurar un motor externo en Ajustes.</Banner>}
-          {preparing ? <Button onClick={() => void act(api.cancelDesktopEngine)} disabled={busy}>Cancelar preparación</Button>
+          {preparing && <progress aria-label="Preparación de TeX" className="h-2 w-full accent-[var(--et-accent)]" max={engine.total || 1} value={engine.received} />}
+          {engine.message && <Banner kind="warn" inline>{engine.message}</Banner>}
+          {!engine.available && <Banner kind="warn" inline>Esta ejecución de desarrollo no incluye el paquete. Puedes configurar un motor externo en Ajustes.</Banner>}
+          <div className="flex flex-wrap gap-2">{preparing ? <Button onClick={() => void act(api.cancelDesktopEngine)} disabled={busy}>Cancelar preparación</Button>
             : <Button variant="primary" onClick={() => void act(api.prepareDesktopEngine)} disabled={!engine.available || engine.current || busy}>{engine.phase === 'error' || engine.phase === 'cancelled' ? 'Reintentar' : 'Preparar TeX'}</Button>}
-          <Button variant="ghost" onClick={() => { close(); openSettings(); }} disabled={busy || preparing}>Opciones avanzadas: Docker o TeX externo</Button>
+          <Button variant="subtle" onClick={() => { close(); openSettings(); }} disabled={busy || preparing}>Opciones avanzadas: Docker o TeX externo</Button></div>
         </>}
         {step === 2 && <>
           <p>Comprueba que todo está listo generando el primer PDF. Puedes volver a este asistente desde Ajustes.</p>
-          <Button variant="primary" onClick={() => void compile()} disabled={busy}>{busy && <Spinner />}Compilar primera memoria</Button>
-          {compiled && <Banner kind="info">PDF generado. Ya puedes empezar a escribir.</Banner>}
+          <Button variant="primary" onClick={() => void compile()} disabled={busy}>{busy && <Spinner />} Compilar primera memoria</Button>
+          {compiled && <Banner kind="ok" inline>PDF generado. Ya puedes empezar a escribir.</Banner>}
         </>}
       </div>
     </Modal>

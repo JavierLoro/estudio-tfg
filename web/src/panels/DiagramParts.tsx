@@ -3,7 +3,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { ArrowDown, ArrowRight, ArrowRightLeft, BoxSelect, ChevronDown, Database, ListPlus, Plus, Search, StickyNote, Table2, User, X } from 'lucide-react';
-import { cx } from '../components/ui';
+import { Button, IconButton, Select, cx, inputClass } from '../components/ui';
 import { isBlockId, shapeOptions, type Block, type DiagramKind, type Glyph, type Link, type Model, type PaletteItem } from '../lib/diagramEdit';
 
 /** Dibujo pequeño de cada bloque de la paleta (como en la maqueta). */
@@ -70,7 +70,7 @@ export function Palette({
 }) {
   return (
     <div role="toolbar" aria-label="Bloques" aria-orientation="vertical" className="flex min-h-0 flex-col gap-1.5 overflow-y-auto">
-      {!icons && <div className="mb-0.5 text-[11.5px] text-faint">Bloques</div>}
+      {!icons && <div className="mb-0.5 text-sm text-muted">Bloques</div>}
       {items.map((it) => {
         const ok = canUse(it);
         return (
@@ -88,8 +88,8 @@ export function Palette({
             }}
             onClick={() => onUse(it)}
             className={cx(
-              'flex items-center rounded-md border border-line bg-bg text-[12px] text-fg transition-colors hover:bg-hover disabled:opacity-50',
-              icons ? 'h-7 w-7 justify-center' : 'gap-2 px-1.5 py-[5px] text-left',
+              'flex items-center rounded-md border border-line bg-bg text-ui text-fg transition-colors hover:bg-hover disabled:opacity-50',
+              icons ? 'size-(--et-icon-btn) min-h-8 min-w-8 justify-center' : 'min-h-(--et-control-sm) gap-2 px-2 py-1 text-left',
               !ok && !disabled && 'opacity-60',
               !disabled && 'cursor-grab active:cursor-grabbing',
             )}
@@ -101,17 +101,17 @@ export function Palette({
           </button>
         );
       })}
-      {!icons && <div className="mt-1.5 text-[11.5px] text-faint">Arrastra al lienzo</div>}
+      {!icons && <div className="mt-1.5 text-sm text-muted">Arrastra al lienzo</div>}
     </div>
   );
 }
 
-const fieldCls = 'w-full rounded-md border border-line-strong bg-bg px-[7px] py-[5px] text-[12px] text-fg outline-none focus:border-accent disabled:opacity-60';
+const fieldCls = inputClass('sm');
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="mb-[3px] text-[12px] text-muted">{title}</div>
+      <div className="mb-1 text-sm font-bold text-muted">{title}</div>
       {children}
     </div>
   );
@@ -156,15 +156,15 @@ export function DirectionToggle({ value, onChange, disabled }: { value: string |
       aria-pressed={on}
       disabled={disabled}
       onClick={() => onChange(d)}
-      className={cx('inline-flex h-6 w-8 items-center justify-center rounded-md border text-[12px] disabled:opacity-50', on ? 'border-transparent bg-active text-accent' : 'border-line text-muted hover:bg-hover')}
+      className={cx('inline-flex h-(--et-control-sm) w-10 items-center justify-center rounded-md border text-ui disabled:opacity-50', on ? 'border-transparent bg-active text-accent' : 'border-line-strong text-muted hover:bg-hover')}
     >
       {icon}
     </button>
   );
   return (
     <div className="flex gap-1">
-      {btn(vertical, 'Vertical: de arriba abajo (TD)', 'TD', <ArrowDown size={13} />)}
-      {btn(horizontal, 'Horizontal: de izquierda a derecha (LR)', 'LR', <ArrowRight size={13} />)}
+      {btn(vertical, 'Vertical: de arriba abajo (TD)', 'TD', <ArrowDown size={16} />)}
+      {btn(horizontal, 'Horizontal: de izquierda a derecha (LR)', 'LR', <ArrowRight size={16} />)}
     </div>
   );
 }
@@ -199,14 +199,14 @@ export function PropsPanel({
   const block = sel ? model.blocks.find((b) => b.id === sel) ?? null : null;
   const link = sel && !block ? model.links.find((l) => l.id === sel) ?? null : null;
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto text-[12px]">
+    <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto text-ui">
       {block ? (
         <BlockProps kind={kind} model={model} block={block} canEdit={canEdit} h={h} />
       ) : link ? (
         <LinkProps link={link} canEdit={canEdit} h={h} />
       ) : (
         <>
-          <div className="text-faint">Diagrama</div>
+          <div className="text-muted">Diagrama</div>
           <Section title="Tipo">
             <div className="text-fg">{kindName}</div>
           </Section>
@@ -239,16 +239,17 @@ function BlockProps({ kind, model, block, canEdit, h }: { kind: DiagramKind; mod
   const others = model.blocks.filter((b) => b.id !== block.id && b.label.toLowerCase().includes(q.trim().toLowerCase()));
   return (
     <>
-      <div className="text-faint">Bloque seleccionado</div>
+      <div className="text-muted">Bloque seleccionado</div>
       <Section title="Texto">
         <CommitInput aria-label="Texto del bloque" className={fieldCls} value={block.label} disabled={!canEdit} onCommit={(t) => h.onRename(block.id, t)} />
       </Section>
       {shapes.length > 0 && (
         <Section title={kind === 'sequence' ? 'Tipo' : 'Forma'}>
           <div className="relative">
-            <select
+            <Select
+              inputSize="sm"
               aria-label={kind === 'sequence' ? 'Tipo de participante' : 'Forma del bloque'}
-              className={cx(fieldCls, 'appearance-none pr-6')}
+              className="appearance-none pr-7!"
               value={block.shape ?? ''}
               disabled={!canEdit}
               onChange={(e) => h.onShape(block.id, e.target.value)}
@@ -259,8 +260,8 @@ function BlockProps({ kind, model, block, canEdit, h }: { kind: DiagramKind; mod
                   {s.label}
                 </option>
               ))}
-            </select>
-            <ChevronDown size={13} className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-muted" />
+            </Select>
+            <ChevronDown size={16} aria-hidden className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-muted" />
           </div>
         </Section>
       )}
@@ -272,16 +273,16 @@ function BlockProps({ kind, model, block, canEdit, h }: { kind: DiagramKind; mod
           {outgoing.map((l) => (
             <LinkRow key={l.id} dir="out" link={l} canEdit={canEdit} h={h} />
           ))}
-          {!incoming.length && !outgoing.length && <div className="py-[3px] text-faint">Sin conexiones</div>}
+          {!incoming.length && !outgoing.length && <div className="py-1 text-muted">Sin conexiones</div>}
         </div>
-        <button type="button" disabled={!canEdit || model.blocks.length < 2} onClick={() => setPicking(!picking)} aria-expanded={picking} className="mt-0.5 flex items-center gap-1 py-[3px] text-accent hover:underline disabled:opacity-50">
-          <Plus size={12} />
+        <Button variant="subtle" size="sm" disabled={!canEdit || model.blocks.length < 2} onClick={() => setPicking(!picking)} aria-expanded={picking} className="mt-1 -ml-2.5 text-accent!">
+          <Plus size={14} />
           Conectar con…
-        </button>
+        </Button>
         {picking && (
           <div className="mt-1 rounded-md border border-line-strong bg-bg">
-            <div className="flex items-center gap-1 border-b border-line px-1.5">
-              <Search size={12} className="shrink-0 text-faint" />
+            <div className="flex items-center gap-1 border-b border-line px-2">
+              <Search size={14} className="shrink-0 text-muted" aria-hidden />
               <input
                 ref={search}
                 aria-label="Buscar bloque"
@@ -296,7 +297,7 @@ function BlockProps({ kind, model, block, canEdit, h }: { kind: DiagramKind; mod
                     setPicking(false);
                   }
                 }}
-                className="h-6 min-w-0 flex-1 bg-transparent text-[12px] outline-none placeholder:text-faint"
+                className="et-focus-inset h-(--et-control-sm) min-w-0 flex-1 bg-transparent text-ui placeholder:text-muted"
               />
             </div>
             <ul role="listbox" aria-label="Bloques" className="max-h-32 overflow-y-auto py-0.5">
@@ -304,7 +305,7 @@ function BlockProps({ kind, model, block, canEdit, h }: { kind: DiagramKind; mod
                 <li key={b.id} role="option" aria-selected={false}>
                   <button
                     type="button"
-                    className="block w-full truncate px-2 py-[3px] text-left text-fg hover:bg-hover"
+                    className="et-focus-inset block min-h-(--et-row) w-full truncate px-2 py-1 text-left text-fg hover:bg-hover"
                     onClick={() => {
                       h.onConnect(block.id, b.id);
                       setPicking(false);
@@ -314,7 +315,7 @@ function BlockProps({ kind, model, block, canEdit, h }: { kind: DiagramKind; mod
                   </button>
                 </li>
               ))}
-              {!others.length && <li className="px-2 py-[3px] text-faint">Ningún bloque</li>}
+              {!others.length && <li className="px-2 py-1 text-muted">Ningún bloque</li>}
             </ul>
           </div>
         )}
@@ -331,7 +332,7 @@ function BlockProps({ kind, model, block, canEdit, h }: { kind: DiagramKind; mod
 function LinkRow({ dir, link, canEdit, h }: { dir: 'in' | 'out'; link: Link; canEdit: boolean; h: PropsHandlers }) {
   const name = dir === 'in' ? link.fromLabel : link.toLabel;
   return (
-    <div className="group flex items-center gap-1 py-[3px]">
+    <div className="group flex min-h-(--et-row) items-center gap-1">
       <span className="shrink-0 text-muted" aria-hidden>
         {dir === 'in' ? '←' : '→'}
       </span>
@@ -345,11 +346,11 @@ function LinkRow({ dir, link, canEdit, h }: { dir: 'in' | 'out'; link: Link; can
         value={link.label}
         disabled={!canEdit}
         onCommit={(t) => h.onLinkLabel(link.id, t)}
-        className="min-w-0 flex-1 rounded border border-transparent bg-transparent px-1 text-[12px] text-muted outline-none placeholder:text-faint hover:border-line focus:border-accent focus:text-fg"
+        className="h-(--et-control-sm) min-w-0 flex-1 rounded border border-transparent bg-transparent px-1 text-ui text-muted placeholder:text-muted hover:border-line-strong focus:border-line-strong focus:text-fg"
       />
-      <button type="button" aria-label="Quitar esta conexión" title="Quitar esta conexión" disabled={!canEdit} onClick={() => h.onDeleteLink(link.id)} className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-faint hover:bg-danger-bg hover:text-danger disabled:opacity-40">
-        <X size={11} />
-      </button>
+      <IconButton label="Quitar esta conexión" disabled={!canEdit} onClick={() => h.onDeleteLink(link.id)}>
+        <X size={16} />
+      </IconButton>
     </div>
   );
 }
@@ -357,7 +358,7 @@ function LinkRow({ dir, link, canEdit, h }: { dir: 'in' | 'out'; link: Link; can
 function LinkProps({ link, canEdit, h }: { link: Link; canEdit: boolean; h: PropsHandlers }) {
   return (
     <>
-      <div className="text-faint">Conexión seleccionada</div>
+      <div className="text-muted">Conexión seleccionada</div>
       <Section title="De → a">
         <div className="text-fg">
           {link.fromLabel} → {link.toLabel}
@@ -366,9 +367,9 @@ function LinkProps({ link, canEdit, h }: { link: Link; canEdit: boolean; h: Prop
       <Section title="Etiqueta">
         <CommitInput aria-label="Etiqueta de la conexión" className={fieldCls} value={link.label} disabled={!canEdit} onCommit={(t) => h.onLinkLabel(link.id, t)} />
       </Section>
-      <button type="button" disabled={!canEdit} onClick={() => h.onDeleteLink(link.id)} className="self-start rounded-md border border-danger/40 px-2 py-0.5 text-danger hover:bg-danger-bg disabled:opacity-50">
+      <Button variant="danger" size="sm" disabled={!canEdit} onClick={() => h.onDeleteLink(link.id)} className="self-start">
         Quitar conexión
-      </button>
+      </Button>
     </>
   );
 }
@@ -387,7 +388,7 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 export function StatusBar({ kind, model, saved, editable }: { kind: DiagramKind; model: Model; saved: boolean; editable: boolean }) {
   const blocks = model.blocks.filter((b) => isBlockId(b.id)).length;
   return (
-    <div className="flex h-6 shrink-0 items-center gap-3 border-t border-line px-2.5 text-[11.5px] text-faint">
+    <div className="flex min-h-7 shrink-0 items-center gap-3 border-t border-line px-2.5 py-1 text-sm text-muted">
       <span>{KIND_NAME[kind]}</span>
       {editable && (
         <span className="tabular-nums">

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { AlertCircle, AlertTriangle, CheckCircle2, Clock, FileCode2, FileText, Inbox, Play, Plus, XCircle } from 'lucide-react';
-import { Button, Empty, Spinner } from '../components/ui';
+import { Banner, Button, Empty, Spinner } from '../components/ui';
 import { openActions } from '../components/OpenActions';
 import { isMac, kbd } from '../lib/kbd';
 import { sideHint, shortcutFor } from '../lib/shortcuts';
@@ -15,9 +15,9 @@ import { formatDuration } from './PdfPanel';
 function Card({ title, icon, children, action }: { title: string; icon: React.ReactNode; children: React.ReactNode; action?: React.ReactNode }) {
   return (
     <section className="flex min-h-0 flex-col rounded-lg border border-line bg-bg">
-      <header className="flex h-8 shrink-0 items-center gap-1.5 border-b border-line px-3 text-[12px] font-semibold">
-        {icon}
-        <span className="flex-1">{title}</span>
+      <header className="flex min-h-(--et-toolbar) shrink-0 items-center gap-2 border-b border-line px-3 py-1">
+        <span className="flex text-muted" aria-hidden>{icon}</span>
+        <h2 className="flex-1 text-ui font-bold">{title}</h2>
         {action}
       </header>
       <div className="min-h-0 flex-1 overflow-auto py-1">{children}</div>
@@ -46,38 +46,38 @@ export function HomePanel() {
       <div className="mx-auto grid max-w-5xl grid-cols-1 gap-3 @2xl:grid-cols-2">
         <Card
           title="Memoria"
-          icon={<FileCode2 size={14} className="text-muted" />}
+          icon={<FileCode2 size={16} />}
           action={
-            <Button variant="primary" onClick={() => saveAndCompile()} disabled={compiling}>
-              {compiling ? <Spinner size={11} /> : <Play size={12} />} Compilar
+            <Button variant="primary" size="sm" onClick={() => saveAndCompile()} disabled={compiling}>
+              {compiling ? <Spinner size={14} /> : <Play size={14} />} Compilar
             </Button>
           }
         >
-          <div className="space-y-2 px-3 py-2 text-[12.5px]">
+          <div className="space-y-2 px-3 py-2 text-ui">
             {!last && !compiling && <p className="text-muted">Aún no hay compilaciones.</p>}
             {compiling && (
               <p className="flex items-center gap-2 text-muted">
-                <Spinner size={12} /> Compilando…
+                <Spinner size={14} /> Compilando…
               </p>
             )}
             {last && (
               <>
                 <p className="flex items-center gap-2">
-                  {last.ok ? <CheckCircle2 size={15} className="text-ok" /> : <XCircle size={15} className="text-danger" />}
+                  {last.ok ? <CheckCircle2 size={16} className="shrink-0 text-ok" aria-hidden /> : <XCircle size={16} className="shrink-0 text-danger" aria-hidden />}
                   <span className="font-medium">{last.ok ? 'Última compilación correcta' : 'La última compilación falló'}</span>
                 </p>
                 <p className="flex flex-wrap items-center gap-3 text-muted">
                   <span className="flex items-center gap-1">
-                    <Clock size={12} /> {formatDate(last.startedAt)} · {formatDuration(last.durationMs)}
+                    <Clock size={14} aria-hidden /> {formatDate(last.startedAt)} · {formatDuration(last.durationMs)}
                   </span>
                   <span className="flex items-center gap-1 text-danger">
-                    <AlertCircle size={12} /> {errors} errores
+                    <AlertCircle size={14} aria-hidden /> {errors} errores
                   </span>
                   <span className="flex items-center gap-1 text-warn">
-                    <AlertTriangle size={12} /> {warnings} avisos
+                    <AlertTriangle size={14} aria-hidden /> {warnings} avisos
                   </span>
                 </p>
-                {outdated && <p className="text-warn">El PDF está desactualizado respecto a los últimos cambios guardados.</p>}
+                {outdated && <Banner kind="warn" inline>El PDF está desactualizado respecto a los últimos cambios guardados.</Banner>}
               </>
             )}
             <div className="flex flex-wrap gap-1.5 pt-1">
@@ -85,22 +85,22 @@ export function HomePanel() {
               <Button onClick={() => openPdf()}>Ver PDF</Button>
             </div>
             {(status?.motor?.estado ?? status?.worker) === 'down' && (
-              <p className="text-danger">{status?.motor?.tipo === 'local' ? 'TeX del sistema no está disponible: revisa las herramientas detectadas en Ajustes.' : 'El worker de LaTeX no responde: no se podrá compilar hasta que arranque.'}</p>
+              <Banner kind="danger" inline>{status?.motor?.tipo === 'local' ? 'TeX del sistema no está disponible: revisa las herramientas detectadas en Ajustes.' : 'El worker de LaTeX no responde: no se podrá compilar hasta que arranque.'}</Banner>
             )}
           </div>
         </Card>
 
         <Card
           title={`Biblioteca${resources ? ` (${inbox.length})` : ''}`}
-          icon={<Inbox size={14} className="text-muted" />}
+          icon={<Inbox size={16} />}
           action={
-            <Button onClick={() => useUI.getState().setCaptureOpen(true)} title={`Añadir (${kbd(shortcutFor('capture'))})`}>
-              <Plus size={12} /> Añadir
+            <Button size="sm" onClick={() => useUI.getState().setCaptureOpen(true)} title={`Añadir (${kbd(shortcutFor('capture'))})`}>
+              <Plus size={14} /> Añadir
             </Button>
           }
         >
           {queued > 0 && (
-            <p className="px-3 py-1 text-[12px] text-warn">{queued} captura(s) pendientes de enviar (sin conexión). Se reintentará automáticamente.</p>
+            <Banner kind="warn">{queued} captura(s) pendientes de enviar (sin conexión). Se reintentará automáticamente.</Banner>
           )}
           {!resources && (
             <div className="flex justify-center py-3 text-muted">
@@ -111,9 +111,9 @@ export function HomePanel() {
           <ul>
             {inbox.slice(0, 12).map((r) => (
               <li key={r.path}>
-                <button type="button" className="w-full px-3 py-1 text-left hover:bg-hover" {...openActions((side) => openResource(r.path, { side }))}>
-                  <div className="truncate text-[12.5px] font-medium">{r.title}</div>
-                  <div className="truncate text-[11px] text-faint">
+                <button type="button" className="et-focus-inset min-h-(--et-row) w-full px-3 py-1 text-left hover:bg-hover" {...openActions((side) => openResource(r.path, { side }))}>
+                  <div className="truncate text-ui font-medium">{r.title}</div>
+                  <div className="truncate text-sm text-muted">
                     {formatDate(r.captured)}
                     {r.url ? ` · ${hostOf(r.url)}` : ''}
                     {r.attachment ? ' · adjunto' : ''}
@@ -123,35 +123,35 @@ export function HomePanel() {
             ))}
           </ul>
           {inbox.length > 12 && (
-            <button type="button" className="px-3 py-1 text-[12px] text-accent hover:underline" onClick={() => useUI.getState().setSection('resources')}>
+            <button type="button" className="et-focus-inset min-h-(--et-row) px-3 py-1 text-ui text-accent hover:underline" onClick={() => useUI.getState().setSection('resources')}>
               Ver los {inbox.length} recursos…
             </button>
           )}
         </Card>
 
-        <Card title="Abiertos recientemente" icon={<Clock size={14} className="text-muted" />}>
+        <Card title="Abiertos recientemente" icon={<Clock size={16} />}>
           {recents.length === 0 && <Empty>Todavía no has abierto nada.</Empty>}
           <ul>
             {recents.slice(0, 15).map((r) => (
               <li key={`${r.root}:${r.path}`}>
                 <button
                   type="button"
-                  className="flex w-full items-center gap-2 px-3 py-1 text-left hover:bg-hover"
+                  className="et-focus-inset flex min-h-(--et-row) w-full items-center gap-2 px-3 py-1 text-left hover:bg-hover"
                   {...openActions((side) => openFile(r.root, r.path, { side }))}
                   title={r.path}
                 >
-                  {r.root === 'memoria' ? <FileCode2 size={13} className="shrink-0 text-muted" /> : <FileText size={13} className="shrink-0 text-muted" />}
-                  <span className="truncate text-[12.5px]">{basename(r.path)}</span>
-                  <span className="min-w-0 flex-1 truncate text-[11px] text-faint">{r.path}</span>
-                  <span className="shrink-0 text-[11px] text-faint">{formatDate(r.at)}</span>
+                  {r.root === 'memoria' ? <FileCode2 size={16} className="shrink-0 text-muted" aria-hidden /> : <FileText size={16} className="shrink-0 text-muted" aria-hidden />}
+                  <span className="truncate text-ui">{basename(r.path)}</span>
+                  <span className="min-w-0 flex-1 truncate text-sm text-muted">{r.path}</span>
+                  <span className="shrink-0 text-sm text-muted">{formatDate(r.at)}</span>
                 </button>
               </li>
             ))}
           </ul>
         </Card>
 
-        <Card title="Atajos" icon={<FileText size={14} className="text-muted" />}>
-          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 px-3 py-2 text-[12px]">
+        <Card title="Atajos" icon={<FileText size={16} />}>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 px-3 py-2 text-ui">
             <dt className="font-mono text-muted">{kbd('Mod-K')}</dt>
             <dd>Abrir archivo o buscar</dd>
             <dt className="font-mono text-muted">{kbd(shortcutFor('capture'))}</dt>
@@ -174,16 +174,17 @@ export function HomePanel() {
         </Card>
       </div>
       <div className="mx-auto mt-3 max-w-5xl px-1">
-        <button
-          type="button"
-          className="text-[11.5px] text-muted hover:text-fg hover:underline"
+        <Button
+          variant="subtle"
+          size="sm"
+          className="font-normal! text-muted!"
           onClick={() => {
             resetLayout();
             useUI.getState().setSidebarWidth(SIDEBAR_DEFAULT);
           }}
         >
           Restablecer distribución de paneles
-        </button>
+        </Button>
       </div>
     </div>
   );

@@ -5,7 +5,7 @@ import type { IDockviewPanelProps } from 'dockview-react';
 import { AlertCircle, Code2, FileOutput, ImageDown, Save, SquarePlus, Undo2, Workflow } from 'lucide-react';
 import { CodeEditor, type LineDiagnostic } from '../components/CodeEditor';
 import { DocBanners, SaveIndicator } from '../components/DocBanners';
-import { Banner, Button, IconButton, Spinner, cx } from '../components/ui';
+import { Banner, Button, IconButton, Spinner, StatusPill, cx, type Tone } from '../components/ui';
 import type { EstadoDiagrama } from '../api';
 import { kbd } from '../lib/kbd';
 import type { RenderError, RenderOk } from '../lib/diagram';
@@ -28,19 +28,17 @@ const ESTADO_LABEL: Record<EstadoDiagrama, string> = {
   desactualizado: 'Desactualizada',
 };
 
+const ESTADO_TONE: Record<EstadoDiagrama, Tone> = {
+  'sin-exportar': 'neutral',
+  exportado: 'ok',
+  desactualizado: 'warn',
+};
+
 export function EstadoBadge({ estado, title }: { estado: EstadoDiagrama; title?: string }) {
   return (
-    <span
-      title={title}
-      className={cx(
-        'inline-flex h-5 shrink-0 items-center rounded-full border px-2 text-[11px] whitespace-nowrap',
-        estado === 'exportado' && 'border-ok/40 text-ok',
-        estado === 'desactualizado' && 'border-warn/40 bg-warn-bg text-warn',
-        estado === 'sin-exportar' && 'border-line text-muted',
-      )}
-    >
+    <StatusPill tone={ESTADO_TONE[estado]} title={title} className="shrink-0">
       {ESTADO_LABEL[estado]}
-    </span>
+    </StatusPill>
   );
 }
 
@@ -152,7 +150,7 @@ export function DiagramPanel({ params, api }: IDockviewPanelProps<FileParams>) {
 
   return (
     <div className="flex h-full flex-col bg-bg" onKeyDown={onPanelKeyDown}>
-      <div className="flex min-h-9 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-line px-2.5 py-1 text-[12px]">
+      <div className="flex min-h-(--et-toolbar) shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-line px-2.5 py-1 text-ui">
         <Workflow size={16} className="shrink-0 text-muted" aria-hidden />
         <span className="min-w-0 truncate font-medium" title={path}>
           {basename(path).replace(/\.mmd$/i, '')}
@@ -167,43 +165,46 @@ export function DiagramPanel({ params, api }: IDockviewPanelProps<FileParams>) {
             }
           />
         )}
-        {rendering && <Spinner size={10} />}
+        {rendering && <Spinner size={14} />}
         <SaveIndicator docKey={key} />
         <span className="min-w-0 flex-1" />
         <Button
-          variant={showCode ? 'primary' : 'default'}
+          variant={showCode ? 'primary' : 'secondary'}
+          size="sm"
           onClick={toggleCode}
           disabled={content !== undefined && !EDITABLE_KINDS.has(kind)}
           title={showCode ? 'Ocultar el código del diagrama' : 'Mostrar el código del diagrama (Mermaid)'}
           aria-pressed={showCode}
         >
-          <Code2 size={12} />
+          <Code2 size={14} />
           Código
         </Button>
         <IconButton label={`Deshacer (${kbd('Mod-Z')})`} onClick={doUndo} disabled={status !== 'ready'}>
-          <Undo2 size={14} />
+          <Undo2 size={16} />
         </IconButton>
         <IconButton label={`Guardar (${kbd('Mod-S')})`} onClick={() => saveDoc(key)} disabled={status !== 'ready'}>
-          <Save size={14} />
+          <Save size={16} />
         </IconButton>
         <IconButton label="Descargar PNG (2×)" onClick={doPng} disabled={!good || !!busy}>
-          {busy === 'png' ? <Spinner size={11} /> : <ImageDown size={14} />}
+          {busy === 'png' ? <Spinner size={14} /> : <ImageDown size={16} />}
         </IconButton>
         <Button
+          size="sm"
           onClick={doExport}
           disabled={!name || !!busy || status !== 'ready' || !!error}
           title={name ? `Guardar y exportar a figuras/diagramas/${name}.pdf (y .svg)` : 'Solo se exportan los diagramas de la carpeta diagramas/'}
         >
-          {busy === 'export' ? <Spinner size={11} /> : <FileOutput size={12} />}
+          {busy === 'export' ? <Spinner size={14} /> : <FileOutput size={14} />}
           Exportar
         </Button>
         <Button
           variant="primary"
+          size="sm"
           onClick={() => name && openInsertFigure(path)}
           disabled={!name || !!busy || status !== 'ready' || !!error}
           title="Insertar la figura en un capítulo de la memoria"
         >
-          <SquarePlus size={12} />
+          <SquarePlus size={14} />
           Insertar en la memoria
         </Button>
       </div>
@@ -226,7 +227,7 @@ export function DiagramPanel({ params, api }: IDockviewPanelProps<FileParams>) {
             <button
               type="button"
               role="alert"
-              className="flex shrink-0 items-start gap-1.5 border-b border-danger/30 bg-danger-bg px-2 py-1.5 text-left text-[12px] text-danger"
+              className="et-focus-inset flex min-h-(--et-row) shrink-0 items-start gap-1.5 border-b border-danger/40 bg-danger-bg px-3 py-2 text-left text-ui text-danger"
               onClick={() => {
                 if (!showCode) {
                   setCodeOn(true);
@@ -236,8 +237,8 @@ export function DiagramPanel({ params, api }: IDockviewPanelProps<FileParams>) {
               }}
               title={showCode ? (error.line ? 'Ir a la línea' : undefined) : 'Mostrar el código y ir a la línea'}
             >
-              <AlertCircle size={13} className="mt-0.5 shrink-0" />
-              <span className="min-w-0 flex-1 font-mono text-[11.5px] break-words whitespace-pre-wrap">
+              <AlertCircle size={16} className="mt-0.5 shrink-0" aria-hidden />
+              <span className="min-w-0 flex-1 font-mono text-sm break-words whitespace-pre-wrap">
                 {error.line ? `Línea ${error.line}: ` : ''}
                 {error.message.split('\n').filter((l) => !/^-*\^$/.test(l.trim())).slice(0, 4).join('\n')}
               </span>

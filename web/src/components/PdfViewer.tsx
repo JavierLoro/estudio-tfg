@@ -11,7 +11,7 @@ import { sideByEvent, sideHint } from '../lib/shortcuts';
 import { openContextMenu } from './ContextMenu';
 import { load, save } from '../lib/storage';
 import { openFromPdf, usePdfView } from '../state/synctex';
-import { IconButton, Spinner, cx } from './ui';
+import { IconButton, Input, Select, Spinner, cx } from './ui';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -361,10 +361,11 @@ export default function PdfViewer({ url, synctex = true }: { url: string; syncte
 
   return (
     <div className="flex h-full min-h-0 flex-col" onKeyDown={onKeyDown}>
-      <div className="flex h-7 shrink-0 items-center gap-1 border-b border-line bg-bg px-2 text-[11.5px] text-muted">
+      <div className="@container flex h-(--et-toolbar) shrink-0 items-center gap-1 border-b border-line bg-bg px-2 text-sm text-muted">
         <span className="flex shrink-0 items-center gap-1 whitespace-nowrap" title="Página actual">
-          <input
-            className="h-5 w-9 rounded border border-line bg-soft px-1 text-right text-fg outline-none focus:border-accent"
+          <Input
+            inputSize="sm"
+            className="w-12 text-right"
             value={pageInput}
             onChange={(e) => setPageInput(e.target.value.replace(/\D/g, ''))}
             onKeyDown={(e) => e.key === 'Enter' && goToPage()}
@@ -374,12 +375,13 @@ export default function PdfViewer({ url, synctex = true }: { url: string; syncte
           />
           <span>/ {pages || '–'}</span>
         </span>
-        <span className="mx-1 h-4 w-px bg-line" />
+        <span aria-hidden className="mx-1 h-5 w-px bg-line" />
         <IconButton label={`Alejar (${kbd('Mod--')})`} onClick={() => zoom(-1)}>
-          <Minus size={13} />
+          <Minus size={16} />
         </IconButton>
-        <select
-          className="h-5 rounded border border-line bg-soft px-1 text-fg outline-none focus:border-accent"
+        <Select
+          inputSize="sm"
+          className="w-auto"
           value={isPreset ? scale.value : pctOption}
           onChange={(e) => applyScale(e.target.value)}
           aria-label="Zoom"
@@ -395,31 +397,30 @@ export default function PdfViewer({ url, synctex = true }: { url: string; syncte
             </option>
           ))}
           {!isPreset && pctOption === 'custom' && <option value="custom">{scale.pct} %</option>}
-        </select>
+        </Select>
         <IconButton label={`Acercar (${kbd('Mod-+')})`} onClick={() => zoom(1)}>
-          <Plus size={13} />
+          <Plus size={16} />
         </IconButton>
         <span className="flex-1" />
         {synctex && (
-          <span className="min-w-0 truncate text-faint" title={`${kbd('Mod-clic')} abre el código; ${sideHint()}, clic central o menú contextual lo abren al lado`}>
+          <span className="hidden min-w-0 truncate text-muted @2xl:inline" title={`${kbd('Mod-clic')} abre el código; ${sideHint()}, clic central o menú contextual lo abren al lado`}>
             {kbd('Mod-clic')}: ir al código
           </span>
         )}
         <IconButton label={`Buscar en el PDF (${kbd('Mod-F')})`} active={findOpen} onClick={() => (findOpen ? closeFind() : openFind())}>
-          <Search size={13} />
+          <Search size={16} />
         </IconButton>
         <IconButton label="Páginas oscuras (invertir colores)" active={dark} onClick={toggleDark}>
-          <Moon size={13} />
+          <Moon size={16} />
         </IconButton>
       </div>
       {findOpen && (
-        <div className="flex h-8 shrink-0 items-center gap-1 border-b border-line bg-soft px-2 text-[11.5px] text-muted">
-          <input
+        <div className="flex h-(--et-toolbar) shrink-0 items-center gap-1 border-b border-line bg-soft px-2 text-sm text-muted">
+          <Input
             ref={findInput}
-            className={cx(
-              'h-6 min-w-0 flex-1 rounded border bg-bg px-2 text-fg outline-none focus:border-accent',
-              matches.notFound && query ? 'border-danger' : 'border-line',
-            )}
+            inputSize="sm"
+            className="flex-1"
+            aria-invalid={!!(matches.notFound && query)}
             placeholder="Buscar en el PDF…"
             value={query}
             onChange={(e) => {
@@ -437,22 +438,22 @@ export default function PdfViewer({ url, synctex = true }: { url: string; syncte
             }}
             aria-label="Buscar en el PDF"
           />
-          <span className="w-16 shrink-0 text-center tabular-nums">
+          <span className="w-24 shrink-0 text-center tabular-nums">
             {query ? (matches.total ? `${matches.current} / ${matches.total}` : matches.notFound ? 'Sin resultados' : '…') : ''}
           </span>
           <IconButton label={`Anterior (${kbd('Shift-Enter')})`} onClick={() => dispatchFind(true, true)} disabled={!matches.total}>
-            <ChevronUp size={13} />
+            <ChevronUp size={16} />
           </IconButton>
           <IconButton label={`Siguiente (${kbd('Enter')})`} onClick={() => dispatchFind(true, false)} disabled={!matches.total}>
-            <ChevronDown size={13} />
+            <ChevronDown size={16} />
           </IconButton>
           <IconButton label={`Cerrar (${kbd('Escape')})`} onClick={closeFind}>
-            <X size={13} />
+            <X size={16} />
           </IconButton>
         </div>
       )}
       <div className="relative min-h-0 flex-1">
-        <div ref={container} tabIndex={0} className={cx('et-pdf absolute inset-0 overflow-auto outline-none', dark && 'et-pdf-dark')}>
+        <div ref={container} tabIndex={0} aria-label="Páginas del PDF" className={cx('et-pdf et-focus-inset absolute inset-0 overflow-auto', dark && 'et-pdf-dark')}>
           <div ref={inner} className="pdfViewer" />
         </div>
         {loading && (
@@ -461,7 +462,7 @@ export default function PdfViewer({ url, synctex = true }: { url: string; syncte
           </div>
         )}
         {error && (
-          <div className="absolute inset-0 flex items-center justify-center p-4 text-center text-[12px] text-danger">No se pudo abrir el PDF: {error}</div>
+          <div className="absolute inset-0 flex items-center justify-center p-4 text-center text-ui text-danger">No se pudo abrir el PDF: {error}</div>
         )}
       </div>
     </div>

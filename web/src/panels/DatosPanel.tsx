@@ -16,9 +16,9 @@ import {
   type PlantillaPreview,
   type PlantillaResultado,
 } from '../api';
-import { indicatorColor } from '../components/DocBanners';
+import { IndicatorMark } from '../components/DocBanners';
 import { kbd } from '../lib/kbd';
-import { Banner, Button, Modal, Spinner, cx } from '../components/ui';
+import { Banner, Button, Field, Input, Modal, Select, Spinner, cx } from '../components/ui';
 import { useCompile, isPdfOutdated } from '../state/compile';
 import { isDirty, saveAll, useDocs } from '../state/docs';
 import { onFileChange } from '../state/events';
@@ -163,9 +163,6 @@ LABEL.logo = 'Logo';
 
 const flat = (d: DatosResponse): Record<string, string> => ({ ...d.datos, ...d.institucion });
 
-const inputCls =
-  'h-7 min-w-0 w-full rounded-md border bg-bg px-2 text-[12.5px] outline-none focus:border-accent disabled:opacity-60';
-
 type Phase = 'ok' | 'dirty' | 'saving' | 'error';
 const PHASE_LABEL: Record<Phase, string> = { ok: 'Guardado', dirty: 'Sin guardar', saving: 'Guardando…', error: 'Error' };
 const PHASE_IND = { ok: 'guardado', dirty: 'sin guardar', saving: 'guardando', error: 'error' } as const;
@@ -173,9 +170,11 @@ const PHASE_IND = { ok: 'guardado', dirty: 'sin guardar', saving: 'guardando', e
 function Section({ title, children, note }: { title: string; children: React.ReactNode; note?: React.ReactNode }) {
   return (
     <section className="rounded-lg border border-line bg-bg">
-      <header className="flex h-8 items-center border-b border-line px-3 text-[12px] font-semibold">{title}</header>
+      <header className="flex min-h-(--et-toolbar) items-center border-b border-line px-4 py-1">
+        <h2 className="text-ui font-bold">{title}</h2>
+      </header>
       {note}
-      <div className="grid grid-cols-1 gap-x-4 gap-y-3 px-3 py-3 sm:grid-cols-2">{children}</div>
+      <div className="grid grid-cols-1 gap-x-4 gap-y-4 p-4 sm:grid-cols-2">{children}</div>
     </section>
   );
 }
@@ -460,24 +459,17 @@ export function DatosPanel() {
       if (f.kind === 'month') value = MESES.find((m) => m === raw.toLowerCase()) ?? raw;
       if (value !== '' && !opts.some(([v]) => v === value)) opts = [...opts, [value, `${value} (personalizado)`]];
       control = (
-        <select
-          id={id}
-          value={value}
-          onChange={(e) => setValue(f.key, e.target.value, true)}
-          className={cx(inputCls, err ? 'border-danger' : 'border-line-strong')}
-          aria-invalid={!!err}
-        >
+        <Select id={id} value={value} onChange={(e) => setValue(f.key, e.target.value, true)}>
           {opts.map(([v, l]) => (
             <option key={v} value={v}>
               {l}
             </option>
           ))}
-        </select>
+        </Select>
       );
     } else {
       control = (
-        <>
-          <input
+        <Input
             id={id}
             value={raw}
             list={f.list ? `${id}-list` : undefined}
@@ -488,52 +480,43 @@ export function DatosPanel() {
             onChange={(e) => setValue(f.key, e.target.value)}
             onBlur={queueSave}
             onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-            className={cx(inputCls, f.mono && 'font-mono text-[12px]', err ? 'border-danger' : 'border-line-strong')}
-            aria-invalid={!!err}
+            className={cx(f.mono && 'font-mono')}
           />
-          {f.list && (
-            <datalist id={`${id}-list`}>
-              {f.list.map((o) => (
-                <option key={o} value={o} />
-              ))}
-            </datalist>
-          )}
-        </>
       );
     }
     return (
       <div key={f.key} className={cx('min-w-0', f.wide && 'sm:col-span-2')}>
-        <label htmlFor={id} className="mb-1 block text-[12px] font-medium">
-          {f.label}
-        </label>
-        {control}
-        {err && (
-          <p className="mt-1 text-[12px] text-danger" role="alert">
-            {err}
-          </p>
+        <Field id={id} label={f.label} help={err ? undefined : f.help} error={err}>
+          {control as React.ReactElement}
+        </Field>
+        {f.list && (
+          <datalist id={`${id}-list`}>
+            {f.list.map((o) => (
+              <option key={o} value={o} />
+            ))}
+          </datalist>
         )}
-        {f.help && !err && <p className="mt-1 text-[11px] text-faint">{f.help}</p>}
       </div>
     );
   };
 
   return (
     <div className="flex h-full flex-col bg-soft" onKeyDown={onKeyDown}>
-      <div className="flex h-10 shrink-0 items-center gap-2 border-b border-line bg-bg px-3">
-        <ClipboardList size={15} className="text-muted" />
-        <h1 className="text-[13px] font-semibold">Datos del trabajo</h1>
+      <div className="flex h-(--et-toolbar) shrink-0 items-center gap-2 border-b border-line bg-bg px-3">
+        <ClipboardList size={16} className="shrink-0 text-muted" aria-hidden />
+        <h1 className="text-ui font-semibold">Datos del trabajo</h1>
         <div className="flex-1" />
         {data && (
           <span
-            className="inline-flex items-center gap-1.5 text-[11px] text-muted"
+            className="inline-flex items-center gap-1.5 text-sm text-muted"
             title={`${PHASE_LABEL[phase]} · ${kbd('Mod-S')} guarda ahora`}
             aria-label={`Estado: ${PHASE_LABEL[phase]}`}
           >
-            {phase === 'saving' ? <Spinner size={9} /> : <span className={cx('inline-block h-2 w-2 rounded-full', indicatorColor(PHASE_IND[phase]))} />}
+            <IndicatorMark ind={PHASE_IND[phase]} label={false} />
             <span>{PHASE_LABEL[phase]}</span>
           </span>
         )}
-        <Button variant="ghost" onClick={() => openFile('memoria', 'datos.tex')} title="Editar el código de datos.tex">
+        <Button variant="subtle" size="sm" onClick={() => openFile('memoria', 'datos.tex')} title="Editar el código de datos.tex">
           Abrir datos.tex
         </Button>
       </div>
@@ -541,10 +524,9 @@ export function DatosPanel() {
       {conflict && (
         <Banner
           kind="danger"
-          actions={<Button onClick={() => setConflict(null)}>Entendido</Button>}
+          actions={<Button size="sm" onClick={() => setConflict(null)}>Entendido</Button>}
         >
-          <span className="inline-flex items-start gap-1.5">
-            <AlertCircle size={13} className="mt-0.5 shrink-0" />
+          <span>
             <span>
               Los datos cambiaron en disco mientras editabas y se han cargado los valores nuevos.
               {conflict.length > 0 && (
@@ -568,8 +550,8 @@ export function DatosPanel() {
         <Banner
           kind="warn"
           actions={
-            <Button variant="primary" onClick={() => setDlgOpen(true)}>
-              <RefreshCw size={12} /> Actualizar…
+            <Button variant="primary" size="sm" onClick={() => setDlgOpen(true)}>
+              <RefreshCw size={14} /> Actualizar…
             </Button>
           }
         >
@@ -582,11 +564,11 @@ export function DatosPanel() {
           actions={
             <>
               {resultado.kind === 'ok' && (
-                <Button onClick={() => void deshacerPlantilla()} disabled={undoBusy} title="Restaura los archivos y revierte el commit">
-                  {undoBusy ? <Spinner size={11} /> : <Undo2 size={12} />} Deshacer
+                <Button size="sm" onClick={() => void deshacerPlantilla()} disabled={undoBusy} title="Restaura los archivos y revierte el commit">
+                  {undoBusy ? <Spinner size={14} /> : <Undo2 size={14} />} Deshacer
                 </Button>
               )}
-              <Button variant="ghost" onClick={() => setResultado(null)}>
+              <Button variant="subtle" size="sm" onClick={() => setResultado(null)}>
                 Cerrar
               </Button>
             </>
@@ -616,7 +598,7 @@ export function DatosPanel() {
       )}
       {general && <Banner kind="danger">{general}</Banner>}
       {loadError && (
-        <Banner kind="danger" actions={<Button onClick={() => void load()}>Reintentar</Button>}>
+        <Banner kind="danger" actions={<Button size="sm" onClick={() => void load()}>Reintentar</Button>}>
           No se pudieron leer los datos: {loadError}
         </Banner>
       )}
@@ -624,8 +606,8 @@ export function DatosPanel() {
         <Banner
           kind="info"
           actions={
-            <Button variant="primary" onClick={() => void saveAndCompile()} disabled={compiling}>
-              {compiling ? <Spinner size={11} /> : <Play size={12} />} Compilar
+            <Button variant="primary" size="sm" onClick={() => void saveAndCompile()} disabled={compiling}>
+              {compiling ? <Spinner size={14} /> : <Play size={14} />} Compilar
             </Button>
           }
         >
@@ -650,16 +632,18 @@ export function DatosPanel() {
               note={
                 !hasInst &&
                 (desactualizada ? (
-                  <div className="flex flex-wrap items-center gap-2 border-b border-line bg-warn-bg px-3 py-2 text-[12px] text-warn">
-                    <span className="min-w-0 flex-1">Hay una versión nueva de la plantilla: al actualizar podrás editar aquí los datos de la institución.</span>
-                    <Button variant="primary" onClick={() => setDlgOpen(true)}>
-                      <RefreshCw size={12} /> Actualizar…
-                    </Button>
-                  </div>
+                  <Banner
+                    kind="warn"
+                    actions={
+                      <Button variant="primary" size="sm" onClick={() => setDlgOpen(true)}>
+                        <RefreshCw size={14} /> Actualizar…
+                      </Button>
+                    }
+                  >
+                    Hay una versión nueva de la plantilla: al actualizar podrás editar aquí los datos de la institución.
+                  </Banner>
                 ) : (
-                  <p className="border-b border-line bg-warn-bg px-3 py-2 text-[12px] text-warn">
-                    Esta memoria usa la plantilla anterior; podrás actualizarla más adelante.
-                  </p>
+                  <Banner kind="warn">Esta memoria usa la plantilla anterior; podrás actualizarla más adelante.</Banner>
                 ))
               }
             >
@@ -667,11 +651,12 @@ export function DatosPanel() {
                 <>
                   {INSTITUCION.slice(0, 2).map(renderField)}
                   <div className="min-w-0 sm:col-span-2">
-                    <div className="mb-1 text-[12px] font-medium">Logo</div>
+                    <div className="mb-1 text-sm font-bold">Logo</div>
                     <div className="flex flex-wrap items-center gap-3">
+                      {/* Fondo blanco fijo: el logo se ve como quedará en el papel. */}
                       <div className="flex h-16 w-28 shrink-0 items-center justify-center overflow-hidden rounded-md border border-line bg-white">
                         {!logo ? (
-                          <span className="text-[11px] text-faint">Sin logo</span>
+                          <span className="text-sm text-muted">Sin logo</span>
                         ) : logoExt === 'pdf' ? (
                           <object
                             data={`${api.rawUrl('memoria', `estilo/${logo}`)}&v=${data.rev.institucion}#toolbar=0&navpanes=0&view=Fit`}
@@ -679,7 +664,7 @@ export function DatosPanel() {
                             className="h-full w-full"
                             aria-label="Vista previa del logo"
                           >
-                            <span className="text-[11px] text-faint">{logo}</span>
+                            <span className="text-sm text-muted">{logo}</span>
                           </object>
                         ) : (
                           <img
@@ -690,14 +675,14 @@ export function DatosPanel() {
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate font-mono text-[11.5px] text-muted">{logo ? `estilo/${logo}` : 'Sin logo'}</p>
+                        <p className="truncate font-mono text-sm text-muted">{logo ? `estilo/${logo}` : 'Sin logo'}</p>
                         <div className="mt-1.5 flex flex-wrap gap-1.5">
                           <Button onClick={() => fileInput.current?.click()} disabled={logoBusy}>
-                            {logoBusy ? <Spinner size={11} /> : <ImagePlus size={12} />} {logo ? 'Cambiar logo…' : 'Subir logo…'}
+                            {logoBusy ? <Spinner size={16} /> : <ImagePlus size={16} />} {logo ? 'Cambiar logo…' : 'Subir logo…'}
                           </Button>
                           {logo && (
-                            <Button variant="ghost" onClick={() => void logoAction(() => api.deleteLogo())} disabled={logoBusy}>
-                              <Trash2 size={12} /> Quitar
+                            <Button variant="subtle" onClick={() => void logoAction(() => api.deleteLogo())} disabled={logoBusy}>
+                              <Trash2 size={16} /> Quitar
                             </Button>
                           )}
                         </div>
@@ -715,45 +700,36 @@ export function DatosPanel() {
                       </div>
                     </div>
                     {errors.logo && (
-                      <p className="mt-1 text-[12px] text-danger" role="alert">
-                        {errors.logo}
+                      <p className="mt-1 flex items-start gap-1 text-sm text-danger" role="alert">
+                        <AlertCircle size={15} className="mt-0.5 shrink-0" aria-hidden />
+                        <span>{errors.logo}</span>
                       </p>
                     )}
-                    <p className="mt-1 text-[11px] text-faint">PDF, PNG o JPG, máximo 5 MB.</p>
+                    <p className="mt-1 text-sm text-muted">PDF, PNG o JPG, máximo 5 MB.</p>
                   </div>
                   {INSTITUCION.slice(2).map(renderField)}
                   <div className="min-w-0 sm:col-span-2">
-                    <div className="mb-1 text-[12px] font-medium">Márgenes</div>
+                    <div className="mb-1 text-sm font-bold">Márgenes</div>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                       {MARGENES.map((m) => (
-                        <div key={m.key}>
-                          <label htmlFor={`datos-${m.key}`} className="mb-0.5 block text-[11px] text-muted">
-                            {m.label}
-                          </label>
-                          <input
-                            id={`datos-${m.key}`}
+                        <Field key={m.key} id={`datos-${m.key}`} label={m.label} error={errors[m.key]}>
+                          <Input
                             value={form[m.key] ?? ''}
                             placeholder={m.placeholder}
                             spellCheck={false}
                             onChange={(e) => setValue(m.key, e.target.value)}
                             onBlur={queueSave}
                             onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-                            className={cx(inputCls, 'font-mono text-[12px]', errors[m.key] ? 'border-danger' : 'border-line-strong')}
-                            aria-invalid={!!errors[m.key]}
+                            className="font-mono"
                           />
-                          {errors[m.key] && (
-                            <p className="mt-1 text-[12px] text-danger" role="alert">
-                              {errors[m.key]}
-                            </p>
-                          )}
-                        </div>
+                        </Field>
                       ))}
                     </div>
-                    <p className="mt-1 text-[11px] text-faint">Longitudes de LaTeX, p. ej. 35mm o 2.5cm.</p>
+                    <p className="mt-1 text-sm text-muted">Longitudes de LaTeX, p. ej. 35mm o 2.5cm.</p>
                   </div>
                 </>
               ) : (
-                <p className="text-[12px] text-faint sm:col-span-2">Estos datos no se pueden editar en una memoria creada con la plantilla anterior.</p>
+                <p className="text-ui text-muted sm:col-span-2">Estos datos no se pueden editar en una memoria creada con la plantilla anterior.</p>
               )}
             </Section>
           </div>
@@ -866,16 +842,16 @@ function PlantillaDialog({
       width={600}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose} disabled={busy}>
+          <Button variant="subtle" onClick={onClose} disabled={busy}>
             Cancelar
           </Button>
           <Button variant="primary" onClick={() => void apply()} disabled={!puede}>
-            {busy ? <Spinner size={11} /> : <RefreshCw size={12} />} Actualizar
+            {busy ? <Spinner size={16} /> : <RefreshCw size={16} />} Actualizar
           </Button>
         </>
       }
     >
-      <div className="flex flex-col gap-3 p-3 text-[12.5px]">
+      <div className="flex flex-col gap-3 p-4 text-ui">
         <p className="text-muted">
           {prev.estado === 'desactualizada'
             ? `De la plantilla ${prev.versionMemoria} a la ${prev.versionPlantilla}. Lo que has escrito no se toca: solo se sustituyen los archivos que siguen como los dejó la plantilla.`
@@ -885,36 +861,26 @@ function PlantillaDialog({
         </p>
 
         {!hasInst && perfiles && perfiles.length > 1 && (
-          <div>
-            <label htmlFor="plantilla-perfil" className="mb-1 block text-[12px] font-medium">
-              Perfil de institución
-            </label>
-            <select
-              id="plantilla-perfil"
-              value={prev.perfil}
-              disabled={loading || busy}
-              onChange={(e) => void changePerfil(e.target.value)}
-              className={cx(inputCls, 'border-line-strong')}
-            >
+          <Field id="plantilla-perfil" label="Perfil de institución" help={perfiles.find((p) => p.id === prev.perfil)?.descripcion || undefined}>
+            <Select value={prev.perfil} disabled={loading || busy} onChange={(e) => void changePerfil(e.target.value)}>
               {perfiles.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.nombre}
                 </option>
               ))}
-            </select>
-            <p className="mt-1 text-[11px] text-faint">{perfiles.find((p) => p.id === prev.perfil)?.descripcion ?? ''}</p>
-          </div>
+            </Select>
+          </Field>
         )}
 
         {aviso && (
-          <p className="rounded-md border border-warn/30 bg-warn-bg px-2 py-1.5 text-warn" role="status">
+          <Banner kind="warn" inline>
             {aviso}
-          </p>
+          </Banner>
         )}
         {error && (
-          <p className="rounded-md border border-danger/30 bg-danger-bg px-2 py-1.5 text-danger" role="alert">
+          <Banner kind="danger" inline>
             {error}
-          </p>
+          </Banner>
         )}
 
         {loading ? (
@@ -925,22 +891,22 @@ function PlantillaDialog({
           <>
             {grupos.map(([label, items]) => (
               <section key={label}>
-                <h3 className="mb-1 text-[12px] font-semibold">
-                  {label} <span className="font-normal text-faint">({items.length})</span>
+                <h3 className="mb-1 text-ui font-semibold">
+                  {label} <span className="font-normal text-muted">({items.length})</span>
                 </h3>
                 <CambiosList items={items} />
               </section>
             ))}
             {prev.revisar.length > 0 && (
               <section>
-                <h3 className="mb-1 text-[12px] font-semibold text-warn">
-                  Revisar a mano <span className="font-normal text-faint">({prev.revisar.length})</span>
+                <h3 className="mb-1 text-ui font-semibold text-warn">
+                  Revisar a mano <span className="font-normal text-muted">({prev.revisar.length})</span>
                 </h3>
                 <CambiosList items={prev.revisar} />
               </section>
             )}
             {prev.estado === 'desactualizada' && (
-              <p className="text-[11.5px] text-faint">
+              <p className="text-sm text-muted">
                 Antes se guarda todo lo abierto. Cada archivo se copia al historial y, si la memoria es un repositorio git, se hace un commit
                 solo con estos archivos. Después se recompila el PDF y puedes deshacerlo.
               </p>
@@ -957,7 +923,7 @@ function CambiosList({ items }: { items: { archivo: string; motivo: string }[] |
     <ul className="divide-y divide-line rounded-md border border-line">
       {items.map((c) => (
         <li key={c.archivo + c.motivo} className="flex flex-col gap-0.5 px-2 py-1.5 sm:flex-row sm:gap-3">
-          <span className="shrink-0 font-mono text-[11.5px] sm:w-56 sm:truncate" title={c.archivo}>
+          <span className="shrink-0 font-mono text-sm sm:w-56 sm:truncate" title={c.archivo}>
             {c.archivo}
           </span>
           <span className="min-w-0 text-muted">{c.motivo}</span>

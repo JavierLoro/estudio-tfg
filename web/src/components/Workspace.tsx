@@ -13,6 +13,7 @@ import { kbd } from '../lib/kbd';
 import { docKey } from '../lib/paths';
 import { indicatorOf, useDocs } from '../state/docs';
 import { useUI } from '../state/ui';
+import { useDarkTheme } from '../state/appearance';
 import {
   defaultLayout,
   onPanelRemoved,
@@ -32,7 +33,7 @@ import { HomePanel } from '../panels/HomePanel';
 import { SettingsPanel } from '../panels/SettingsPanel';
 import { DatosPanel } from '../panels/DatosPanel';
 import { DiagramPanel } from '../panels/DiagramPanel';
-import { indicatorColor } from './DocBanners';
+import { IndicatorMark } from './DocBanners';
 import { cx } from './ui';
 
 const components = {
@@ -48,15 +49,15 @@ const components = {
 };
 
 const ICONS: Record<string, React.ReactNode> = {
-  latex: <FileCode2 size={13} />,
-  note: <FileText size={13} />,
-  diagram: <Workflow size={13} />,
-  pdf: <FileType2 size={13} />,
-  resource: <Inbox size={13} />,
-  search: <Search size={13} />,
-  home: <Home size={13} />,
-  settings: <Settings size={13} />,
-  datos: <ClipboardList size={13} />,
+  latex: <FileCode2 size={15} />,
+  note: <FileText size={15} />,
+  diagram: <Workflow size={15} />,
+  pdf: <FileType2 size={15} />,
+  resource: <Inbox size={15} />,
+  search: <Search size={15} />,
+  home: <Home size={15} />,
+  settings: <Settings size={15} />,
+  datos: <ClipboardList size={15} />,
 };
 
 function useTitle(api: IDockviewPanelHeaderProps['api']) {
@@ -74,9 +75,10 @@ function Tab({ api, params }: IDockviewPanelHeaderProps) {
   const isDoc = (api.component === 'latex' || api.component === 'note' || api.component === 'diagram') && p.root && p.path;
   const ind = useDocs((s) => (isDoc ? indicatorOf(s.docs[docKey(p.root!, p.path!)]) : null));
   const label = ind && ind !== 'guardado' && ind !== 'cargando' ? `${title} (${ind})` : title;
+  const pending = ind && ind !== 'guardado' && ind !== 'cargando';
   return (
     <div
-      className="group flex h-full items-center gap-1.5 pr-1 pl-2.5 text-[12px]"
+      className="group flex h-full items-center gap-1.5 pr-1 pl-3 text-sm"
       title={p.path ? `${p.path}${ind ? ` · ${ind}` : ''}` : title}
       aria-label={label}
       onAuxClick={(e) => {
@@ -86,39 +88,33 @@ function Tab({ api, params }: IDockviewPanelHeaderProps) {
         }
       }}
     >
-      <span className="text-faint">{ICONS[api.component] ?? null}</span>
-      <span className={cx('max-w-[200px] truncate', ind === 'conflicto' && 'text-danger')}>{title}</span>
-      <span className="relative flex h-4 w-4 items-center justify-center">
-        {ind && ind !== 'guardado' && (
-          <span
-            className={cx('absolute h-2 w-2 rounded-full group-hover:hidden', indicatorColor(ind))}
-            aria-hidden
-          />
+      <span className="text-muted">{ICONS[api.component] ?? null}</span>
+      <span className={cx('max-w-[220px] truncate', ind === 'conflicto' && 'text-danger')}>{title}</span>
+      {/* Estado (forma + color) siempre visible; el botón de cerrar va aparte para que no lo tape. */}
+      {pending && <IndicatorMark ind={ind} size={13} />}
+      <button
+        type="button"
+        aria-label={`Cerrar ${title}`}
+        title="Cerrar"
+        className={cx(
+          'et-focus-inset flex size-7 items-center justify-center rounded text-muted hover:bg-hover hover:text-fg focus-visible:opacity-100',
+          'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [.dv-active-tab_&]:opacity-100',
         )}
-        <button
-          type="button"
-          aria-label={`Cerrar ${title}`}
-          title="Cerrar"
-          className={cx(
-            'flex h-4 w-4 items-center justify-center rounded text-muted hover:bg-hover hover:text-fg',
-            ind && ind !== 'guardado' ? 'invisible group-hover:visible' : 'opacity-0 group-hover:opacity-100 [.dv-active-tab_&]:opacity-100',
-          )}
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation();
-            api.close();
-          }}
-        >
-          <X size={12} />
-        </button>
-      </span>
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          api.close();
+        }}
+      >
+        <X size={15} />
+      </button>
     </div>
   );
 }
 
 function Watermark(_: IWatermarkPanelProps) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-1 text-[12px] text-faint">
+    <div className="flex h-full flex-col items-center justify-center gap-1 text-ui text-muted">
       <p>Abre un archivo desde el panel lateral</p>
       <p>
         o pulsa <kbd className="rounded border border-line px-1 font-mono">{kbd('Mod-K')}</kbd>
@@ -127,20 +123,8 @@ function Watermark(_: IWatermarkPanelProps) {
   );
 }
 
-function useDarkMode() {
-  const [dark, setDark] = useState(() => window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false);
-  useEffect(() => {
-    const mq = window.matchMedia?.('(prefers-color-scheme: dark)');
-    if (!mq) return;
-    const fn = () => setDark(mq.matches);
-    mq.addEventListener('change', fn);
-    return () => mq.removeEventListener('change', fn);
-  }, []);
-  return dark;
-}
-
 export function Workspace() {
-  const dark = useDarkMode();
+  const dark = useDarkTheme();
   const theme: DockviewTheme = dark ? themeDark : themeLight;
 
   const onReady = (e: DockviewReadyEvent) => {

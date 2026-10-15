@@ -27,7 +27,7 @@ import { openDatos, openFile, useActivePanel } from '../state/workspace';
 import { openContextMenu, type MenuItem } from './ContextMenu';
 import { showInPdf, useActiveOutlineId, usePdfView } from '../state/synctex';
 import { fold, highlight } from './SearchView';
-import { Button, Empty, Modal, Spinner, cx } from './ui';
+import { Banner, Button, Empty, Input, Modal, Spinner, cx } from './ui';
 import { useStaleFigures } from '../state/diagramas';
 
 // ---- Nodos de presentación ----
@@ -120,25 +120,25 @@ function WarningIcon({ w }: { w: string }) {
   const k = fold(w);
   if (k.includes('vacio'))
     return (
-      <span title="Vacío: menos de 30 palabras" aria-label="Vacío" className="shrink-0 text-faint">
-        <CircleDashed size={11} />
+      <span title="Vacío: menos de 30 palabras" aria-label="Vacío" className="shrink-0 text-muted">
+        <CircleDashed size={14} />
       </span>
     );
   if (k.includes('todo'))
     return (
       <span title="Tiene TODO pendientes" aria-label="TODO" className="shrink-0 text-warn">
-        <ListTodo size={12} />
+        <ListTodo size={15} />
       </span>
     );
   if (k.includes('error'))
     return (
       <span title="La última compilación tiene diagnósticos aquí" aria-label="Errores" className="shrink-0 text-danger">
-        <AlertCircle size={12} />
+        <AlertCircle size={15} />
       </span>
     );
   return (
     <span title={w} aria-label={w} className="shrink-0 text-warn">
-      <AlertTriangle size={12} />
+      <AlertTriangle size={15} />
     </span>
   );
 }
@@ -224,7 +224,7 @@ function NewSectionDialog({ target, onClose }: { target: NewSectionTarget | null
       width={420}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose} disabled={busy}>
+          <Button variant="subtle" onClick={onClose} disabled={busy}>
             Cancelar
           </Button>
           <Button variant="primary" onClick={() => void submit()} disabled={!title.trim() || busy}>
@@ -241,23 +241,19 @@ function NewSectionDialog({ target, onClose }: { target: NewSectionTarget | null
           void submit();
         }}
       >
-        <label htmlFor="et-new-section-title" className="mb-1 block text-[12px] text-muted">
+        <label htmlFor="et-new-section-title" className="mb-1 block text-ui text-muted">
           {target?.context}
         </label>
-        <input
+        <Input
           id="et-new-section-title"
           autoFocus
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Título"
           aria-invalid={!!error}
-          className={cx(
-            'h-8 w-full rounded-md border bg-bg px-2 text-[13px] outline-none focus:border-accent',
-            error ? 'border-danger' : 'border-line-strong',
-          )}
         />
         {error && (
-          <p className="mt-1.5 text-[12px] text-danger" role="alert">
+          <p className="mt-1.5 text-ui text-danger" role="alert">
             {error}
           </p>
         )}
@@ -302,11 +298,11 @@ export function OutlineView({ onShowFiles }: { onShowFiles: () => void }) {
   if (!data) {
     if (error)
       return (
-        <div className="px-3 py-3 text-[12px]">
+        <div className="px-3 py-3 text-ui">
           <p className={unavailable ? 'text-muted' : 'text-danger'}>{error}</p>
-          <div className="mt-2 flex gap-1.5">
-            <Button onClick={onShowFiles}>Ver archivos</Button>
-            <Button variant="ghost" onClick={() => void useOutline.getState().refresh()}>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <Button size="sm" onClick={onShowFiles}>Ver archivos</Button>
+            <Button size="sm" variant="subtle" onClick={() => void useOutline.getState().refresh()}>
               <RefreshCw size={12} /> Reintentar
             </Button>
           </div>
@@ -321,30 +317,23 @@ export function OutlineView({ onShowFiles }: { onShowFiles: () => void }) {
 
   return (
     <>
-      <div className="flex h-6 shrink-0 items-center gap-1 px-3 pb-1">
-        <span className="min-w-0 flex-1 truncate text-[11px] text-muted" title={`${data.words.toLocaleString('es-ES')} palabras (aproximado) · ${data.main}`}>
+      <div className="flex shrink-0 flex-wrap items-center gap-x-1 px-3 pb-1.5">
+        <span className="whitespace-nowrap text-sm text-muted" title={`${data.words.toLocaleString('es-ES')} palabras (aproximado) · ${data.main}`}>
           <span className="font-semibold text-fg tabular-nums">{data.words.toLocaleString('es-ES')}</span> palabras
-          {loading && <Spinner size={9} />}
+          {loading && <Spinner size={12} />}
         </span>
-        <button
-          type="button"
-          className="inline-flex h-5 shrink-0 items-center gap-0.5 rounded px-1 text-[11px] text-muted hover:bg-hover hover:text-fg"
-          onClick={() => addChapter()}
-          title="Añadir un capítulo al final"
-        >
-          <Plus size={11} /> Capítulo
-        </button>
-        <button
-          type="button"
-          className="inline-flex h-5 shrink-0 items-center gap-0.5 rounded px-1 text-[11px] text-muted hover:bg-hover hover:text-fg"
-          onClick={addAppendix}
-          title="Añadir un anexo al final"
-        >
-          <Plus size={11} /> Anexo
-        </button>
+        <span className="ml-auto flex">
+        <Button variant="subtle" size="sm" className="gap-1 px-1.5! text-sm!" onClick={() => addChapter()} title="Añadir un capítulo al final">
+          <Plus size={14} /> Capítulo
+        </Button>
+        <Button variant="subtle" size="sm" className="gap-1 px-1.5! text-sm!" onClick={addAppendix} title="Añadir un anexo al final">
+          <Plus size={14} /> Anexo
+        </Button>
+        </span>
       </div>
-      <div className="relative px-2 pb-1.5">
-        <input
+      <div className="relative px-2 pb-2">
+        <Input
+          inputSize="sm"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           onKeyDown={(e) => {
@@ -356,24 +345,24 @@ export function OutlineView({ onShowFiles }: { onShowFiles: () => void }) {
           }}
           placeholder="Filtrar apartados…"
           aria-label="Filtrar apartados"
-          className="h-6 w-full rounded-md border border-line bg-bg px-2 text-[12px] outline-none focus:border-accent"
         />
       </div>
-      {error && <div className="px-3 pb-1 text-[11px] text-danger">{error}</div>}
+      {error && <div className="px-3 pb-1 text-sm text-danger">{error}</div>}
       {!!data.warnings?.length && (
-        <ul className="mx-2 mb-1.5 rounded-md border border-warn/30 bg-warn-bg px-2 py-1 text-[11px] text-warn">
-          {data.warnings.slice(0, 5).map((w, i) => (
-            <li key={i} className="flex items-start gap-1">
-              <AlertTriangle size={11} className="mt-0.5 shrink-0" />
-              <span className="min-w-0 break-words">{w}</span>
-            </li>
-          ))}
-        </ul>
+        <div className="mx-2 mb-2">
+          <Banner kind="warn" inline>
+            <ul className="space-y-0.5">
+              {data.warnings.slice(0, 5).map((w, i) => (
+                <li key={i} className="min-w-0 break-words">{w}</li>
+              ))}
+            </ul>
+          </Banner>
+        </div>
       )}
       {!hasChapters && nodes.length > 0 && (
-        <div className="mx-2 mb-1.5 rounded-md border border-line bg-bg px-2 py-1.5 text-[11.5px] text-muted">
+        <div className="mx-2 mb-2 rounded-md border border-line bg-bg px-2.5 py-2 text-sm text-muted">
           Estructura no estándar: usa la pestaña{' '}
-          <button type="button" className="font-medium text-accent hover:underline" onClick={onShowFiles}>
+          <button type="button" className="font-bold text-accent underline underline-offset-2" onClick={onShowFiles}>
             Archivos
           </button>
           .
@@ -383,7 +372,7 @@ export function OutlineView({ onShowFiles }: { onShowFiles: () => void }) {
         {nodes.length === 0 ? (
           <Empty>
             No se encontró ningún apartado en «{data.main || 'el archivo principal'}».{' '}
-            <button type="button" className="text-accent hover:underline" onClick={onShowFiles}>
+            <button type="button" className="font-bold text-accent underline underline-offset-2" onClick={onShowFiles}>
               Ver archivos
             </button>
           </Empty>
@@ -689,50 +678,50 @@ function OutlineRow({
       aria-current={reading ? 'location' : undefined}
       title={reading ? `${tip}\nSe está viendo en el PDF` : tip}
       className={cx(
-        'group relative flex h-[24px] cursor-pointer items-center gap-1 pr-1.5 text-[12.5px] select-none hover:bg-hover',
+        'group relative flex h-(--et-row) cursor-pointer items-center gap-1.5 pr-1.5 text-ui select-none hover:bg-hover',
         current && 'bg-active',
-        focused && 'group-focus/tree:outline group-focus/tree:outline-2 group-focus/tree:-outline-offset-2 group-focus/tree:outline-accent',
-        !n.enabled && 'text-faint',
+        focused && 'group-focus/tree:outline group-focus/tree:outline-2 group-focus/tree:-outline-offset-2 group-focus/tree:outline-focus',
+        !n.enabled && 'text-muted',
       )}
-      style={{ paddingLeft: 4 + depth * 12 }}
+      style={{ paddingLeft: `calc(0.25rem + ${depth} * 0.875rem)` }}
       {...openActions(onOpen, menu)}
     >
-      {reading && <span aria-hidden className="absolute inset-y-[3px] left-0 w-[2px] rounded-full bg-accent" />}
+      {reading && <span aria-hidden className="absolute inset-y-1 left-0 w-[3px] rounded-full bg-accent" />}
       {hasChildren ? (
         <button
           type="button"
           tabIndex={-1}
           aria-label={expanded ? 'Plegar' : 'Desplegar'}
-          className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-faint hover:text-fg"
+          className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted hover:text-fg"
           onClick={(e) => {
             e.stopPropagation();
             onToggle();
           }}
         >
-          {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+          {expanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
         </button>
       ) : (
-        <span className="w-4 shrink-0" />
+        <span className="w-5 shrink-0" />
       )}
-      {n.kind === 'datos' && <ClipboardList size={13} className="shrink-0 text-muted" />}
-      {isBib && <BookMarked size={13} className="shrink-0 text-muted" />}
+      {n.kind === 'datos' && <ClipboardList size={15} className="shrink-0 text-muted" />}
+      {isBib && <BookMarked size={15} className="shrink-0 text-muted" />}
       {n.number && (
-        <span className={cx('shrink-0 tabular-nums', reading ? 'text-accent' : n.enabled ? 'text-muted' : 'text-faint', top ? 'font-semibold' : 'text-[11.5px]')}>{n.number}</span>
+        <span className={cx('shrink-0 tabular-nums', reading ? 'text-accent' : n.enabled ? 'text-muted' : 'text-muted', top ? 'font-bold' : 'text-sm')}>{n.number}</span>
       )}
-      <span className={cx('min-w-0 flex-1 truncate', top && n.enabled && 'font-medium', n.kind === 'group' && 'text-muted')}>
+      <span className={cx('min-w-0 flex-1 truncate', top && n.enabled && 'font-bold', n.kind === 'group' && 'text-muted')}>
         {highlight(title, filter)}
-        {!n.enabled && <span className="ml-1 text-[10.5px] italic">(desactivado)</span>}
+        {!n.enabled && <span className="ml-1 text-xs italic">(desactivado)</span>}
       </span>
       {n.warnings.map((w, i) => (
         <WarningIcon key={i} w={w} />
       ))}
       {staleFigs && (
         <span title={`Figura desactualizada: ${staleFigs.join(', ')}`} aria-label="Figura desactualizada" className="shrink-0 text-warn">
-          <Workflow size={12} />
+          <Workflow size={15} />
         </span>
       )}
       {n.words > 0 && (
-        <span className={cx('shrink-0 text-[10.5px] text-faint tabular-nums', isChapter && 'group-hover:hidden')} title={`${n.words.toLocaleString('es-ES')} palabras`}>
+        <span className={cx('shrink-0 text-xs text-muted tabular-nums', isChapter && 'group-hover:hidden', isChapter && focused && 'group-focus/tree:hidden')} title={`${n.words.toLocaleString('es-ES')} palabras`}>
           {compactWords(n.words)}
         </span>
       )}
@@ -742,14 +731,18 @@ function OutlineRow({
           tabIndex={-1}
           aria-label="Acciones del capítulo"
           title="Acciones del capítulo"
-          className="hidden h-5 w-5 shrink-0 items-center justify-center rounded text-muted group-hover:inline-flex hover:bg-hover hover:text-fg"
+          className={cx(
+            'hidden size-7 shrink-0 items-center justify-center rounded text-muted group-hover:inline-flex hover:bg-hover hover:text-fg',
+            // Con teclado: visible en la fila enfocada del árbol (menú también con Mayús+F10).
+            focused && 'group-focus/tree:inline-flex',
+          )}
           onClick={(e) => {
             e.stopPropagation();
             const r = e.currentTarget.getBoundingClientRect();
             openContextMenu({ clientX: r.left, clientY: r.bottom + 2, preventDefault: () => {} }, menu().filter((m) => m.label.startsWith('+') || m.label.startsWith('Añadir')));
           }}
         >
-          <Ellipsis size={13} />
+          <Ellipsis size={16} />
         </button>
       )}
     </div>

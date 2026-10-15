@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { ResourceChanges, ResourceFile, ResourceKind } from '../api';
 import { KIND_LABEL, kinds, resourceKind } from '../lib/library';
 import { updateResource, useResourceEdit } from '../state/resources';
-import { Button, Modal, Spinner } from './ui';
+import { Banner, Button, Field, Input, Modal, Select, Spinner, Textarea } from './ui';
 import { useUI } from '../state/ui';
 
 export function ResourceEditor({ file, onClose }: { file: ResourceFile; onClose: () => void }) {
@@ -75,7 +75,6 @@ export function ResourceEditor({ file, onClose }: { file: ResourceFile; onClose:
     setBusy(false);
     if (ok || useResourceEdit.getState().pending?.path === file.path) onClose();
   };
-  const input = 'w-full rounded border border-line-strong bg-bg px-2 py-1.5 text-[13px] outline-none focus:border-accent';
   return (
     <Modal
       open
@@ -90,7 +89,7 @@ export function ResourceEditor({ file, onClose }: { file: ResourceFile; onClose:
             Cancelar cambios
           </Button>
           <Button variant="primary" disabled={busy || !dirty} onClick={() => void save()}>
-            {busy && <Spinner size={12} />} Guardar cambios
+            {busy && <Spinner size={14} />} Guardar cambios
           </Button>
         </>
       }
@@ -104,17 +103,14 @@ export function ResourceEditor({ file, onClose }: { file: ResourceFile; onClose:
           }
         }}
       >
-        <label className="block text-[12px]">
-          Título
-          <input value={title} disabled={busy} className={input} onChange={(e) => setTitle(e.target.value)} />
-        </label>
+        <Field label="Título">
+          <Input value={title} disabled={busy} onChange={(e) => setTitle(e.target.value)} />
+        </Field>
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="text-[12px]">
-            Tipo
-            <select
+          <Field label="Tipo">
+            <Select
               value={kind}
               disabled={busy || item.schemaVersion !== 1}
-              className={input}
               onChange={(e) => setKind(e.target.value as ResourceKind)}
             >
               {kinds.map((value) => (
@@ -122,89 +118,68 @@ export function ResourceEditor({ file, onClose }: { file: ResourceFile; onClose:
                   {KIND_LABEL[value]}
                 </option>
               ))}
-            </select>
-          </label>
-          <label className="text-[12px]">
-            Revisión
-            <select value={status} disabled={busy} className={input} onChange={(e) => setStatus(e.target.value)}>
+            </Select>
+          </Field>
+          <Field label="Revisión">
+            <Select value={status} disabled={busy} onChange={(e) => setStatus(e.target.value)}>
               <option value="inbox">Sin revisar</option>
               <option value="revisado">Revisado</option>
               <option value="descartado">Descartado</option>
               {!['inbox', 'revisado', 'descartado'].includes(status) && <option>{status}</option>}
-            </select>
-          </label>
-          <label className="text-[12px]">
-            Etiquetas
-            <input
-              value={tags}
-              disabled={busy}
-              className={input}
-              onChange={(e) => setTags(e.target.value)}
-              placeholder="Separadas por coma"
-            />
-          </label>
-          <label className="text-[12px]">
-            Colecciones
-            <input
+            </Select>
+          </Field>
+          <Field label="Etiquetas">
+            <Input value={tags} disabled={busy} onChange={(e) => setTags(e.target.value)} placeholder="Separadas por coma" />
+          </Field>
+          <Field label="Colecciones">
+            <Input
               value={collections}
               disabled={busy || item.schemaVersion !== 1}
-              className={input}
               onChange={(e) => setCollections(e.target.value)}
               placeholder="Separadas por coma"
             />
-          </label>
+          </Field>
         </div>
-        <label className="block text-[12px]">
-          URLs (una por línea)
-          <textarea
-            value={urls}
-            rows={2}
-            disabled={busy || item.schemaVersion !== 1}
-            className={input}
-            onChange={(e) => setUrls(e.target.value)}
-          />
-        </label>
+        <Field label="URLs (una por línea)">
+          <Textarea value={urls} rows={2} disabled={busy || item.schemaVersion !== 1} onChange={(e) => setUrls(e.target.value)} />
+        </Field>
         {item.schemaVersion !== 1 && (
-          <p className="text-[12px] text-muted">
+          <p className="text-ui text-muted">
             Actualiza el formato de la ficha para organizar colecciones, varios enlaces y bibliografía.
           </p>
         )}
         {item.bibliography?.authority === 'manual' ? (
-          <p className="text-[12px] text-muted">
+          <p className="text-ui text-muted">
             Bibliografía manual: {item.bibliography.path} · {item.bibliography.key}. Sus datos se editan en el archivo .bib.
           </p>
         ) : (
           item.schemaVersion === 1 && (
-            <fieldset className="rounded border border-line p-3">
-              <legend className="px-1 text-[12px] font-medium">Datos bibliográficos opcionales</legend>
-              <div className="grid gap-2 sm:grid-cols-3">
-                <label className="text-[12px]">
-                  Autor/es
-                  <input className={input} value={author} disabled={busy} onChange={(e) => setAuthor(e.target.value)} />
-                </label>
-                <label className="text-[12px]">
-                  Año
-                  <input className={input} value={year} disabled={busy} onChange={(e) => setYear(e.target.value)} />
-                </label>
-                <label className="text-[12px]">
-                  DOI
-                  <input className={input} value={doi} disabled={busy} onChange={(e) => setDoi(e.target.value)} />
-                </label>
+            <fieldset className="rounded-lg border border-line p-3">
+              <legend className="px-1 text-sm font-bold">Datos bibliográficos opcionales</legend>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <Field label="Autor/es">
+                  <Input value={author} disabled={busy} onChange={(e) => setAuthor(e.target.value)} />
+                </Field>
+                <Field label="Año">
+                  <Input value={year} disabled={busy} onChange={(e) => setYear(e.target.value)} />
+                </Field>
+                <Field label="DOI">
+                  <Input value={doi} disabled={busy} onChange={(e) => setDoi(e.target.value)} />
+                </Field>
               </div>
-              <p className="mt-2 text-[11px] text-faint">
+              <p className="mt-2 text-sm text-muted">
                 Puedes completarlos después o importar bibliografía desde Biblioteca.
               </p>
             </fieldset>
           )
         )}
-        <label className="block text-[12px]">
-          Notas
-          <textarea value={note} disabled={busy} rows={7} className={input} onChange={(e) => setNote(e.target.value)} />
-        </label>
+        <Field label="Notas">
+          <Textarea value={note} disabled={busy} rows={7} onChange={(e) => setNote(e.target.value)} />
+        </Field>
         {(error || globalError) && (
-          <p role="alert" className="text-[12px] text-danger">
+          <Banner kind="danger" inline>
             {error || globalError}
-          </p>
+          </Banner>
         )}
       </div>
     </Modal>

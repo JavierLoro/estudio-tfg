@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BookOpen, FolderOpen, Grid2X2, List, Plus, RefreshCw } from 'lucide-react';
+import { BookOpen, FolderOpen, Grid2X2, List, Plus, RefreshCw, TriangleAlert } from 'lucide-react';
 import { api } from '../api';
-import { Button, Banner, Empty, Spinner, cx } from '../components/ui';
+import { Button, Banner, EmptyState, IconButton, Input, Select, Spinner, cx } from '../components/ui';
 import { openActions } from '../components/OpenActions';
 import { LibraryMigrationDialog } from '../components/LibraryMigrationDialog';
 import { DEFAULT_FILTERS, KIND_LABEL, filterResources, kinds, resourceKind, type LibraryFilters } from '../lib/library';
@@ -36,71 +36,73 @@ export default function BibliotecaPanel() {
   const list = useMemo(() => filterResources(resources ?? [], filters), [resources, filters]);
   const tags = [...new Set((resources ?? []).flatMap((r) => r.tags).filter((tag) => tag !== 'recurso'))].sort();
   const collections = [...new Set((resources ?? []).flatMap((r) => r.collections ?? []))].sort();
-  const input = 'h-9 rounded-md border border-line bg-bg px-2 text-[12px] outline-none focus:border-accent';
+  const select = 'w-auto';
   return (
     <div className="h-full overflow-auto bg-soft p-4 @container">
       <div className="mx-auto max-w-6xl space-y-4">
         <header className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="flex items-center gap-2 text-[22px] font-semibold">
-              <BookOpen size={23} /> Biblioteca
+            <h1 className="flex items-center gap-2 text-2xl font-bold">
+              <BookOpen size={24} aria-hidden /> Biblioteca
             </h1>
-            <p className="mt-1 text-[12px] text-muted">Referencias, documentos, imágenes y webs para tus trabajos.</p>
+            <p className="mt-1 text-ui text-muted">Referencias, documentos, imágenes y webs para tus trabajos.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button onClick={()=>setImporting(true)}>Importar bibliografía</Button>
             <Button onClick={() => setMigration(true)}>Formato y recuperación</Button>
-            <Button onClick={() => void useUI.getState().refreshResources()} title="Recargar Biblioteca">
-              <RefreshCw size={13} />
-            </Button>
+            <IconButton label="Recargar Biblioteca" variant="secondary" onClick={() => void useUI.getState().refreshResources()}>
+              <RefreshCw size={16} />
+            </IconButton>
             <Button variant="primary" onClick={() => useUI.getState().setCaptureOpen(true)}>
-              <Plus size={14} /> Añadir
+              <Plus size={16} aria-hidden /> Añadir
             </Button>
           </div>
         </header>
-        {status?.libraryError && <Banner kind="danger">{status.libraryError}</Banner>}
-        {error && <Banner kind="danger">{error}</Banner>}
+        {status?.libraryError && <Banner kind="danger" inline>{status.libraryError}</Banner>}
+        {error && <Banner kind="danger" inline>{error}</Banner>}
         {warnings.map((warning, i) => (
-          <Banner key={i} kind="warn">
+          <Banner key={i} kind="warn" inline>
             {warning.path}: {warning.message}
           </Banner>
         ))}
         {!!queued.length && (
-          <Banner kind="warn">
-            <div className="flex flex-wrap items-center gap-2">
-              <span>
-                {queued.length} recurso(s) pendiente(s){queueBusy ? ' · enviando…' : ''}. Texto y adjuntos siguen guardados en este
-                navegador.
-              </span>
-              <Button onClick={() => useCaptureQueue.setState({ open: true })}>Revisar pendientes</Button>
-            </div>
+          <Banner
+            kind="warn"
+            inline
+            actions={
+              <Button size="sm" onClick={() => useCaptureQueue.setState({ open: true })}>
+                Revisar pendientes
+              </Button>
+            }
+          >
+            {queued.length} recurso(s) pendiente(s){queueBusy ? ' · enviando…' : ''}. Texto y adjuntos siguen guardados en este navegador.
           </Banner>
         )}
         <div className="flex flex-wrap gap-2">
-          <input
+          <Input
             value={filters.query}
             onChange={(e) => filter('query', e.target.value)}
             placeholder="Buscar títulos, notas, URLs…"
             aria-label="Buscar en Biblioteca"
-            className={cx(input, 'min-w-48 flex-1')}
+            className="w-auto min-w-48 flex-1"
           />
-          <select aria-label="Filtrar por tipo" className={input} value={filters.kind} onChange={(e) => filter('kind', e.target.value)}>
+          <Select aria-label="Filtrar por tipo" className={select} value={filters.kind} onChange={(e) => filter('kind', e.target.value)}>
             <option value="">Todos los tipos</option>
             {kinds.map((kind) => (
               <option value={kind} key={kind}>
                 {KIND_LABEL[kind]}
               </option>
             ))}
-          </select>
-          <select aria-label="Filtrar por etiqueta" className={input} value={filters.tag} onChange={(e) => filter('tag', e.target.value)}>
+          </Select>
+          <Select aria-label="Filtrar por etiqueta" className={select} value={filters.tag} onChange={(e) => filter('tag', e.target.value)}>
             <option value="">Todas las etiquetas</option>
             {tags.map((tag) => (
               <option key={tag}>{tag}</option>
             ))}
-          </select>
-          <select
+          </Select>
+          <Select
             aria-label="Filtrar por colección"
-            className={input}
+            className={select}
             value={filters.collection}
             onChange={(e) => filter('collection', e.target.value)}
           >
@@ -108,10 +110,10 @@ export default function BibliotecaPanel() {
             {collections.map((collection) => (
               <option key={collection}>{collection}</option>
             ))}
-          </select>
-          <select
+          </Select>
+          <Select
             aria-label="Filtrar por revisión"
-            className={input}
+            className={select}
             value={filters.status}
             onChange={(e) => filter('status', e.target.value)}
           >
@@ -119,35 +121,39 @@ export default function BibliotecaPanel() {
             <option value="inbox">Sin revisar</option>
             <option value="revisado">Revisados</option>
             <option value="descartado">Descartados</option>
-          </select>
-          <select aria-label="Ordenar Biblioteca" className={input} value={filters.order} onChange={(e) => filter('order', e.target.value)}>
+          </Select>
+          <Select aria-label="Ordenar Biblioteca" className={select} value={filters.order} onChange={(e) => filter('order', e.target.value)}>
             <option value="recent">Más recientes</option>
             <option value="oldest">Más antiguos</option>
             <option value="title">Título</option>
-          </select>
+          </Select>
         </div>
-        <div className="flex items-center justify-between text-[12px] text-muted">
+        <div className="flex items-center justify-between text-ui text-muted">
           <span>
             {list.length} de {resources?.length ?? 0} recursos
           </span>
           <div className="flex gap-1">
             <Button
+              size="sm"
+              variant={grid ? 'secondary' : 'primary'}
               aria-pressed={!grid}
               onClick={() => {
                 setGrid(false);
                 save('et:library-grid', false);
               }}
             >
-              <List size={13} /> Lista
+              <List size={16} aria-hidden /> Lista
             </Button>
             <Button
+              size="sm"
+              variant={grid ? 'primary' : 'secondary'}
               aria-pressed={grid}
               onClick={() => {
                 setGrid(true);
                 save('et:library-grid', true);
               }}
             >
-              <Grid2X2 size={13} /> Cuadrícula
+              <Grid2X2 size={16} aria-hidden /> Cuadrícula
             </Button>
           </div>
         </div>
@@ -157,24 +163,26 @@ export default function BibliotecaPanel() {
           </div>
         )}
         {resources && !list.length && (
-          <div className="rounded-lg border border-dashed border-line-strong bg-bg p-10 text-center">
-            <FolderOpen size={32} className="mx-auto mb-3 text-faint" />
-            <Empty>
-              {resources.length
-                ? 'Ningún recurso coincide con estos filtros.'
-                : 'Tu Biblioteca está lista para empezar. Añade una web, un archivo o una ficha manual.'}
-            </Empty>
-            <Button
-              className="mt-3"
-              onClick={() => {
-                setFilters(DEFAULT_FILTERS);
-                save(key, DEFAULT_FILTERS);
-              }}
-              disabled={!resources.length}
-            >
-              Limpiar filtros
-            </Button>
-          </div>
+          <EmptyState
+            className="rounded-lg border border-dashed border-line-strong bg-bg py-10! text-ui!"
+            icon={<FolderOpen size={32} />}
+            action={
+              <Button
+                className="mt-1"
+                onClick={() => {
+                  setFilters(DEFAULT_FILTERS);
+                  save(key, DEFAULT_FILTERS);
+                }}
+                disabled={!resources.length}
+              >
+                Limpiar filtros
+              </Button>
+            }
+          >
+            {resources.length
+              ? 'Ningún recurso coincide con estos filtros.'
+              : 'Tu Biblioteca está lista para empezar. Añade una web, un archivo o una ficha manual.'}
+          </EmptyState>
         )}
         <ul className={grid ? 'grid grid-cols-1 gap-3 @md:grid-cols-2 @3xl:grid-cols-3 @5xl:grid-cols-4' : 'space-y-2'}>
           {list.map((resource) => (
@@ -182,7 +190,7 @@ export default function BibliotecaPanel() {
               <button
                 type="button"
                 className={cx(
-                  'w-full overflow-hidden rounded-lg border border-line bg-bg text-left transition-colors hover:border-accent focus-visible:outline-2 focus-visible:outline-accent',
+                  'w-full overflow-hidden rounded-lg border border-line bg-bg text-left transition-colors hover:border-accent hover:bg-hover',
                   !grid && 'flex items-center gap-3 p-3',
                 )}
                 {...openActions((side) => openResource(resource.path, { side }))}
@@ -197,7 +205,7 @@ export default function BibliotecaPanel() {
                         className="h-full w-full object-contain"
                       />
                     ) : (
-                      <BookOpen size={30} className="text-faint" />
+                      <BookOpen size={30} className="text-muted" aria-hidden />
                     )}
                   </div>
                 )}
@@ -210,16 +218,21 @@ export default function BibliotecaPanel() {
                   />
                 )}
                 <div className={cx('min-w-0 flex-1', grid && 'p-3')}>
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-muted">{KIND_LABEL[resourceKind(resource)]}</span>
-                  <h2 className="truncate text-[14px] font-semibold">{resource.title}</h2>
-                  <p className="mt-1 truncate text-[11px] text-faint">
+                  <span className="text-xs font-bold uppercase tracking-wide text-muted">{KIND_LABEL[resourceKind(resource)]}</span>
+                  <h2 className="truncate text-ui font-bold">{resource.title}</h2>
+                  <p className="mt-1 truncate text-sm text-muted">
                     {formatDate(resource.captured)} · {(resource.attachments ?? (resource.attachment ? [resource.attachment] : [])).length}{' '}
                     adjunto(s){resource.status === 'inbox' ? ' · sin revisar' : ''}
                   </p>
                   {!!resource.collections?.length && (
-                    <p className="mt-1 truncate text-[11px] text-accent">{resource.collections.join(' · ')}</p>
+                    <p className="mt-1 truncate text-sm text-accent">{resource.collections.join(' · ')}</p>
                   )}
-                  {resource.libraryError && <p className="mt-1 text-[11px] text-warn">{resource.libraryError}</p>}
+                  {resource.libraryError && (
+                    <p className="mt-1 flex items-start gap-1 text-sm text-warn">
+                      <TriangleAlert size={14} className="mt-0.5 shrink-0" aria-hidden />
+                      <span>{resource.libraryError}</span>
+                    </p>
+                  )}
                 </div>
               </button>
             </li>

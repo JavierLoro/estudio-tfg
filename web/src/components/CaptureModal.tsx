@@ -5,7 +5,7 @@ import { submitCaptureBatch, useCaptureQueue, type CaptureOutcome } from '../sta
 import { useUI } from '../state/ui';
 import { openResource } from '../state/workspace';
 import { KIND_LABEL, kinds } from '../lib/library';
-import { Button, Modal, Spinner, cx } from './ui';
+import { Banner, Button, Field, IconButton, Input, Modal, Select, Spinner, Textarea, cx } from './ui';
 
 export function CaptureModal() {
   const open = useUI((s) => s.captureOpen),
@@ -68,7 +68,6 @@ export function CaptureModal() {
     setKind('');
     if (fileRef.current) fileRef.current.value = '';
   };
-  const input = 'w-full rounded-md border border-line-strong bg-bg px-2 py-1.5 text-[13px] outline-none focus:border-accent';
   return (
     <Modal
       open={open}
@@ -79,12 +78,12 @@ export function CaptureModal() {
       width={660}
       footer={
         <>
-          <span className="mr-auto text-[11px] text-faint">La clasificación es opcional.</span>
+          <span className="mr-auto text-sm text-muted">La clasificación es opcional.</span>
           <Button disabled={busy} onClick={() => setOpen(false)}>
             {report.length ? 'Listo' : 'Cancelar'}
           </Button>
           <Button variant="primary" disabled={!canSave} onClick={() => void submit()}>
-            {busy && <Spinner size={12} />} Añadir
+            {busy && <Spinner size={14} />} Añadir
           </Button>
         </>
       }
@@ -121,37 +120,22 @@ export function CaptureModal() {
           }
         }}
       >
-        <p className="text-[12px] text-muted">
+        <p className="text-ui text-muted">
           Pega una URL, añade archivos o crea una ficha con un título. Puedes completar sus datos después.
         </p>
-        <label className="block text-[12px]">
-          URL
-          <input
-            className={input}
-            disabled={busy}
-            type="url"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://…"
-          />
-        </label>
-        <label className="block text-[12px]">
-          Título
-          <input
-            className={input}
-            disabled={busy}
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Opcional para webs y archivos"
-          />
-        </label>
+        <Field label="URL">
+          <Input disabled={busy} type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" />
+        </Field>
+        <Field label="Título">
+          <Input disabled={busy} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Opcional para webs y archivos" />
+        </Field>
         <button
           type="button"
           disabled={busy}
           onClick={() => fileRef.current?.click()}
-          className="flex min-h-20 w-full items-center justify-center gap-2 rounded-lg border border-dashed border-line-strong bg-soft text-[12px] text-muted hover:border-accent"
+          className="flex min-h-20 w-full items-center justify-center gap-2 rounded-lg border border-dashed border-line-strong bg-soft px-3 text-ui text-muted transition-colors enabled:hover:border-accent enabled:hover:text-fg disabled:opacity-50"
         >
-          <Upload size={18} /> Arrastra archivos, pégalos o haz clic para elegirlos
+          <Upload size={18} aria-hidden /> Arrastra archivos, pégalos o haz clic para elegirlos
         </button>
         <input
           type="file"
@@ -167,96 +151,79 @@ export function CaptureModal() {
           }}
         />
         {!!files.length && (
-          <ul className="max-h-36 overflow-auto space-y-1 text-[12px]">
+          <ul className="max-h-36 overflow-auto space-y-1 text-ui">
             {files.map((file, i) => (
-              <li key={i} className="flex items-center gap-2 rounded bg-soft p-2">
+              <li key={i} className="flex min-h-(--et-row) items-center gap-2 rounded-md bg-soft py-0.5 pr-0.5 pl-3">
                 <span className="min-w-0 flex-1 truncate">{file.name}</span>
-                <span className="text-faint">{(file.size / 1024).toFixed(0)} KB</span>
-                <button
-                  type="button"
+                <span className="text-muted">{(file.size / 1024).toFixed(0)} KB</span>
+                <IconButton
                   disabled={busy}
-                  aria-label={`Quitar ${file.name}`}
+                  label={`Quitar ${file.name}`}
                   onClick={() => setFiles(files.filter((_, index) => index !== i))}
                 >
-                  <X size={13} />
-                </button>
+                  <X size={16} />
+                </IconButton>
               </li>
             ))}
           </ul>
         )}
         {files.length > 1 && (
-          <label className="flex gap-2 text-[12px]">
-            <input type="checkbox" disabled={busy} checked={group} onChange={(e) => setGroup(e.target.checked)} /> Agrupar estos archivos en
+          <label className="flex items-start gap-2 text-ui">
+            <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-[var(--et-accent)]" disabled={busy} checked={group} onChange={(e) => setGroup(e.target.checked)} /> Agrupar estos archivos en
             una sola ficha (por defecto, un recurso por archivo)
           </label>
         )}
-        <label className="block text-[12px]">
-          Notas
-          <textarea
-            className={input}
+        <Field label="Notas">
+          <Textarea
             disabled={busy}
             rows={3}
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="Ideas, por qué es útil, qué quieres recordar…"
           />
-        </label>
+        </Field>
         <details>
-          <summary className="cursor-pointer text-[12px] text-accent">Tipo y organización opcionales</summary>
+          <summary className="flex min-h-(--et-row) cursor-pointer items-center text-ui font-bold text-accent">Tipo y organización opcionales</summary>
           <div className="mt-2 grid gap-2 sm:grid-cols-2">
-            <label className="text-[12px]">
-              Tipo
-              <select className={input} disabled={busy} value={kind} onChange={(e) => setKind(e.target.value)}>
+            <Field label="Tipo">
+              <Select disabled={busy} value={kind} onChange={(e) => setKind(e.target.value)}>
                 <option value="">Detectar automáticamente</option>
                 {kinds.map((value) => (
                   <option value={value} key={value}>
                     {KIND_LABEL[value]}
                   </option>
                 ))}
-              </select>
-            </label>
-            <label className="text-[12px]">
-              Colecciones
-              <input
-                className={input}
-                disabled={busy}
-                value={collections}
-                onChange={(e) => setCollections(e.target.value)}
-                placeholder="Separadas por coma"
-              />
-            </label>
-            <label className="text-[12px]">
-              Etiquetas
-              <input
-                className={input}
-                disabled={busy}
-                value={tags}
-                onChange={(e) => setTags(e.target.value)}
-                placeholder="Separadas por coma"
-              />
-            </label>
+              </Select>
+            </Field>
+            <Field label="Colecciones">
+              <Input disabled={busy} value={collections} onChange={(e) => setCollections(e.target.value)} placeholder="Separadas por coma" />
+            </Field>
+            <Field label="Etiquetas">
+              <Input disabled={busy} value={tags} onChange={(e) => setTags(e.target.value)} placeholder="Separadas por coma" />
+            </Field>
           </div>
         </details>
         {busy && (
-          <p role="status" className="text-[12px] text-accent">
-            Guardando {progress.done} de {progress.total}… El lote se conserva antes de enviarlo.
+          <p role="status" className="flex items-center gap-2 text-ui text-fg">
+            <Spinner size={14} /> Guardando {progress.done} de {progress.total}… El lote se conserva antes de enviarlo.
           </p>
         )}
         {error && (
-          <p role="alert" className="text-[12px] text-danger">
+          <Banner kind="danger" inline>
             {error}
-          </p>
+          </Banner>
         )}
         {!!report.length && (
-          <section aria-label="Resultado del alta" className="space-y-2 rounded border border-line bg-soft p-3 text-[12px]">
+          <section aria-label="Resultado del alta" className="space-y-2 rounded-lg border border-line bg-soft p-3 text-ui">
             {report.map(({ label, result }, i) => (
-              <div key={i}>
-                <p className="font-medium">
+              <div key={i} className="space-y-1.5">
+                <p className="font-bold">
                   {label}: {result.kind === 'ok' ? 'Guardado' : 'Conservado en Pendientes'}
                 </p>
                 {result.kind === 'ok' ? (
                   <>
                     <Button
+                      size="sm"
                       onClick={() => {
                         setOpen(false);
                         openResource(result.path);
@@ -264,7 +231,11 @@ export function CaptureModal() {
                     >
                       Abrir ficha
                     </Button>
-                    {result.warning && <p className="text-warn">{result.warning}</p>}
+                    {result.warning && (
+                      <Banner kind="warn" inline>
+                        {result.warning}
+                      </Banner>
+                    )}
                   </>
                 ) : (
                   <p className="text-warn">
@@ -275,6 +246,7 @@ export function CaptureModal() {
             ))}
             {report.some(({ result }) => result.kind !== 'ok') && (
               <Button
+                size="sm"
                 onClick={() => {
                   setOpen(false);
                   useCaptureQueue.setState({ open: true });

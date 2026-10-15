@@ -2,11 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowUp, BookMarked, ChevronRight, FileCode2, Folder, GitBranch, HardDrive } from 'lucide-react';
 import { absCrumbs, isAbsPath, joinAbs, relUnder, type PathSep } from '../lib/abspath';
 import { api, errorMessage, type FsDirsResponse } from '../api';
-import { Button, Empty, IconButton, Modal, Spinner, cx } from './ui';
+import { Banner, Button, Empty, IconButton, Input, Modal, Spinner, cx } from './ui';
 
 function Badge({ children, title, icon }: { children: React.ReactNode; title: string; icon: React.ReactNode }) {
   return (
-    <span title={title} className="inline-flex shrink-0 items-center gap-0.5 rounded border border-line bg-soft px-1 text-[10.5px] leading-4 text-muted">
+    <span title={title} className="inline-flex shrink-0 items-center gap-1 rounded border border-line bg-soft px-1.5 py-px text-xs text-muted">
       {icon}
       {children}
     </span>
@@ -114,7 +114,7 @@ export function DirPicker({
       width={600}
       footer={
         <>
-          <div className="mr-auto min-w-0 truncate text-[11.5px] text-muted" title={target ?? ''}>
+          <div className="mr-auto min-w-0 truncate text-sm text-muted" title={target ?? ''}>
             {target ? (
               <>
                 {mode === 'create' ? 'Se creará: ' : 'Seleccionada: '}
@@ -124,7 +124,7 @@ export function DirPicker({
               'Elige una carpeta de la lista'
             )}
           </div>
-          <Button variant="ghost" onClick={onClose}>
+          <Button variant="subtle" onClick={onClose}>
             Cancelar
           </Button>
           <Button
@@ -132,32 +132,32 @@ export function DirPicker({
             disabled={!target || busy || loading || !!validation || invalidName}
             onClick={() => target && void onSelect(target)}
           >
-            {busy && <Spinner size={11} />}
+            {busy && <Spinner size={14} />}
             {selectLabel ?? (mode === 'create' ? 'Crear memoria aquí' : 'Seleccionar esta carpeta')}
           </Button>
         </>
       }
     >
       <div className="flex flex-col">
-        <div className="flex min-h-9 items-center gap-1 border-b border-line px-2 py-1">
+        <div className="flex min-h-(--et-toolbar) items-center gap-1 border-b border-line px-2 py-1">
           <IconButton label="Carpeta superior" onClick={up} disabled={!cur || loading}>
-            <ArrowUp size={14} />
+            <ArrowUp size={16} />
           </IconButton>
-          <nav aria-label="Ruta" className="flex min-w-0 flex-1 flex-wrap items-center gap-0.5 text-[12px]">
+          <nav aria-label="Ruta" className="flex min-w-0 flex-1 flex-wrap items-center gap-0.5 text-ui">
             <button
               type="button"
-              className={cx('flex items-center gap-1 rounded px-1 hover:bg-hover', !cur ? 'font-semibold text-fg' : 'text-muted')}
+              className={cx('flex min-h-(--et-control-sm) items-center gap-1 rounded-md px-1.5 hover:bg-hover', !cur ? 'font-bold text-fg' : 'text-muted')}
               onClick={() => void go(null)}
               title="Carpetas permitidas"
             >
-              <HardDrive size={12} /> Raíces
+              <HardDrive size={14} aria-hidden /> Raíces
             </button>
             {crumbs.map((c, i) => (
               <span key={c.path} className="flex min-w-0 items-center gap-0.5">
-                <ChevronRight size={11} className="shrink-0 text-faint" />
+                <ChevronRight size={14} className="shrink-0 text-muted" aria-hidden />
                 <button
                   type="button"
-                  className={cx('truncate rounded px-1 hover:bg-hover', i === crumbs.length - 1 ? 'font-semibold text-fg' : 'text-muted')}
+                  className={cx('min-h-(--et-control-sm) truncate rounded-md px-1.5 hover:bg-hover', i === crumbs.length - 1 ? 'font-bold text-fg' : 'text-muted')}
                   onClick={() => void go(c.path)}
                   title={c.path}
                 >
@@ -166,10 +166,10 @@ export function DirPicker({
               </span>
             ))}
           </nav>
-          {loading && <Spinner size={12} />}
+          {loading && <Spinner size={14} />}
         </div>
-        {error && <div className="border-b border-line bg-danger-bg px-3 py-1.5 text-[12px] text-danger">{error}</div>}
-        {hint && <div className="border-b border-line bg-soft px-3 py-1.5 text-[11.5px] text-muted">{hint}</div>}
+        {error && <Banner kind="danger">{error}</Banner>}
+        {hint && <Banner kind="info">{hint}</Banner>}
         <div className="h-[320px] overflow-auto py-1">
           {listing && listing.dirs.length === 0 && <Empty>{cur ? 'No hay subcarpetas.' : 'No hay carpetas permitidas.'}</Empty>}
           <ul>
@@ -177,28 +177,28 @@ export function DirPicker({
               <li key={d.path}>
                 <button
                   type="button"
-                  className="flex w-full items-center gap-2 px-3 py-1 text-left text-[12.5px] hover:bg-hover"
+                  className="et-focus-inset flex min-h-(--et-row) w-full items-center gap-2 px-3 py-1 text-left text-ui hover:bg-hover"
                   onClick={() => void go(d.path)}
                   title={d.path}
                 >
-                  <Folder size={14} className="shrink-0 text-muted" />
+                  <Folder size={16} className="shrink-0 text-muted" aria-hidden />
                   <span className="min-w-0 flex-1 truncate">{cur ? d.name : d.path}</span>
                   {d.isObsidianVault && (
-                    <Badge title="Vault de Obsidian" icon={<BookMarked size={10} />}>
+                    <Badge title="Vault de Obsidian" icon={<BookMarked size={12} aria-hidden />}>
                       Obsidian
                     </Badge>
                   )}
                   {d.hasMainTex && (
-                    <Badge title="Contiene un documento LaTeX principal (tfg.tex o main.tex)" icon={<FileCode2 size={10} />}>
+                    <Badge title="Contiene un documento LaTeX principal (tfg.tex o main.tex)" icon={<FileCode2 size={12} aria-hidden />}>
                       LaTeX
                     </Badge>
                   )}
                   {d.isGitRepo && (
-                    <Badge title="Repositorio git" icon={<GitBranch size={10} />}>
+                    <Badge title="Repositorio git" icon={<GitBranch size={12} aria-hidden />}>
                       git
                     </Badge>
                   )}
-                  <ChevronRight size={12} className="shrink-0 text-faint" />
+                  <ChevronRight size={14} className="shrink-0 text-muted" aria-hidden />
                 </button>
               </li>
             ))}
@@ -206,20 +206,22 @@ export function DirPicker({
         </div>
         {mode === 'create' && (
           <div className="flex items-center gap-2 border-t border-line px-3 py-2">
-            <label htmlFor="dirpicker-name" className="shrink-0 text-[12px] text-muted">
+            <label htmlFor="dirpicker-name" className="shrink-0 text-ui text-muted">
               Nueva carpeta
             </label>
-            <input
+            <Input
               id="dirpicker-name"
+              inputSize="sm"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              aria-invalid={invalidName || undefined}
               placeholder="vacío = usar la carpeta actual (debe estar vacía)"
-              className="h-7 min-w-0 flex-1 rounded-md border border-line-strong bg-bg px-2 text-[12.5px] outline-none focus:border-accent"
+              className="flex-1"
             />
           </div>
         )}
         {(validation || invalidName) && (
-          <div className="border-t border-line px-3 py-1.5 text-[12px] text-danger">{invalidName ? 'Nombre de carpeta no válido' : validation}</div>
+          <Banner kind="danger" className="border-t border-b-0!">{invalidName ? 'Nombre de carpeta no válido' : validation}</Banner>
         )}
       </div>
     </Modal>

@@ -17,12 +17,12 @@ import {
 } from '../state/diagramas';
 import { openFile, panelIdFor, useActivePanel } from '../state/workspace';
 import { openContextMenu, type MenuItem } from './ContextMenu';
-import { Button, Empty, IconButton, Spinner, cx } from './ui';
+import { Button, Empty, IconButton, Input, Spinner, cx } from './ui';
 
 const ESTADO: Record<DiagramaItem['estado'], { label: string; cls: string; title: string }> = {
   exportado: { label: 'Exportada', cls: 'text-ok', title: 'La figura de la memoria está al día' },
   desactualizado: { label: 'Desactualizada', cls: 'text-warn', title: 'El diagrama cambió desde la última exportación' },
-  'sin-exportar': { label: 'Sin exportar', cls: 'text-faint', title: 'Aún no hay figura para la memoria' },
+  'sin-exportar': { label: 'Sin exportar', cls: 'text-muted', title: 'Aún no hay figura para la memoria' },
 };
 
 export function DiagramasSection() {
@@ -68,34 +68,37 @@ export function DiagramasSection() {
 
   return (
     <>
-      <div className="flex h-8 shrink-0 items-center gap-0.5 pr-1.5 pl-3">
-        <h2 className="flex-1 text-[11px] font-semibold tracking-wider text-muted uppercase">Diagramas</h2>
+      <div className="flex h-(--et-toolbar) shrink-0 items-center gap-0.5 pr-1.5 pl-3">
+        <h2 className="flex-1 text-sm font-semibold tracking-wider text-muted uppercase">Diagramas</h2>
         <IconButton label="Nuevo diagrama" onClick={() => openNewDiagram('')}>
-          <Plus size={14} />
+          <Plus size={16} />
         </IconButton>
         <IconButton label="Recargar" onClick={() => void useDiagramas.getState().refresh()}>
-          <RefreshCw size={13} />
+          <RefreshCw size={16} />
         </IconButton>
       </div>
       {items && items.length > 0 && (
-        <div className="relative px-2 pb-1.5">
-          <input
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            onKeyDown={(e) => e.key === 'Escape' && setFilter('')}
-            placeholder="Filtrar diagramas…"
-            aria-label="Filtrar diagramas"
-            className="h-6 w-full rounded-md border border-line bg-bg px-2 pr-6 text-[12px] outline-none focus:border-accent"
-          />
-          {filter && (
-            <button type="button" aria-label="Limpiar filtro" className="absolute top-1 right-3.5 text-faint hover:text-fg" onClick={() => setFilter('')}>
-              <X size={13} />
-            </button>
-          )}
+        <div className="px-2 pb-1.5">
+          <div className="relative">
+            <Input
+              inputSize="sm"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              onKeyDown={(e) => e.key === 'Escape' && setFilter('')}
+              placeholder="Filtrar diagramas…"
+              aria-label="Filtrar diagramas"
+              className="pr-9!"
+            />
+            {filter && (
+              <IconButton label="Limpiar filtro" className="absolute top-1/2 right-0 -translate-y-1/2" onClick={() => setFilter('')}>
+                <X size={16} />
+              </IconButton>
+            )}
+          </div>
         </div>
       )}
       {(counts.desactualizado > 0 || counts['sin-exportar'] > 0) && (
-        <p className="px-3 pb-1.5 text-[11px] text-muted">
+        <p className="px-3 pb-1.5 text-sm text-muted">
           {counts.desactualizado > 0 && <span className="text-warn">{counts.desactualizado} desactualizada{counts.desactualizado === 1 ? '' : 's'}</span>}
           {counts.desactualizado > 0 && counts['sin-exportar'] > 0 && ' · '}
           {counts['sin-exportar'] > 0 && <span>{counts['sin-exportar']} sin exportar</span>}
@@ -111,14 +114,19 @@ export function DiagramasSection() {
             </div>
           )
         ) : items.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 px-4 py-6 text-center text-[12px] text-muted">
-            <Workflow size={26} className="text-faint" />
-            <p>Aún no hay diagramas en la memoria.</p>
-            <Button variant="primary" onClick={() => openNewDiagram('')}>
-              <Plus size={12} /> Nuevo diagrama
-            </Button>
-            <p className="text-[11px] text-faint">También puedes usar un bloque mermaid de una nota con «Usar en la memoria».</p>
-          </div>
+          <Empty
+            icon={<Workflow size={26} />}
+            action={
+              <>
+                <Button variant="primary" onClick={() => openNewDiagram('')}>
+                  <Plus size={16} /> Nuevo diagrama
+                </Button>
+                <p>También puedes usar un bloque mermaid de una nota con «Usar en la memoria».</p>
+              </>
+            }
+          >
+            <p className="text-ui">Aún no hay diagramas en la memoria.</p>
+          </Empty>
         ) : list.length === 0 ? (
           <Empty>Ningún diagrama coincide.</Empty>
         ) : (
@@ -132,36 +140,35 @@ export function DiagramasSection() {
               <div
                 key={it.path}
                 role="listitem"
-                className={cx('group flex w-full cursor-pointer items-start gap-2 px-3 py-1.5 text-left hover:bg-hover', active && 'bg-active')}
+                className={cx('group flex min-h-(--et-row) w-full cursor-pointer items-start gap-2 px-3 py-1.5 text-left hover:bg-hover', active && 'bg-active')}
                 title={`${it.path}\n${sideHint()}: abrir al lado`}
                 {...openActions((side) => openFile('memoria', it.path, { side }), () => menu(it))}
               >
-                <Workflow size={14} className="mt-0.5 shrink-0 text-muted" />
+                <Workflow size={16} className="mt-0.5 shrink-0 text-muted" aria-hidden />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[12.5px] text-fg">
+                  <span className="block truncate text-ui text-fg">
                     {basename(name)}
-                    {folder && <span className="ml-1.5 text-[11px] text-faint">{folder}</span>}
+                    {folder && <span className="ml-1.5 text-sm text-muted">{folder}</span>}
                   </span>
-                  <span className="flex gap-1.5 text-[11px]">
+                  <span className="flex gap-1.5 text-sm">
                     <span className={st.cls} title={st.title}>
                       {st.label}
                     </span>
-                    <span className="text-faint">· {n ? `en ${n} ${n === 1 ? 'sitio' : 'sitios'}` : 'sin usar'}</span>
+                    <span className="text-muted">· {n ? `en ${n} ${n === 1 ? 'sitio' : 'sitios'}` : 'sin usar'}</span>
                   </span>
                 </span>
-                <button
-                  type="button"
-                  aria-label={`Acciones de ${basename(name)}`}
+                <IconButton
+                  label={`Acciones de ${basename(name)}`}
                   title="Más acciones"
-                  className="mt-0.5 hidden h-5 w-5 shrink-0 items-center justify-center rounded text-muted group-hover:inline-flex hover:bg-hover hover:text-fg focus-visible:inline-flex"
+                  className="-my-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
                   onClick={(e) => {
                     e.stopPropagation();
                     const r = e.currentTarget.getBoundingClientRect();
                     openContextMenu({ clientX: r.left, clientY: r.bottom + 2, preventDefault: () => {} }, menu(it));
                   }}
                 >
-                  <Ellipsis size={13} />
-                </button>
+                  <Ellipsis size={16} />
+                </IconButton>
               </div>
             );
           })

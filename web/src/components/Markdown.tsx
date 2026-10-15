@@ -12,6 +12,7 @@ import { confirmDialog } from '../state/ui';
 import { createNoteAt } from '../state/files';
 import { copyFromNote } from '../state/diagramas';
 import { renderAppMermaid } from '../lib/mermaid';
+import { Button } from './ui';
 
 // ---------- Frontmatter ----------
 
@@ -42,17 +43,17 @@ function FrontmatterBox({ split }: { split: Split }) {
   if (split.frontmatter == null) return null;
   const entries = split.data ? Object.entries(split.data) : [];
   return (
-    <div className="mx-auto mb-4 max-w-[76ch] rounded-md border border-line bg-soft text-[12px]">
+    <div className="mx-auto mb-4 max-w-[76ch] rounded-md border border-line bg-soft text-ui">
       <button
         type="button"
-        className="flex w-full items-center gap-1 px-2 py-1 text-left text-muted hover:text-fg"
+        className="et-focus-inset flex min-h-(--et-row) w-full items-center gap-1 rounded-md px-2 py-1 text-left text-muted hover:text-fg"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
       >
-        {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+        {open ? <ChevronDown size={16} aria-hidden /> : <ChevronRight size={16} aria-hidden />}
         Propiedades
         {!open && entries.length > 0 && (
-          <span className="ml-2 truncate text-faint">{entries.map(([k]) => k).join(' · ')}</span>
+          <span className="ml-2 truncate text-muted">{entries.map(([k]) => k).join(' · ')}</span>
         )}
       </button>
       {open && (
@@ -69,7 +70,7 @@ function FrontmatterBox({ split }: { split: Split }) {
               </tbody>
             </table>
           ) : (
-            <pre className="whitespace-pre-wrap font-mono text-[11.5px]">{split.frontmatter}</pre>
+            <pre className="whitespace-pre-wrap font-mono text-sm">{split.frontmatter}</pre>
           )}
         </div>
       )}
@@ -153,7 +154,7 @@ function EmbedImage({ target, alt, notePath }: { target: string; alt: string; no
       alive = false;
     };
   }, [target, notePath]);
-  return src ? <img src={src} alt={alt} loading="lazy" /> : <span className="text-faint">[{alt}]</span>;
+  return src ? <img src={src} alt={alt} loading="lazy" /> : <span className="text-muted">[{alt}]</span>;
 }
 
 // ---------- Mermaid ----------
@@ -179,14 +180,15 @@ function Mermaid({ code, notePath }: { code: string; notePath?: string }) {
   }, [code, baseId]);
   // v0.8: copiar el bloque a la memoria como diagrama (copia explícita e independiente).
   const useInMemoria = notePath ? (
-    <button
-      type="button"
-      className="absolute top-1 right-1 hidden items-center gap-1 rounded-md border border-line bg-bg px-1.5 py-0.5 text-[11px] text-muted shadow-sm group-hover/mmd:inline-flex group-focus-within/mmd:inline-flex hover:text-fg"
+    // Visible al pasar el ratón o al llegar con el teclado (opacidad: sigue siendo enfocable).
+    <Button
+      size="sm"
+      className="absolute top-1 right-1 shadow-sm opacity-0 group-hover/mmd:opacity-100 group-focus-within/mmd:opacity-100 focus-visible:opacity-100"
       title="Copiar este diagrama a diagramas/ de la memoria y abrirlo"
       onClick={() => copyFromNote(code, notePath)}
     >
-      <Workflow size={12} /> Usar en la memoria
-    </button>
+      <Workflow size={14} aria-hidden /> Usar en la memoria
+    </Button>
   ) : null;
   if (error)
     return (

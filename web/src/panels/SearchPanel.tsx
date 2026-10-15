@@ -28,15 +28,15 @@ export function SearchPanel({ params, api }: IDockviewPanelProps<SearchParams>) 
 
   return (
     <div className="flex h-full flex-col bg-bg">
-      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-line px-3">
-        <Search size={14} className="text-muted" />
+      <div className="flex h-(--et-toolbar) shrink-0 items-center gap-2 border-b border-line px-3">
+        <Search size={16} className="shrink-0 text-muted" aria-hidden />
         <input
           ref={input}
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Buscar en notas y memoria…"
           aria-label="Buscar"
-          className="h-7 min-w-0 flex-1 bg-transparent text-[13px] outline-none"
+          className="et-focus-inset h-(--et-control-sm) min-w-0 flex-1 rounded-sm bg-transparent px-1 text-ui"
         />
         <ScopeSelect value={scope} onChange={setScope} />
       </div>

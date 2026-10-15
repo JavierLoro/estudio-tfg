@@ -1,7 +1,8 @@
+import { TriangleAlert } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api, errorMessage, type MigrationPreview } from '../api';
 import { toast, useUI } from '../state/ui';
-import { Button, Modal, Spinner } from './ui';
+import { Banner, Button, EmptyState, Modal, Spinner } from './ui';
 
 export function LibraryMigrationDialog({ open, onClose, onlyPath }: { open: boolean; onClose: () => void; onlyPath?: string }) {
   const [preview, setPreview] = useState<MigrationPreview | null>(null);
@@ -69,59 +70,63 @@ export function LibraryMigrationDialog({ open, onClose, onlyPath }: { open: bool
               )
             }
           >
-            {busy && <Spinner size={12} />}{' '}
+            {busy && <Spinner size={14} />}{' '}
             {selected.length ? `Actualizar ${selected.length} ficha(s)` : 'Preparar identidad de biblioteca'}
           </Button>
         </>
       }
     >
-      <div className="space-y-3 p-4 text-[12px]">
+      <div className="space-y-3 p-4 text-ui">
         <p>
           Se añade una identidad estable sin mover adjuntos ni cambiar tus notas. Conservamos los originales; deshacer se detiene si hay
           ediciones posteriores. La identidad del destino se conserva al preparar y trasladar la Biblioteca.
         </p>
         {error && (
-          <p role="alert" className="text-danger">
+          <Banner kind="danger" inline>
             {error}
-          </p>
+          </Banner>
         )}
         {!preview && !error && <Spinner />}
         {preview?.warnings.map((warning, i) => (
-          <p key={i} role="status" className="text-warn">
+          <Banner key={i} kind="warn" inline>
             {warning.path}: {warning.message}
-          </p>
+          </Banner>
         ))}
-        {preview && !preview.items.length && <p>No hay fichas antiguas que convertir. Puedes preparar la identidad para un traslado.</p>}
+        {preview && !preview.items.length && (
+          <EmptyState className="text-ui!">No hay fichas antiguas que convertir. Puedes preparar la identidad para un traslado.</EmptyState>
+        )}
         {preview?.items
           .filter((item) => !onlyPath || item.path === onlyPath)
           .map((item) => (
-            <article key={item.path} className="rounded border border-line bg-soft p-3">
-              <label className="flex items-center gap-2">
+            <article key={item.path} className="rounded-lg border border-line bg-soft p-3">
+              <label className="flex min-h-(--et-row) items-center gap-2">
                 <input
                   type="checkbox"
+                  className="size-4 shrink-0 accent-[var(--et-accent)]"
                   checked={selected.includes(item.path)}
                   disabled={busy}
                   onChange={(e) => setSelected(e.target.checked ? [...selected, item.path] : selected.filter((p) => p !== item.path))}
                 />
-                <span className="font-medium">{item.title}</span>
+                <span className="font-bold">{item.title}</span>
               </label>
-              <p className="mt-1 break-all text-faint">{item.path}</p>
+              <p className="mt-1 break-all text-muted">{item.path}</p>
               {item.warnings.map((warning) => (
-                <p key={warning} className="text-warn">
-                  {warning}
+                <p key={warning} className="mt-1 flex items-start gap-1 text-warn">
+                  <TriangleAlert size={14} className="mt-0.5 shrink-0" aria-hidden />
+                  <span>{warning}</span>
                 </p>
               ))}
               <details className="mt-1">
-                <summary className="cursor-pointer text-accent">Ver contenido propuesto</summary>
-                <pre className="max-h-52 overflow-auto whitespace-pre-wrap pt-2">{item.after}</pre>
+                <summary className="flex min-h-(--et-row) cursor-pointer items-center text-accent">Ver contenido propuesto</summary>
+                <pre className="max-h-52 overflow-auto pt-2 font-mono text-sm whitespace-pre-wrap">{item.after}</pre>
               </details>
             </article>
           ))}
         {!!preview?.operations.length && (
           <section className="space-y-2">
-            <h3 className="font-semibold">Operaciones y recuperación</h3>
+            <h3 className="font-bold">Operaciones y recuperación</h3>
             {preview.operations.map((op) => (
-              <div key={op.id} className="rounded border border-line p-2">
+              <div key={op.id} className="space-y-2 rounded-lg border border-line p-3">
                 <p>
                   {op.createdAt.slice(0, 19).replace('T', ' ')} · {op.applied}/{op.total} fichas ·{' '}
                   {op.state === 'done'
@@ -132,14 +137,18 @@ export function LibraryMigrationDialog({ open, onClose, onlyPath }: { open: bool
                         ? 'Deshacer pendiente'
                         : 'Interrumpida'}
                 </p>
-                {op.error && <p className="text-warn">{op.error}</p>}
+                {op.error && (
+                  <Banner kind="warn" inline>
+                    {op.error}
+                  </Banner>
+                )}
                 {(op.state === 'prepared' || op.state === 'undoing') && (
-                  <Button disabled={busy} onClick={() => void run(() => api.retryMigration(op.id))}>
+                  <Button size="sm" className="mr-2" disabled={busy} onClick={() => void run(() => api.retryMigration(op.id))}>
                     Reintentar operación
                   </Button>
                 )}
                 {op.state !== 'undone' && (
-                  <Button disabled={busy} onClick={() => void run(() => api.undoMigration(op.id))}>
+                  <Button size="sm" disabled={busy} onClick={() => void run(() => api.undoMigration(op.id))}>
                     Deshacer conversión
                   </Button>
                 )}

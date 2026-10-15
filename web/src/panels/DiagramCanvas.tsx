@@ -5,7 +5,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MermaidWysiwyg, type MermaidCanvasView, type MermaidWysiwygEditor } from '@visimer/react';
-import { ArrowRight, Layers, PanelLeftClose, PanelLeftOpen, PanelRight, PanelRightClose, Pencil, Plus, Shapes, Trash2 } from 'lucide-react';
+import { ArrowRight, Check, Layers, PanelLeftClose, PanelLeftOpen, PanelRight, PanelRightClose, Pencil, Plus, Shapes, Trash2 } from 'lucide-react';
 import { canvasMermaid } from '../lib/diagram';
 import {
   EDITABLE_KINDS,
@@ -27,7 +27,7 @@ import {
   type PaletteItem,
   type VisimerOp,
 } from '../lib/diagramEdit';
-import { cx } from '../components/ui';
+import { Banner, IconButton, cx } from '../components/ui';
 import { load, save as saveLocal } from '../lib/storage';
 import { toast } from '../state/ui';
 import { BLOCK_DRAG_TYPE, KIND_NAME, Palette, PropsPanel, StatusBar, type PropsHandlers } from './DiagramParts';
@@ -97,8 +97,6 @@ function entityAtPoint(host: HTMLElement, x: number, y: number): { id: string; e
   }
   return null;
 }
-
-const bigBtn = 'inline-flex h-6 w-6 items-center justify-center rounded text-muted transition-colors hover:bg-hover hover:text-fg disabled:opacity-40';
 
 export default function DiagramCanvas({ code, seed, broken, dirty, onCodeChange, onUndo, onRedo, onSave, onSaveCompile }: Props) {
   const kind: DiagramKind = diagramKind(code);
@@ -359,21 +357,13 @@ export default function DiagramCanvas({ code, seed, broken, dirty, onCodeChange,
   const shapes = shapeOptions(kind);
   const current = selectedBlock ? model.blocks.find((b) => b.id === selectedBlock) : null;
   const tool = (label: string, icon: React.ReactNode, onClick: () => void, opts?: { active?: boolean; danger?: boolean; disabled?: boolean }) => (
-    <button
-      type="button"
-      title={label}
-      aria-label={label}
-      aria-pressed={opts?.active}
-      disabled={opts?.disabled}
-      onClick={onClick}
-      className={cx('inline-flex h-6 w-6 items-center justify-center rounded transition-colors disabled:opacity-40', opts?.danger ? 'text-danger hover:bg-danger-bg' : 'text-muted hover:bg-hover hover:text-fg', opts?.active && 'bg-active text-accent')}
-    >
+    <IconButton label={label} variant={opts?.danger ? 'danger' : 'subtle'} active={opts?.active} aria-pressed={opts?.active} disabled={opts?.disabled} onClick={onClick}>
       {icon}
-    </button>
+    </IconButton>
   );
 
   const propsPanel = (
-    <div data-et-canvas-bar onPointerUp={restoreSelection} className={cx('flex w-[200px] shrink-0 flex-col gap-2 border-l border-line bg-bg p-2.5', narrow && 'absolute top-0 right-0 bottom-0 z-20 pt-9 shadow-pop')}>
+    <div data-et-canvas-bar onPointerUp={restoreSelection} className={cx('flex w-[15rem] shrink-0 flex-col gap-2 border-l border-line bg-bg p-2.5', narrow && 'absolute top-0 right-0 bottom-0 z-20 pt-12 shadow-pop')}>
       <PropsPanel kind={kind} kindName={KIND_NAME[kind]} model={model} selection={selection} canEdit={canEdit} h={handlers} />
     </div>
   );
@@ -381,20 +371,20 @@ export default function DiagramCanvas({ code, seed, broken, dirty, onCodeChange,
   return (
     <div ref={root} className="flex h-full min-h-0 flex-col" onKeyDownCapture={onKeyDownCapture}>
       {!editable && (
-        <div className="flex shrink-0 items-center gap-1.5 border-b border-line bg-bg px-2 py-1 text-[12px] text-muted">
-          <Layers size={13} />
+        <div className="flex min-h-(--et-row) shrink-0 items-center gap-1.5 border-b border-line bg-bg px-3 py-1 text-ui text-muted">
+          <Layers size={16} className="shrink-0" aria-hidden />
           Este tipo de diagrama solo se puede editar con código.
         </div>
       )}
-      {broken && editable && <div className="shrink-0 border-b border-line bg-bg px-2 py-1 text-[11.5px] text-danger">Corrige el error del código para seguir editando aquí.</div>}
+      {broken && editable && <Banner kind="warn">Corrige el error del código para seguir editando aquí.</Banner>}
       <div className="flex min-h-0 flex-1">
         {editable && (
-          <div data-et-canvas-bar onPointerUp={restoreSelection} className={cx('flex shrink-0 flex-col gap-1.5 border-r border-line bg-bg p-2', iconsOnly ? 'w-11 items-center' : 'w-[148px]')}>
+          <div data-et-canvas-bar onPointerUp={restoreSelection} className={cx('flex shrink-0 flex-col gap-1.5 border-r border-line bg-bg p-2', iconsOnly ? 'w-14 items-center' : 'w-40')}>
             <Palette items={palette} icons={iconsOnly} disabled={!canEdit} canUse={(it) => !editor || it.make({ selection, result: editor.result, code }) !== null} onUse={(it) => addBlock(it, selection)} />
             {width >= NARROW_PALETTE && (
-              <button type="button" onClick={togglePalette} title={paletteIcons ? 'Mostrar los nombres de los bloques' : 'Mostrar solo los iconos'} aria-label={paletteIcons ? 'Mostrar los nombres de los bloques' : 'Mostrar solo los iconos'} className={cx(bigBtn, 'mt-auto')}>
-                {paletteIcons ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
-              </button>
+              <IconButton onClick={togglePalette} label={paletteIcons ? 'Mostrar los nombres de los bloques' : 'Mostrar solo los iconos'} className="mt-auto">
+                {paletteIcons ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+              </IconButton>
             )}
           </div>
         )}
@@ -403,6 +393,7 @@ export default function DiagramCanvas({ code, seed, broken, dirty, onCodeChange,
           onDragOver={onDragOver}
           onDragLeave={() => markDrop(null)}
           onDrop={onDrop}
+          // Fondo fijo y claro a propósito: el lienzo muestra el aspecto de impresión en cualquier tema.
           className={cx('et-canvas relative min-h-0 min-w-0 flex-1 bg-[#f6f7f9]', !editable && 'et-canvas-readonly')}
         >
           <MermaidWysiwyg
@@ -411,6 +402,7 @@ export default function DiagramCanvas({ code, seed, broken, dirty, onCodeChange,
             mermaid={mermaid}
             readOnly={!canEdit}
             panZoom
+            // Color de selección dentro del lienzo (siempre claro, como el papel).
             accentColor="#2563eb"
             hooks={hooks}
             onSelectionChange={onSelectionChange}
@@ -421,12 +413,12 @@ export default function DiagramCanvas({ code, seed, broken, dirty, onCodeChange,
             className="h-full w-full"
           />
           {editable && (
-            <button type="button" onClick={toggleProps} aria-pressed={showProps} title={showProps ? 'Ocultar las propiedades' : 'Mostrar las propiedades del bloque'} aria-label={showProps ? 'Ocultar las propiedades' : 'Mostrar las propiedades del bloque'} className={cx(bigBtn, 'absolute top-1.5 right-1.5 z-30 border border-line bg-bg shadow-sm')}>
-              {showProps ? <PanelRightClose size={14} /> : <PanelRight size={14} />}
-            </button>
+            <IconButton onClick={toggleProps} aria-pressed={showProps} label={showProps ? 'Ocultar las propiedades' : 'Mostrar las propiedades del bloque'} className="absolute top-1.5 right-1.5 z-30 border border-line bg-bg shadow-sm">
+              {showProps ? <PanelRightClose size={16} /> : <PanelRight size={16} />}
+            </IconButton>
           )}
           {pending && (
-            <div role="status" className="absolute top-1.5 left-1/2 z-10 -translate-x-1/2 rounded-md border border-accent bg-bg px-2 py-1 text-[12px] text-accent shadow-sm">
+            <div role="status" className="absolute top-1.5 left-1/2 z-10 -translate-x-1/2 rounded-md border border-accent bg-bg px-2 py-1 text-ui text-accent shadow-sm">
               Haz clic en el bloque de destino · Esc para cancelar
             </div>
           )}
@@ -438,11 +430,11 @@ export default function DiagramCanvas({ code, seed, broken, dirty, onCodeChange,
               role="toolbar"
               aria-label="Acciones del bloque"
               style={{ visibility: 'hidden' }}
-              className="absolute z-10 flex gap-0.5 rounded-md border border-line-strong bg-bg p-[3px] shadow-pop"
+              className="absolute z-10 flex gap-0.5 rounded-md border border-line-strong bg-bg p-1 shadow-pop"
             >
-              {tool('Cambiar texto', <Pencil size={14} />, () => view?.editEntityLabel(selectedBlock))}
+              {tool('Cambiar texto', <Pencil size={16} />, () => view?.editEntityLabel(selectedBlock))}
               <div className="relative">
-                {tool('Cambiar forma', <Shapes size={14} />, () => {
+                {tool('Cambiar forma', <Shapes size={16} />, () => {
                   // Si no cabe debajo de la barra, el menú se abre hacia arriba.
                   const b = bar.current?.getBoundingClientRect();
                   const h = wrap.current?.getBoundingClientRect();
@@ -450,29 +442,30 @@ export default function DiagramCanvas({ code, seed, broken, dirty, onCodeChange,
                   setShapeMenu(!shapeMenu);
                 }, { active: shapeMenu, disabled: !shapes.length })}
                 {shapeMenu && (
-                  <ul role="menu" aria-label="Formas" className={cx('absolute left-0 z-30 w-40 rounded-md border border-line-strong bg-bg py-0.5 text-[12px] shadow-pop', menuUp ? 'bottom-full mb-1' : 'top-full mt-1')}>
+                  <ul role="menu" aria-label="Formas" className={cx('absolute left-0 z-30 w-44 rounded-md border border-line-strong bg-bg py-1 text-ui shadow-pop', menuUp ? 'bottom-full mb-1' : 'top-full mt-1')}>
                     {shapes.map((s) => (
                       <li key={s.id} role="none">
                         <button
                           type="button"
                           role="menuitemradio"
                           aria-checked={current?.shape === s.id}
-                          className={cx('flex w-full items-center px-2 py-[3px] text-left hover:bg-hover', current?.shape === s.id && 'text-accent')}
+                          className={cx('et-focus-inset flex min-h-(--et-row) w-full items-center gap-2 px-2.5 py-1 text-left hover:bg-hover', current?.shape === s.id && 'text-accent')}
                           onClick={() => {
                             run(shapeOp(kind, selectedBlock, s.id));
                             setShapeMenu(false);
                           }}
                         >
-                          {s.label}
+                          <span className="min-w-0 flex-1">{s.label}</span>
+                          {current?.shape === s.id && <Check size={16} className="shrink-0" aria-hidden />}
                         </button>
                       </li>
                     ))}
                   </ul>
                 )}
               </div>
-              {tool('Conectar con otro bloque', <ArrowRight size={14} />, () => setPending(pending ? null : selectedBlock), { active: !!pending })}
-              {tool('Añadir bloque después', <Plus size={14} />, addAfter)}
-              {tool('Borrar', <Trash2 size={14} />, () => editor?.deleteEntities([selectedBlock], 'canvas'), { danger: true })}
+              {tool('Conectar con otro bloque', <ArrowRight size={16} />, () => setPending(pending ? null : selectedBlock), { active: !!pending })}
+              {tool('Añadir bloque después', <Plus size={16} />, addAfter)}
+              {tool('Borrar', <Trash2 size={16} />, () => editor?.deleteEntities([selectedBlock], 'canvas'), { danger: true })}
             </div>
           )}
           {editable && narrow && drawer && propsPanel}

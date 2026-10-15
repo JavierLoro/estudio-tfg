@@ -5,7 +5,7 @@ import { api, type Backlink } from '../api';
 import { CodeEditor } from '../components/CodeEditor';
 import { DocBanners, SaveIndicator } from '../components/DocBanners';
 import { MarkdownView } from '../components/Markdown';
-import { IconButton, Spinner } from '../components/ui';
+import { Banner, IconButton, Spinner } from '../components/ui';
 import { kbd } from '../lib/kbd';
 import { openActions } from '../components/OpenActions';
 import { matchesShortcut } from '../lib/shortcuts';
@@ -51,21 +51,21 @@ export function NotePanel({ params, api: panelApi }: IDockviewPanelProps<FilePar
 
   return (
     <div className="flex h-full flex-col bg-bg">
-      <div className="flex h-7 shrink-0 items-center gap-2 border-b border-line px-2 text-[11.5px] text-muted">
+      <div className="flex h-(--et-toolbar) shrink-0 items-center gap-2 border-b border-line px-2 text-sm text-muted">
         <span className="min-w-0 flex-1 truncate" title={path}>
           {path}
         </span>
         <SaveIndicator docKey={key} />
         <IconButton label={`Guardar (${kbd('Mod-S')})`} onClick={() => saveDoc(key)} disabled={status !== 'ready'}>
-          <Save size={14} />
+          <Save size={16} />
         </IconButton>
         {isMd && (
           <div className="flex rounded-md border border-line p-px" role="group" aria-label="Modo">
             <IconButton label={`Leer (${kbd('Mod-E')})`} active={mode === 'read'} onClick={() => setMode('read')} aria-pressed={mode === 'read'}>
-              <BookOpen size={13} />
+              <BookOpen size={16} />
             </IconButton>
             <IconButton label={`Editar (${kbd('Mod-E')})`} active={mode === 'edit'} onClick={() => setMode('edit')} aria-pressed={mode === 'edit'}>
-              <Pencil size={13} />
+              <Pencil size={16} />
             </IconButton>
           </div>
         )}
@@ -117,21 +117,21 @@ function Backlinks({ path }: { path: string }) {
 
   return (
     <section className="mx-auto mt-10 max-w-[76ch] border-t border-line pt-3" aria-label="Enlaces entrantes">
-      <h2 className="mb-1.5 flex items-center gap-1.5 text-[11.5px] font-semibold tracking-wide text-muted uppercase">
-        <Link2 size={13} /> Enlaces entrantes {items ? `(${items.length})` : ''}
+      <h2 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold tracking-wide text-muted uppercase">
+        <Link2 size={16} aria-hidden /> Enlaces entrantes {items ? `(${items.length})` : ''}
       </h2>
-      {error && <p className="text-[12px] text-danger">{error}</p>}
-      {items && items.length === 0 && <p className="text-[12px] text-faint">Ninguna nota enlaza a esta.</p>}
+      {error && <Banner kind="danger" inline className="mb-2">{error}</Banner>}
+      {items && items.length === 0 && <p className="text-ui text-muted">Ninguna nota enlaza a esta.</p>}
       <ul className="space-y-1">
         {items?.map((b) => (
           <li key={b.path}>
             <button
               type="button"
-              className="w-full rounded-md px-2 py-1 text-left hover:bg-hover"
+              className="min-h-(--et-row) w-full rounded-md px-2 py-1 text-left hover:bg-hover"
               {...openActions((side) => openFile('notes', b.path, { side }))}
             >
-              <div className="text-[13px] font-medium text-accent">{b.title || stripExt(basename(b.path))}</div>
-              {b.snippet && <div className="line-clamp-2 text-[12px] text-muted">{b.snippet}</div>}
+              <div className="text-ui font-medium text-accent">{b.title || stripExt(basename(b.path))}</div>
+              {b.snippet && <div className="line-clamp-2 text-ui text-muted">{b.snippet}</div>}
             </button>
           </li>
         ))}

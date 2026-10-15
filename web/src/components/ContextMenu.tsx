@@ -47,7 +47,7 @@ export function ContextMenuHost() {
   }, [menu]);
   if (!menu) return null;
   const x = Math.min(menu.x, window.innerWidth - 220);
-  const y = Math.min(menu.y, window.innerHeight - menu.items.length * 28 - 12);
+  const y = Math.min(menu.y, window.innerHeight - menu.items.length * 36 - 12);
   return createPortal(
     <div
       ref={ref}
@@ -71,14 +71,14 @@ export function ContextMenuHost() {
           key={it.label}
           type="button"
           role="menuitem"
-          className={`flex h-7 w-full items-center gap-3 px-3 text-left text-[12.5px] hover:bg-hover focus:bg-hover focus:outline-none ${it.danger ? 'text-danger' : ''}`}
+          className={`et-focus-inset flex min-h-(--et-row) w-full items-center gap-3 px-3 text-left text-ui hover:bg-hover focus:bg-hover ${it.danger ? 'text-danger' : ''}`}
           onClick={() => {
             close();
             it.run();
           }}
         >
           <span className="flex-1">{it.label}</span>
-          {it.hint && <span className="text-[11px] text-faint">{it.hint}</span>}
+          {it.hint && <span className="text-sm text-muted">{it.hint}</span>}
         </button>
       ))}
     </div>,

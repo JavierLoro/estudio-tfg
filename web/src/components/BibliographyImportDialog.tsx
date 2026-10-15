@@ -11,7 +11,7 @@ import {
 import { load, save } from '../lib/storage';
 import { BIB_FIELD_LABEL } from '../lib/library';
 import { useUI } from '../state/ui';
-import { Banner, Button, Modal } from './ui';
+import { Banner, Button, EmptyState, Field, Input, Modal, Select, Textarea } from './ui';
 
 interface Draft {
   format: BibliographySource['format'];
@@ -153,7 +153,6 @@ export default function BibliographyImportDialog({ onClose }: { onClose: () => v
       setBusy(false);
     }
   };
-  const input = 'w-full rounded border border-line-strong bg-bg px-2 py-1.5 text-[12px]';
   return (
     <Modal
       open
@@ -184,28 +183,28 @@ export default function BibliographyImportDialog({ onClose }: { onClose: () => v
       }
     >
       <div className="space-y-4 p-4">
-        {error && <Banner kind="danger">{error}</Banner>}
+        {error && <Banner kind="danger" inline>{error}</Banner>}
         {storageError && (
-          <Banner kind="danger">
+          <Banner kind="danger" inline>
             No se pudo conservar el borrador local. Copia el texto o conserva el archivo original antes de cerrar.
           </Banner>
         )}
         {operations.length > 0 && (
           <section className="space-y-2">
-            <h2 className="font-medium">Lotes recuperables</h2>
-            {operations.map((op) => (
-              <Button key={op.operationId} disabled={busy} onClick={() => recover(op)}>
-                Recuperar lote · {op.items.length} referencia(s)
-              </Button>
-            ))}
+            <h2 className="text-ui font-bold">Lotes recuperables</h2>
+            <div className="flex flex-wrap gap-2">
+              {operations.map((op) => (
+                <Button key={op.operationId} size="sm" disabled={busy} onClick={() => recover(op)}>
+                  Recuperar lote · {op.items.length} referencia(s)
+                </Button>
+              ))}
+            </div>
           </section>
         )}
         {!draft.preview ? (
           <>
-            <label className="block text-[12px]">
-              Origen
-              <select
-                className={input}
+            <Field label="Origen">
+              <Select
                 value={draft.format}
                 disabled={busy}
                 onChange={(e) => setDraft((d) => ({ ...d, format: e.target.value as Draft['format'] }))}
@@ -213,25 +212,24 @@ export default function BibliographyImportDialog({ onClose }: { onClose: () => v
                 <option value="bibtex">BibTeX / BibLaTeX (.bib)</option>
                 <option value="ris">RIS (.ris)</option>
                 <option value="doi">DOI</option>
-              </select>
-            </label>
+              </Select>
+            </Field>
             {draft.format === 'doi' ? (
-              <label className="block text-[12px]">
-                DOI o enlace DOI
-                <input
-                  className={input}
+              <Field label="DOI o enlace DOI">
+                <Input
                   value={draft.doi}
                   disabled={busy}
                   onChange={(e) => setDraft((d) => ({ ...d, doi: e.target.value }))}
                   placeholder="10.… / https://doi.org/…"
                 />
-              </label>
+              </Field>
             ) : (
               <>
-                <label className="block text-[12px]">
-                  Seleccionar archivo
+                <Field label="Seleccionar archivo">
                   <input
                     type="file"
+                    // Control nativo: el botón del selector toma el aspecto de un Button secundario.
+                    className="block w-full text-ui text-muted file:mr-3 file:h-(--et-control-sm) file:cursor-pointer file:rounded-md file:border file:border-line-strong file:bg-bg file:px-2.5 file:text-sm file:font-bold file:text-fg hover:file:bg-hover"
                     accept=".bib,.ris,text/plain"
                     disabled={busy}
                     onChange={(e) => {
@@ -240,49 +238,48 @@ export default function BibliographyImportDialog({ onClose }: { onClose: () => v
                       e.target.value = '';
                     }}
                   />
-                </label>
-                <label className="block text-[12px]">
-                  O pegar el contenido
-                  <textarea
+                </Field>
+                <Field label="O pegar el contenido">
+                  <Textarea
                     rows={10}
-                    className={input}
+                    className="font-mono text-sm!"
                     value={draft.text}
                     disabled={busy}
                     onChange={(e) => setDraft((d) => ({ ...d, text: e.target.value }))}
                   />
-                </label>
+                </Field>
               </>
             )}
-            <p className="text-[12px] text-muted">
+            <p className="text-ui text-muted">
               El original se conserva. Revisar no modifica fichas; un fallo al consultar el DOI permite completar sus datos manualmente.
             </p>
           </>
         ) : (
           <>
-            {draft.preview.warning && <Banner kind="warn">{draft.preview.warning}</Banner>}
-            <Button disabled={busy} onClick={() => setDraft((d) => ({ ...d, preview: null, choices: [], results: [], sent: undefined }))}>
+            {draft.preview.warning && <Banner kind="warn" inline>{draft.preview.warning}</Banner>}
+            <Button size="sm" disabled={busy} onClick={() => setDraft((d) => ({ ...d, preview: null, choices: [], results: [], sent: undefined }))}>
               Volver al origen
             </Button>
-            {!draft.choices.length && <p>No se encontraron referencias. Revisa el formato y el contenido.</p>}
+            {!draft.choices.length && <EmptyState className="text-ui!">No se encontraron referencias. Revisa el formato y el contenido.</EmptyState>}
             {draft.choices.map((c) => {
               const result = draft.results.find((r) => r.index === c.index),
                 source = draft.preview!.items.find((i) => i.index === c.index),
                 done = result?.state === 'done' || result?.state === 'skipped';
               const disabled = busy || done;
               return (
-                <fieldset key={c.index} disabled={disabled} className="space-y-3 rounded border border-line p-3">
-                  <legend className="px-1 font-medium">
+                <fieldset key={c.index} disabled={disabled} className="space-y-3 rounded-lg border border-line p-3 text-ui">
+                  <legend className="px-1 font-bold">
                     Referencia {c.index + 1}
                     {done ? ' · ' + (result.state === 'done' ? 'Guardada' : 'Excluida') : ''}
                   </legend>
                   {source?.error && !done && (
-                    <Banner kind="warn">
+                    <Banner kind="warn" inline>
                       {source.error}. Revisa todos los campos o excluye esta entrada; el original queda conservado.
                     </Banner>
                   )}
-                  {result?.error && <Banner kind="danger">{result.error}</Banner>}
+                  {result?.error && <Banner kind="danger" inline>{result.error}</Banner>}
                   {!!source?.candidates.length && (
-                    <Banner kind="info">
+                    <Banner kind="info" inline>
                       Posibles coincidencias:{' '}
                       {source.candidates
                         .map(
@@ -293,10 +290,8 @@ export default function BibliographyImportDialog({ onClose }: { onClose: () => v
                       . Decide explícitamente; no combinamos automáticamente.
                     </Banner>
                   )}
-                  <label className="block text-[12px]">
-                    Decisión
-                    <select
-                      className={input}
+                  <Field label="Decisión">
+                    <Select
                       value={c.action}
                       onChange={(e) => update(c.index, { action: e.target.value as ImportChoice['action'] })}
                     >
@@ -304,14 +299,12 @@ export default function BibliographyImportDialog({ onClose }: { onClose: () => v
                       <option value="associate">Asociar a una ficha sin referencia</option>
                       <option value="merge">Combinar metadatos con una ficha</option>
                       <option value="skip">Conservar la actual / No importar</option>
-                    </select>
-                  </label>
+                    </Select>
+                  </Field>
                   {(c.action === 'associate' || c.action === 'merge') && (
                     <>
-                      <label className="block text-[12px]">
-                        Ficha de destino
-                        <select
-                          className={input}
+                      <Field label="Ficha de destino">
+                        <Select
                           value={c.targetId ?? ''}
                           onChange={(e) => {
                             const r = resources.find((r) => r.id === e.target.value);
@@ -326,17 +319,17 @@ export default function BibliographyImportDialog({ onClose }: { onClose: () => v
                                 {r.title}
                               </option>
                             ))}
-                        </select>
-                      </label>
-                      <p className="text-[11px] text-muted">
+                        </Select>
+                      </Field>
+                      <p className="text-sm text-muted">
                         Se conserva la identidad, clave existente, notas y adjuntos. Los campos enviados sustituyen los metadatos
                         coincidentes.
                       </p>
-                      <Button disabled={disabled || !c.targetId} onClick={() => void reviewTarget(c)}>
+                      <Button size="sm" disabled={disabled || !c.targetId} onClick={() => void reviewTarget(c)}>
                         Revisar destino y actualizar revisión
                       </Button>
                       {review && review.id === c.targetId && (
-                        <p className="whitespace-pre-wrap text-[12px]">
+                        <p className="rounded-md bg-soft p-2 whitespace-pre-wrap text-ui">
                           {review.title}
                           {'\n'}
                           {review.note || 'Sin notas'}
@@ -346,31 +339,26 @@ export default function BibliographyImportDialog({ onClose }: { onClose: () => v
                   )}
                   {c.action !== 'skip' && (
                     <>
-                      <label className="block text-[12px]">
-                        Título
-                        <input className={input} value={c.title} onChange={(e) => update(c.index, { title: e.target.value })} />
-                      </label>
+                      <Field label="Título">
+                        <Input value={c.title} onChange={(e) => update(c.index, { title: e.target.value })} />
+                      </Field>
                       <div className="grid grid-cols-2 gap-3">
-                        <label className="text-[12px]">
-                          Clave de cita
-                          <input className={input} value={c.key} onChange={(e) => update(c.index, { key: e.target.value })} />
-                        </label>
-                        <label className="text-[12px]">
-                          Tipo bibliográfico
-                          <input className={input} value={c.entryType} onChange={(e) => update(c.index, { entryType: e.target.value })} />
-                        </label>
+                        <Field label="Clave de cita">
+                          <Input value={c.key} onChange={(e) => update(c.index, { key: e.target.value })} />
+                        </Field>
+                        <Field label="Tipo bibliográfico">
+                          <Input value={c.entryType} onChange={(e) => update(c.index, { entryType: e.target.value })} />
+                        </Field>
                       </div>
                       <div className="grid gap-3 sm:grid-cols-2">
                         {[...new Set(['author', 'year', 'doi', ...Object.keys(c.fields)])].map((name) => (
-                          <label key={name} className="block text-[12px]">
-                            {BIB_FIELD_LABEL[name] ?? `Campo: ${name}`}
-                            <textarea
+                          <Field key={name} label={BIB_FIELD_LABEL[name] ?? `Campo: ${name}`}>
+                            <Textarea
                               rows={name === 'abstract' ? 3 : 1}
-                              className={input}
                               value={c.fields[name] ?? ''}
                               onChange={(e) => update(c.index, { fields: { ...c.fields, [name]: e.target.value } })}
                             />
-                          </label>
+                          </Field>
                         ))}
                       </div>
                     </>

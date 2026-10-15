@@ -14,14 +14,15 @@ import { openContextMenu, type MenuItem } from './ContextMenu';
 import { fold, highlight } from './SearchView';
 import { openMoveDialog } from './MoveDialog';
 import { Empty, Spinner, cx } from './ui';
+import { IndicatorMark } from './DocBanners';
 
 function iconFor(path: string) {
   const e = ext(path);
-  if (['tex', 'sty', 'cls', 'bib', 'bst'].includes(e)) return <FileCode2 size={14} className="shrink-0 text-muted" />;
-  if (e === 'md') return <FileText size={14} className="shrink-0 text-muted" />;
-  if (e === 'mmd') return <Workflow size={14} className="shrink-0 text-muted" />;
-  if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'pdf', 'eps'].includes(e)) return <FileImage size={14} className="shrink-0 text-faint" />;
-  return <File size={14} className="shrink-0 text-faint" />;
+  if (['tex', 'sty', 'cls', 'bib', 'bst'].includes(e)) return <FileCode2 size={16} className="shrink-0 text-muted" />;
+  if (e === 'md') return <FileText size={16} className="shrink-0 text-muted" />;
+  if (e === 'mmd') return <Workflow size={16} className="shrink-0 text-muted" />;
+  if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'pdf', 'eps'].includes(e)) return <FileImage size={16} className="shrink-0 text-muted" />;
+  return <File size={16} className="shrink-0 text-muted" />;
 }
 
 const DEL_HINT = kbd(isMac ? 'Mod-Backspace' : 'Delete');
@@ -51,7 +52,7 @@ function RenameInput({ initial, isDir, onCommit, onCancel }: { initial: string; 
       ref={ref}
       defaultValue={initial}
       aria-label="Nuevo nombre"
-      className="h-[20px] min-w-0 flex-1 rounded border border-accent bg-bg px-1 text-[12.5px] outline-none"
+      className="h-[calc(var(--et-row)-0.375rem)] min-w-0 flex-1 rounded border border-accent bg-bg px-1.5 text-ui"
       onClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => {
         e.stopPropagation();
@@ -102,7 +103,7 @@ export function FileTree({ root, filter }: { root: Root; filter: string }) {
   };
   useEffect(() => clearHover, []);
 
-  if (error && !entries) return <div className="px-3 py-2 text-[12px] text-danger">{error}</div>;
+  if (error && !entries) return <div className="px-3 py-2 text-ui text-danger">{error}</div>;
   if (!entries)
     return (
       <div className="flex justify-center py-4 text-muted">
@@ -204,10 +205,10 @@ export function FileTree({ root, filter }: { root: Root; filter: string }) {
   const fileRow = (path: string, depth: number, label?: React.ReactNode) => {
     const st = stateMap.get(path);
     const cls = cx(
-      'group flex h-[24px] w-full items-center gap-1.5 pr-2 text-left text-[12.5px] hover:bg-hover',
+      'et-focus-inset group flex h-(--et-row) w-full items-center gap-1.5 pr-2 text-left text-ui hover:bg-hover',
       isActive(path) && 'bg-active text-fg',
     );
-    const style = { paddingLeft: 8 + depth * 12 + 14 };
+    const style = { paddingLeft: `calc(0.5rem + ${depth} * 0.875rem + 1.25rem)` };
     if (renaming === path)
       return (
         <div key={path} className={cls} style={style}>
@@ -236,12 +237,11 @@ export function FileTree({ root, filter }: { root: Root; filter: string }) {
         {iconFor(path)}
         <span className="min-w-0 flex-1 truncate">{label ?? basename(path)}</span>
         {stale.has(path) && (
-          <span className="shrink-0 rounded px-1 text-[10px] text-warn" title="La figura exportada está desactualizada: la fuente cambió desde la última exportación">
+          <span className="shrink-0 rounded px-1 text-xs text-warn" title="La figura exportada está desactualizada: la fuente cambió desde la última exportación">
             desactualizada
           </span>
         )}
-        {st === 'sin guardar' && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-warn" title="Sin guardar" />}
-        {st === 'conflicto' && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-danger" title="Conflicto" />}
+        {(st === 'sin guardar' || st === 'conflicto') && <IndicatorMark ind={st} size={13} />}
         <RowMenuButton label={`Acciones de ${basename(path)}`} items={() => fileMenu(path)} />
       </button>
     );
@@ -249,12 +249,12 @@ export function FileTree({ root, filter }: { root: Root; filter: string }) {
 
   const dirRow = (e: Entry, depth: number, open: boolean) => {
     const cls = cx(
-      'group flex h-[24px] w-full items-center gap-1 pr-2 text-left text-[12.5px] hover:bg-hover',
+      'et-focus-inset group flex h-(--et-row) w-full items-center gap-1 pr-2 text-left text-ui hover:bg-hover',
       dropTarget === e.path && 'bg-accent/20 outline outline-1 -outline-offset-1 outline-accent',
     );
-    const style = { paddingLeft: 8 + depth * 12 };
-    const chevron = open ? <ChevronDown size={13} className="shrink-0 text-faint" /> : <ChevronRight size={13} className="shrink-0 text-faint" />;
-    const folder = open ? <FolderOpen size={14} className="shrink-0 text-muted" /> : <Folder size={14} className="shrink-0 text-muted" />;
+    const style = { paddingLeft: `calc(0.5rem + ${depth} * 0.875rem)` };
+    const chevron = open ? <ChevronDown size={15} className="shrink-0 text-muted" /> : <ChevronRight size={15} className="shrink-0 text-muted" />;
+    const folder = open ? <FolderOpen size={16} className="shrink-0 text-muted" /> : <Folder size={16} className="shrink-0 text-muted" />;
     if (renaming === e.path)
       return (
         <div className={cls} style={style}>
@@ -313,7 +313,7 @@ export function FileTree({ root, filter }: { root: Root; filter: string }) {
           0,
           <>
             {highlight(basename(p), filter)}
-            <span className="ml-1.5 text-[11px] text-faint">{p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : ''}</span>
+            <span className="ml-1.5 text-sm text-muted">{p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : ''}</span>
           </>,
         ),
       ),
@@ -348,7 +348,7 @@ function RowMenuButton({ label, items }: { label: string; items: () => MenuItem[
       tabIndex={-1}
       aria-label={label}
       title="Más acciones"
-      className="hidden h-5 w-5 shrink-0 items-center justify-center rounded text-muted group-hover:inline-flex group-focus-visible:inline-flex hover:bg-hover hover:text-fg"
+      className="hidden size-7 shrink-0 items-center justify-center rounded text-muted group-hover:inline-flex group-focus-visible:inline-flex hover:bg-hover hover:text-fg"
       onClick={(e) => {
         e.stopPropagation();
         e.preventDefault();
@@ -356,7 +356,7 @@ function RowMenuButton({ label, items }: { label: string; items: () => MenuItem[
       }}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <Ellipsis size={13} />
+      <Ellipsis size={16} />
     </span>
   );
 }

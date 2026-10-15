@@ -16,9 +16,7 @@ import {
 } from '../state/diagramas';
 import { outlineLabel, useOutline, walkOutline } from '../state/outline';
 import { ensureDoc, useDocs } from '../state/docs';
-import { Button, Modal, cx } from './ui';
-
-const input = 'h-8 w-full rounded-md border border-line-strong bg-bg px-2 text-[13px] outline-none focus:border-accent';
+import { Button, Field, Input, Modal, Select, cx } from './ui';
 
 /** «Nuevo diagrama»: nombre y plantilla (o solo el nombre si viene de una nota). */
 export function NewDiagramDialog() {
@@ -52,7 +50,7 @@ export function NewDiagramDialog() {
       labelledBy="et-new-diagram-title"
       footer={
         <>
-          <Button variant="ghost" onClick={close}>
+          <Button variant="subtle" onClick={close}>
             Cancelar
           </Button>
           <Button variant="primary" onClick={submit} disabled={!full || busy}>
@@ -62,33 +60,34 @@ export function NewDiagramDialog() {
       }
     >
       <form
-        className="flex flex-col gap-3 p-3"
+        className="flex flex-col gap-4 p-4"
         onSubmit={(e) => {
           e.preventDefault();
           void submit();
         }}
       >
-        <label className="flex flex-col gap-1 text-[12px] text-muted">
-          Nombre
-          <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="arquitectura-general" className={input} />
-          <span className="text-[11px] text-faint">
-            {full ? (
+        <Field
+          label="Nombre"
+          help={
+            full ? (
               <>
                 Se crea <span className="font-mono">{`${DIAGRAMAS_DIR}/${full}.mmd`}</span> y se exporta a{' '}
                 <span className="font-mono">{`figuras/diagramas/${full}.pdf`}</span>
               </>
             ) : (
               'Letras, números, guiones y «/» para subcarpetas (sin tildes ni espacios).'
-            )}
-          </span>
-        </label>
+            )
+          }
+        >
+          <Input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="arquitectura-general" />
+        </Field>
         {req?.source ? (
-          <p className="text-[12px] text-muted">
+          <p className="text-ui text-muted">
             Se copia el bloque de la nota: la nota y el diagrama quedan independientes.
           </p>
         ) : (
           <fieldset className="flex flex-col gap-1">
-            <legend className="mb-1 text-[12px] text-muted">Plantilla</legend>
+            <legend className="mb-1 text-sm font-bold text-fg">Plantilla</legend>
             <div className="grid grid-cols-2 gap-1.5" role="radiogroup" aria-label="Plantilla">
               {DIAGRAM_TEMPLATES.map((t) => (
                 <button
@@ -102,14 +101,14 @@ export function NewDiagramDialog() {
                     void submit();
                   }}
                   className={cx(
-                    'flex items-start gap-2 rounded-md border px-2 py-1.5 text-left',
+                    'flex min-h-(--et-row) items-start gap-2 rounded-md border px-2.5 py-2 text-left',
                     tpl === t.id ? 'border-accent bg-active' : 'border-line hover:bg-hover',
                   )}
                 >
-                  <Workflow size={14} className={cx('mt-0.5 shrink-0', tpl === t.id ? 'text-accent' : 'text-muted')} />
+                  <Workflow size={16} aria-hidden className={cx('mt-0.5 shrink-0', tpl === t.id ? 'text-accent' : 'text-muted')} />
                   <span className="min-w-0">
-                    <span className="block text-[12.5px] font-medium">{t.label}</span>
-                    <span className="block text-[11px] text-faint">{t.description}</span>
+                    <span className="block text-ui font-medium">{t.label}</span>
+                    <span className="block text-sm text-muted">{t.description}</span>
                   </span>
                 </button>
               ))}
@@ -182,7 +181,7 @@ export function InsertFigureDialog() {
       width={520}
       footer={
         <>
-          <Button variant="ghost" onClick={close}>
+          <Button variant="subtle" onClick={close}>
             Cancelar
           </Button>
           <Button variant="primary" onClick={submit} disabled={!target || busy || !label.trim()}>
@@ -192,15 +191,23 @@ export function InsertFigureDialog() {
       }
     >
       <form
-        className="flex flex-col gap-3 p-3"
+        className="flex flex-col gap-4 p-4"
         onSubmit={(e) => {
           e.preventDefault();
           void submit();
         }}
       >
-        <label className="flex flex-col gap-1 text-[12px] text-muted">
-          Destino
-          <select value={dest} onChange={(e) => setDest(e.target.value)} className={input} aria-label="Capítulo o apartado destino">
+        <Field
+          label="Destino"
+          help={
+            target
+              ? atCursor
+                ? `«${target.file}» está abierto: se inserta en el cursor (quedará sin guardar).`
+                : 'Se inserta al final del apartado y se guarda.'
+              : undefined
+          }
+        >
+          <Select value={dest} onChange={(e) => setDest(e.target.value)} aria-label="Capítulo o apartado destino">
             {!dests.length && <option value="">{outline ? 'La memoria no tiene capítulos' : 'Cargando el índice…'}</option>}
             {dests.map(({ it, depth }) => (
               <option key={it.id} value={it.id}>
@@ -208,38 +215,27 @@ export function InsertFigureDialog() {
                 {outlineLabel(it) || it.file} — {it.file}
               </option>
             ))}
-          </select>
-          <span className="text-[11px] text-faint">
-            {target
-              ? atCursor
-                ? `«${target.file}» está abierto: se inserta en el cursor (quedará sin guardar).`
-                : 'Se inserta al final del apartado y se guarda.'
-              : ''}
-          </span>
-        </label>
-        <label className="flex flex-col gap-1 text-[12px] text-muted">
-          Pie de figura
-          <input autoFocus value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Arquitectura general del sistema" className={input} />
-        </label>
+          </Select>
+        </Field>
+        <Field label="Pie de figura">
+          <Input autoFocus value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Arquitectura general del sistema" />
+        </Field>
         <div className="flex gap-3">
-          <label className="flex flex-1 flex-col gap-1 text-[12px] text-muted">
-            Etiqueta
-            <input value={label} onChange={(e) => setLabel(e.target.value)} className={cx(input, 'font-mono text-[12px]')} />
-          </label>
-          <label className="flex w-32 flex-col gap-1 text-[12px] text-muted">
-            Ancho (% del texto)
-            <input
+          <Field label="Etiqueta" className="flex-1">
+            <Input value={label} onChange={(e) => setLabel(e.target.value)} className="font-mono" />
+          </Field>
+          <Field label="Ancho (% del texto)" className="w-36">
+            <Input
               type="number"
               min={10}
               max={100}
               step={5}
               value={width}
               onChange={(e) => setWidth(Number(e.target.value) || 80)}
-              className={input}
             />
-          </label>
+          </Field>
         </div>
-        <p className="text-[11px] text-faint">Si la figura no está exportada o está desactualizada, se exporta antes de insertarla.</p>
+        <p className="text-sm text-muted">Si la figura no está exportada o está desactualizada, se exporta antes de insertarla.</p>
       </form>
     </Modal>
   );

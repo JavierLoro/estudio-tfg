@@ -6,7 +6,7 @@ import { editorViews, insertAtCursor, replaceEditorContent } from '../lib/editor
 import { editContent, ensureDoc, isDirty, requestReveal, useDocs } from '../state/docs';
 import { flattenTree, useUI } from '../state/ui';
 import { openFile } from '../state/workspace';
-import { Banner, Button, Modal } from './ui';
+import { Banner, Button, Field, Input, Modal, Select } from './ui';
 
 export default function LibraryUseDialog({
   file,
@@ -130,7 +130,6 @@ export default function LibraryUseDialog({
       setBusy(false);
     }
   };
-  const input = 'w-full rounded border border-line-strong bg-bg px-2 py-1.5 text-[12px]';
   return (
     <Modal
       open
@@ -157,25 +156,23 @@ export default function LibraryUseDialog({
       }
     >
       <div className="space-y-3 p-4">
-        {error && <Banner kind="danger">{error}</Banner>}
+        {error && <Banner kind="danger" inline>{error}</Banner>}
         {!preview ? (
           <>
             {!updateOnly && (
-              <label className="block text-[12px]">
-                Archivo de destino
-                <select className={input} value={target} onChange={(e) => setTarget(e.target.value)}>
+              <Field label="Archivo de destino">
+                <Select value={target} onChange={(e) => setTarget(e.target.value)}>
                   {!paths.length && <option value="">Cargando archivos…</option>}
                   {paths.map((p) => (
                     <option key={p}>{p}</option>
                   ))}
-                </select>
-              </label>
+                </Select>
+              </Field>
             )}
             {kind === 'figure' && (
               <>
-                <label className="block text-[12px]">
-                  Imagen o PDF (primera página)
-                  <select className={input} value={attachment} onChange={(e) => setAttachment(e.target.value)}>
+                <Field label="Imagen o PDF (primera página)">
+                  <Select value={attachment} onChange={(e) => setAttachment(e.target.value)}>
                     <option value="">Seleccionar adjunto…</option>
                     {file.attachments
                       .filter((a) => a.path)
@@ -184,48 +181,38 @@ export default function LibraryUseDialog({
                           {a.name}
                         </option>
                       ))}
-                  </select>
-                </label>
-                <p className="text-[12px] text-muted">
+                  </Select>
+                </Field>
+                <p className="text-ui text-muted">
                   LaTeX admite PNG, JPG y PDF. Convierte los demás formatos antes de insertarlos. La copia se guarda dentro de la memoria.
                 </p>
                 {!updateOnly && (
                   <>
-                    <label className="block text-[12px]">
-                      Pie de figura
-                      <input className={input} value={caption} onChange={(e) => setCaption(e.target.value)} />
-                    </label>
-                    <label className="block text-[12px]">
-                      Procedencia / atribución
-                      <input
-                        className={input}
-                        value={credit}
-                        onChange={(e) => setCredit(e.target.value)}
-                        placeholder="Autor, licencia o fuente"
-                      />
-                    </label>
+                    <Field label="Pie de figura">
+                      <Input value={caption} onChange={(e) => setCaption(e.target.value)} />
+                    </Field>
+                    <Field label="Procedencia / atribución">
+                      <Input value={credit} onChange={(e) => setCredit(e.target.value)} placeholder="Autor, licencia o fuente" />
+                    </Field>
                     <div className="grid grid-cols-2 gap-3">
-                      <label className="text-[12px]">
-                        Etiqueta
-                        <input className={input} value={label} onChange={(e) => setLabel(e.target.value)} />
-                      </label>
-                      <label className="text-[12px]">
-                        Ancho (% del texto)
-                        <input
-                          className={input}
+                      <Field label="Etiqueta">
+                        <Input value={label} onChange={(e) => setLabel(e.target.value)} />
+                      </Field>
+                      <Field label="Ancho (% del texto)">
+                        <Input
                           type="number"
                           min={5}
                           max={100}
                           value={width}
                           onChange={(e) => setWidth(Number(e.target.value))}
                         />
-                      </label>
+                      </Field>
                     </div>
                   </>
                 )}
               </>
             )}
-            <p className="text-[12px] text-muted">
+            <p className="text-ui text-muted">
               {updateOnly
                 ? kind === 'figure'
                   ? 'Solo se actualiza el archivo de imagen. Se conservan el texto LaTeX, el pie, la atribución, la etiqueta y el ancho existentes.'
@@ -236,11 +223,12 @@ export default function LibraryUseDialog({
         ) : (
           <>
             {preview.warnings.map((w, i) => (
-              <Banner kind="warn" key={i}>
+              <Banner kind="warn" inline key={i}>
                 {w}
               </Banner>
             ))}
             <Button
+              size="sm"
               disabled={busy}
               onClick={() => {
                 setPreview(null);
@@ -249,32 +237,32 @@ export default function LibraryUseDialog({
             >
               Preparar otra vista previa
             </Button>
-            <p className="text-[12px]">
+            <p className="text-ui">
               {preview.result.key ? `Clave estable en esta memoria: ${preview.result.key}` : preview.result.figurePath}
             </p>
             {preview.result.mainEdit && (
-              <Banner kind="info">
+              <Banner kind="info" inline>
                 La conexión bibliográfica se añadirá al borrador del principal, conservando sus cambios sin guardar.
               </Banner>
             )}
             {updateOnly && kind === 'figure' ? (
-              <Banner kind="info">Solo se actualiza el archivo de imagen; el texto LaTeX y los metadatos de la figura se conservan.</Banner>
+              <Banner kind="info" inline>Solo se actualiza el archivo de imagen; el texto LaTeX y los metadatos de la figura se conservan.</Banner>
             ) : (
-              <pre className="overflow-auto whitespace-pre-wrap rounded bg-soft p-3 text-[12px]">{preview.result.snippet}</pre>
+              <pre className="overflow-auto rounded-md bg-soft p-3 font-mono text-sm whitespace-pre-wrap">{preview.result.snippet}</pre>
             )}
             {preview.files.map((f) => (
-              <details key={f.path} className="rounded border border-line p-2">
-                <summary>
+              <details key={f.path} className="rounded-md border border-line px-3 py-1 text-ui">
+                <summary className="flex min-h-(--et-row) cursor-pointer items-center">
                   {f.path} · {f.baseRev ? 'actualizar con revisión' : 'crear copia'}
                 </summary>
                 {f.after !== undefined && (
                   <>
-                    <p className="text-[12px]">Contenido propuesto</p>
-                    <pre className="max-h-64 overflow-auto whitespace-pre-wrap text-[11px]">{f.after}</pre>
+                    <p className="font-bold">Contenido propuesto</p>
+                    <pre className="max-h-64 overflow-auto font-mono text-sm whitespace-pre-wrap">{f.after}</pre>
                     {f.before && (
                       <>
-                        <p className="text-[12px]">Versión actual</p>
-                        <pre className="max-h-64 overflow-auto whitespace-pre-wrap text-[11px]">{f.before}</pre>
+                        <p className="font-bold">Versión actual</p>
+                        <pre className="max-h-64 overflow-auto font-mono text-sm whitespace-pre-wrap">{f.before}</pre>
                       </>
                     )}
                   </>

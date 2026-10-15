@@ -6,7 +6,7 @@ import { basename, dirname } from '../lib/paths';
 import { canMoveInto, createFolderIn, listDirs, moveInto } from '../state/files';
 import { useUI } from '../state/ui';
 import { fold } from './SearchView';
-import { Button, Modal, cx } from './ui';
+import { Button, EmptyState, Input, Modal, cx } from './ui';
 
 interface MoveTarget {
   root: Root;
@@ -79,10 +79,10 @@ export function MoveDialog() {
       width={460}
       footer={
         <>
-          <Button variant="ghost" className="mr-auto" onClick={() => void newFolder()}>
-            <FolderPlus size={13} /> Nueva carpeta…
+          <Button variant="subtle" className="mr-auto" onClick={() => void newFolder()}>
+            <FolderPlus size={16} aria-hidden /> Nueva carpeta…
           </Button>
-          <Button variant="ghost" onClick={close}>
+          <Button variant="subtle" onClick={close}>
             Cancelar
           </Button>
           <Button variant="primary" onClick={confirm} disabled={!valid(sel)}>
@@ -92,7 +92,7 @@ export function MoveDialog() {
       }
     >
       <div className="border-b border-line p-2">
-        <input
+        <Input
           autoFocus
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -110,12 +110,11 @@ export function MoveDialog() {
           }}
           placeholder="Buscar carpeta…"
           aria-label="Buscar carpeta"
-          className="h-8 w-full rounded-md border border-line-strong bg-bg px-2 text-[13px] outline-none focus:border-accent"
         />
-        {sel !== '' && <div className="mt-1 text-[11px] text-faint">Destino: {sel}/</div>}
+        {sel !== '' && <div className="mt-1 text-sm text-muted">Destino: {sel}/</div>}
       </div>
       <div ref={list} role="listbox" aria-label="Carpetas" className="max-h-[50vh] overflow-auto py-1">
-        {folders.length === 0 && <div className="px-3 py-4 text-center text-[12px] text-faint">Sin carpetas que coincidan.</div>}
+        {folders.length === 0 && <EmptyState className="text-ui!">Sin carpetas que coincidan.</EmptyState>}
         {folders.map((d) => {
           const active = d === sel;
           const disabled = !valid(d);
@@ -136,17 +135,17 @@ export function MoveDialog() {
                 }
               }}
               className={cx(
-                'flex h-7 items-center gap-2 pr-3 text-[12.5px]',
-                disabled ? 'cursor-default text-faint' : 'cursor-pointer hover:bg-hover',
+                'flex min-h-(--et-row) items-center gap-2 pr-3 text-ui',
+                disabled ? 'cursor-default text-muted' : 'cursor-pointer hover:bg-hover',
                 active && 'bg-active',
               )}
               style={{ paddingLeft: 12 + depth * 12 }}
             >
-              {d === '' ? <Home size={14} className="shrink-0 text-muted" /> : <Folder size={14} className="shrink-0 text-muted" />}
+              {d === '' ? <Home size={16} className="shrink-0 text-muted" aria-hidden /> : <Folder size={16} className="shrink-0 text-muted" aria-hidden />}
               <span className="truncate">{d === '' ? 'Raíz' : basename(d)}</span>
-              {d !== '' && fold(q.trim()) && <span className="min-w-0 truncate text-[11px] text-faint">{dirname(d)}</span>}
-              {d === here && <span className="ml-auto text-[10.5px] text-faint">actual</span>}
-              {active && !disabled && <CornerDownRight size={12} className="ml-auto opacity-60" />}
+              {d !== '' && fold(q.trim()) && <span className="min-w-0 truncate text-sm text-muted">{dirname(d)}</span>}
+              {d === here && <span className="ml-auto text-xs text-muted">actual</span>}
+              {active && !disabled && <CornerDownRight size={14} className="ml-auto opacity-60" aria-hidden />}
             </div>
           );
         })}

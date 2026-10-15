@@ -13,7 +13,7 @@ import { DiagramasSection } from './DiagramasSection';
 import { useOutline } from '../state/outline';
 import { load, save } from '../lib/storage';
 import { ScopeSelect, SearchResults } from './SearchView';
-import { Button, IconButton, Spinner, cx } from './ui';
+import { Button, IconButton, Input, Spinner, Tabs } from './ui';
 
 const TITLES: Record<Section, string> = {
   memoria: 'Memoria',
@@ -25,20 +25,21 @@ const TITLES: Record<Section, string> = {
 
 function FilterInput({ value, onChange, placeholder, inputRef }: { value: string; onChange: (v: string) => void; placeholder: string; inputRef?: React.Ref<HTMLInputElement> }) {
   return (
-    <div className="relative px-2 pb-1.5">
-      <input
+    <div className="relative px-2 pb-2">
+      <Input
         ref={inputRef}
+        inputSize="sm"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => e.key === 'Escape' && onChange('')}
         placeholder={placeholder}
         aria-label={placeholder}
-        className="h-6 w-full rounded-md border border-line bg-bg px-2 pr-6 text-[12px] outline-none focus:border-accent"
+        className="pr-9"
       />
       {value && (
-        <button type="button" aria-label="Limpiar filtro" className="absolute top-1 right-3.5 text-faint hover:text-fg" onClick={() => onChange('')}>
-          <X size={13} />
-        </button>
+        <IconButton label="Limpiar filtro" className="absolute top-0 right-2 size-(--et-control-sm)! min-h-0! min-w-0!" onClick={() => onChange('')}>
+          <X size={15} />
+        </IconButton>
       )}
     </div>
   );
@@ -56,7 +57,7 @@ export function Sidebar() {
       {section === 'memoria' && <MemoriaSection />}
       {section === 'diagramas' && <DiagramasSection />}
       {section === 'notes' && <TreeSection root="notes" />}
-      {section === 'resources' && <div className="p-3"><Button onClick={()=>useUI.getState().showLibrary()}>Abrir Biblioteca</Button></div>}
+      {section === 'resources' && <div className="p-3"><Button onClick={() => useUI.getState().showLibrary()}>Abrir Biblioteca</Button></div>}
       {section === 'search' && <SearchSection />}
       <ResizeHandle width={width} />
     </aside>
@@ -65,8 +66,8 @@ export function Sidebar() {
 
 function SectionHeader({ title, children }: { title: string; children?: React.ReactNode }) {
   return (
-    <div className="flex h-8 shrink-0 items-center gap-0.5 pr-1.5 pl-3">
-      <h2 className="flex-1 text-[11px] font-semibold tracking-wider text-muted uppercase">{title}</h2>
+    <div className="flex h-(--et-toolbar) shrink-0 items-center gap-0.5 pr-1.5 pl-3">
+      <h2 className="flex-1 text-sm font-bold tracking-wide text-muted uppercase">{title}</h2>
       {children}
     </div>
   );
@@ -91,15 +92,15 @@ function MemoriaSection() {
         {tab === 'archivos' && (
           <>
             <IconButton label="Nuevo archivo" onClick={() => createFileIn('memoria', '')}>
-              <FilePlus2 size={14} />
+              <FilePlus2 size={17} />
             </IconButton>
             <IconButton label="Nueva carpeta" onClick={() => createFolderIn('memoria', '')}>
-              <FolderPlus size={14} />
+              <FolderPlus size={17} />
             </IconButton>
           </>
         )}
         <IconButton label="Nuevo diagrama" onClick={() => openNewDiagram('')}>
-          <Workflow size={14} />
+          <Workflow size={17} />
         </IconButton>
         <IconButton
           label="Recargar"
@@ -108,29 +109,22 @@ function MemoriaSection() {
             void useOutline.getState().refresh();
           }}
         >
-          <RefreshCw size={13} />
+          <RefreshCw size={16} />
         </IconButton>
         <IconButton label="Compilar" onClick={() => saveAndCompile()} disabled={compiling}>
-          {compiling ? <Spinner size={11} /> : <Play size={13} />}
+          {compiling ? <Spinner size={14} /> : <Play size={16} />}
         </IconButton>
       </SectionHeader>
-      <div className="flex gap-0.5 px-2 pb-1.5" role="tablist" aria-label="Vista de la memoria">
-        {(['documento', 'archivos'] as MemoriaTab[]).map((t) => (
-          <button
-            key={t}
-            type="button"
-            role="tab"
-            aria-selected={tab === t}
-            onClick={() => setTab(t)}
-            className={cx(
-              'h-6 flex-1 rounded-md px-1 text-[11.5px]',
-              tab === t ? 'bg-active font-semibold text-accent' : 'text-muted hover:bg-hover',
-            )}
-          >
-            {t === 'documento' ? 'Documento' : 'Archivos'}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        label="Vista de la memoria"
+        className="mx-2 mb-2"
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          { id: 'documento', label: 'Documento' },
+          { id: 'archivos', label: 'Archivos' },
+        ]}
+      />
       {tab === 'documento' ? <OutlineView onShowFiles={() => setTab('archivos')} /> : <MemoriaFiles />}
     </>
   );
@@ -158,17 +152,17 @@ function TreeSection({ root }: { root: Root }) {
     <>
       <SectionHeader title={root === 'memoria' ? 'Memoria' : 'Notas'}>
         <IconButton label={root === 'notes' ? 'Nueva nota' : 'Nuevo archivo'} onClick={() => createFileIn(root, '')}>
-          <FilePlus2 size={14} />
+          <FilePlus2 size={17} />
         </IconButton>
         <IconButton label="Nueva carpeta" onClick={() => createFolderIn(root, '')}>
-          <FolderPlus size={14} />
+          <FolderPlus size={17} />
         </IconButton>
         <IconButton label="Recargar" onClick={() => useUI.getState().refreshTree(root)}>
-          <RefreshCw size={13} />
+          <RefreshCw size={16} />
         </IconButton>
         {root === 'memoria' && (
           <IconButton label="Compilar" onClick={() => saveAndCompile()} disabled={compiling}>
-            {compiling ? <Spinner size={11} /> : <Play size={13} />}
+            {compiling ? <Spinner size={14} /> : <Play size={16} />}
           </IconButton>
         )}
       </SectionHeader>
@@ -193,10 +187,10 @@ function SearchSection() {
     <>
       <SectionHeader title="Buscar">
         <IconButton label="Abrir resultados en un panel" onClick={() => openSearch(q, scope)}>
-          <SearchIcon size={14} />
+          <SearchIcon size={17} />
         </IconButton>
       </SectionHeader>
-      <div className="flex gap-1 pr-2">
+      <div className="flex items-start gap-1 pr-2">
         <div className="min-w-0 flex-1">
           <FilterInput value={q} onChange={setQ} placeholder="Buscar en notas y memoria…" inputRef={ref} />
         </div>
@@ -250,7 +244,7 @@ function ResizeHandle({ width }: { width: number }) {
           useUI.getState().setSidebarWidth(width + (e.key === 'ArrowRight' ? 20 : -20));
         }
       }}
-      className="absolute top-0 -right-[3px] z-20 h-full w-[6px] cursor-col-resize touch-none transition-colors hover:bg-accent/40 focus-visible:bg-accent/60 focus-visible:outline-none"
+      className="et-focus-inset absolute top-0 -right-[3px] z-20 h-full w-[6px] cursor-col-resize touch-none transition-colors hover:bg-accent/40 focus-visible:bg-accent/60"
     />
   );
 }

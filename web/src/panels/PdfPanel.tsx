@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { AlertCircle, AlertTriangle, CheckCircle2, ExternalLink, FileText, Play, XCircle } from 'lucide-react';
 import { api } from '../api';
-import { Banner, Button, Spinner } from '../components/ui';
+import { Banner, Button, Spinner, buttonClass } from '../components/ui';
 import { countDiags, isPdfOutdated, useCompile } from '../state/compile';
 import { kbd } from '../lib/kbd';
 import { formatDate } from '../lib/paths';
@@ -30,44 +30,45 @@ export function PdfPanel() {
 
   return (
     <div className="flex h-full flex-col bg-sunken">
-      <div className="flex h-7 shrink-0 items-center gap-2 border-b border-line bg-bg px-2 text-[11.5px] text-muted">
-        <Button variant="primary" onClick={() => saveAndCompile()} disabled={compiling} title={`Compilar (${kbd('Mod-Enter')} en el editor)`}>
-          {compiling ? <Spinner size={11} /> : <Play size={12} />}
+      <div className="flex h-(--et-toolbar) shrink-0 items-center gap-2 border-b border-line bg-bg px-2 text-sm text-muted">
+        <Button variant="primary" size="sm" onClick={() => saveAndCompile()} disabled={compiling} title={`Compilar (${kbd('Mod-Enter')} en el editor)`}>
+          {compiling ? <Spinner size={14} /> : <Play size={15} />}
           {compiling ? 'Compilando…' : 'Compilar'}
         </Button>
         {last && !compiling && (
           <span className="flex min-w-0 items-center gap-2 truncate">
-            {last.ok ? <CheckCircle2 size={13} className="text-ok" /> : <XCircle size={13} className="text-danger" />}
+            {last.ok ? <CheckCircle2 size={16} className="shrink-0 text-ok" /> : <XCircle size={16} className="shrink-0 text-danger" />}
             <span title={`Inicio: ${formatDate(last.startedAt)}`}>
               {last.ok ? 'Correcta' : 'Con errores'} · {formatDuration(last.durationMs)}
             </span>
             {(errors > 0 || warnings > 0) && (
-              <button
-                type="button"
-                className="flex items-center gap-2 rounded px-1 hover:bg-hover"
+              <Button
+                variant="subtle"
+                size="sm"
+                className="gap-2 px-1.5"
                 onClick={() => setShowDiags((v) => !v)}
                 aria-expanded={showDiags}
-                title="Ver diagnósticos"
+                title={`Ver diagnósticos: ${errors} errores, ${warnings} avisos`}
               >
                 <span className="flex items-center gap-0.5 text-danger">
-                  <AlertCircle size={12} /> {errors}
+                  <AlertCircle size={15} aria-label="Errores" /> {errors}
                 </span>
                 <span className="flex items-center gap-0.5 text-warn">
-                  <AlertTriangle size={12} /> {warnings}
+                  <AlertTriangle size={15} aria-label="Avisos" /> {warnings}
                 </span>
-              </button>
+              </Button>
             )}
           </span>
         )}
         <span className="flex-1" />
         {last && (
-          <a className="flex items-center gap-1 hover:text-fg" href={api.logUrl(last.buildId)} target="_blank" rel="noreferrer" title="Ver log de LaTeX">
-            <FileText size={12} /> Log
+          <a className={buttonClass('subtle', 'sm')} href={api.logUrl(last.buildId)} target="_blank" rel="noreferrer" title="Ver log de LaTeX">
+            <FileText size={15} /> Log
           </a>
         )}
         {last?.pdfUrl && (
-          <a className="flex items-center gap-1 hover:text-fg" href={last.pdfUrl} target="_blank" rel="noreferrer" title="Abrir el PDF en una pestaña">
-            <ExternalLink size={12} />
+          <a className={buttonClass('subtle', 'sm')} href={last.pdfUrl} target="_blank" rel="noreferrer" title="Abrir el PDF en una pestaña" aria-label="Abrir el PDF en una pestaña">
+            <ExternalLink size={15} />
           </a>
         )}
       </div>
@@ -76,7 +77,7 @@ export function PdfPanel() {
         <Banner
           kind="warn"
           actions={
-            <Button onClick={() => saveAndCompile()} disabled={compiling}>
+            <Button size="sm" onClick={() => saveAndCompile()} disabled={compiling}>
               Compilar ahora
             </Button>
           }
@@ -102,25 +103,25 @@ export function PdfPanel() {
             <PdfViewer url={last.pdfUrl} />
           </Suspense>
         ) : (
-          <div className="flex h-full flex-col items-center justify-center gap-2 text-[12px] text-muted">
+          <div className="flex h-full flex-col items-center justify-center gap-2 text-ui text-muted">
             {compiling ? (
               <>
                 <Spinner size={18} /> Compilando la memoria…
               </>
             ) : (
               <>
-                <FileText size={28} className="text-faint" />
+                <FileText size={28} className="text-muted" />
                 {last ? 'La compilación no generó PDF.' : 'Aún no hay ninguna compilación.'}
                 <Button variant="primary" onClick={() => saveAndCompile()}>
-                  <Play size={12} /> Compilar
+                  <Play size={15} /> Compilar
                 </Button>
               </>
             )}
           </div>
         )}
         {compiling && last?.pdfUrl && (
-          <div className="pointer-events-none absolute right-3 top-10 z-20 flex items-center gap-2 rounded-md border border-line bg-bg px-2 py-1 text-[11.5px] text-muted shadow-pop">
-            <Spinner size={11} /> Compilando…
+          <div className="pointer-events-none absolute top-3 right-3 z-20 flex items-center gap-2 rounded-md border border-line bg-bg px-2 py-1 text-sm text-muted shadow-pop">
+            <Spinner size={14} /> Compilando…
           </div>
         )}
       </div>

@@ -123,8 +123,8 @@ export function QuickOpen() {
       onMouseDown={(e) => e.target === e.currentTarget && close()}
     >
       <div role="dialog" aria-modal="true" aria-label="Abrir o buscar" className="flex max-h-[70vh] w-[640px] max-w-full flex-col overflow-hidden rounded-lg border border-line bg-bg shadow-pop">
-        <div className="flex h-11 shrink-0 items-center gap-2 border-b border-line px-3">
-          <Search size={15} className="text-muted" />
+        <div className="flex h-(--et-toolbar) shrink-0 items-center gap-2 border-b border-line px-3">
+          <Search size={16} className="shrink-0 text-muted" aria-hidden />
           <input
             ref={input}
             value={q}
@@ -152,12 +152,12 @@ export function QuickOpen() {
             role="combobox"
             aria-expanded="true"
             aria-controls="et-quickopen-list"
-            className="h-full min-w-0 flex-1 bg-transparent text-[14px] outline-none"
+            className="et-focus-inset h-full min-w-0 flex-1 bg-transparent text-ui"
           />
         </div>
         <div ref={list} id="et-quickopen-list" role="listbox" className="min-h-0 flex-1 overflow-auto py-1">
-          {!fq && items.length > 0 && <div className="px-3 py-1 text-[11px] text-faint">Recientes</div>}
-          {items.length === 0 && <div className="px-3 py-4 text-center text-[12px] text-faint">{fq ? 'Sin coincidencias' : 'Escribe para buscar'}</div>}
+          {!fq && items.length > 0 && <div className="px-3 py-1 text-sm text-muted">Recientes</div>}
+          {items.length === 0 && <div className="px-3 py-4 text-center text-ui text-muted">{fq ? 'Sin coincidencias' : 'Escribe para buscar'}</div>}
           {items.map((it, i) => {
             const active = i === sel;
             const common = {
@@ -168,35 +168,35 @@ export function QuickOpen() {
               ...(it.kind === 'create' || it.kind === 'diagram'
                 ? { onClick: () => choose(it, false) }
                 : openActions((side) => choose(it, side))),
-              className: cx('flex w-full cursor-pointer items-center gap-2 px-3 py-1 text-left text-[12.5px]', active && 'bg-active'),
+              className: cx('flex min-h-(--et-row) w-full cursor-pointer items-center gap-2 px-3 py-1 text-left text-ui', active && 'bg-active'),
             } as const;
             if (it.kind === 'create')
               return (
                 <div key="create" {...common} className={cx(common.className, 'text-accent')}>
-                  <FilePlus2 size={14} className="shrink-0" /> Crear nota «{it.path}»
-                  {active && <CornerDownLeft size={12} className="ml-auto opacity-60" />}
+                  <FilePlus2 size={16} className="shrink-0" aria-hidden /> Crear nota «{it.path}»
+                  {active && <CornerDownLeft size={14} className="ml-auto opacity-60" aria-hidden />}
                 </div>
               );
             if (it.kind === 'diagram')
               return (
                 <div key="diagram" {...common} className={cx(common.className, 'text-accent')}>
-                  <Workflow size={14} className="shrink-0" /> {it.name ? `Nuevo diagrama «${it.name}» en la memoria` : 'Nuevo diagrama en la memoria…'}
-                  {active && <CornerDownLeft size={12} className="ml-auto opacity-60" />}
+                  <Workflow size={16} className="shrink-0" aria-hidden /> {it.name ? `Nuevo diagrama «${it.name}» en la memoria` : 'Nuevo diagrama en la memoria…'}
+                  {active && <CornerDownLeft size={14} className="ml-auto opacity-60" aria-hidden />}
                 </div>
               );
             if (it.kind === 'search')
               return (
                 <div key="search" {...common} className={cx(common.className, 'mt-1 border-t border-line pt-1.5 text-accent')}>
-                  <Search size={13} /> Buscar «{q.trim()}» en todo (abrir panel)
-                  {active && <CornerDownLeft size={12} className="ml-auto opacity-60" />}
+                  <Search size={16} className="shrink-0" aria-hidden /> Buscar «{q.trim()}» en todo (abrir panel)
+                  {active && <CornerDownLeft size={14} className="ml-auto opacity-60" aria-hidden />}
                 </div>
               );
             if (it.kind === 'hit')
               return (
                 <div key={`h-${i}`} {...common}>
-                  <span className="w-4 shrink-0" />
+                  <span className="w-4 shrink-0" aria-hidden />
                   <span className="min-w-0 flex-1 truncate text-muted">{highlight(it.snippet, q)}</span>
-                  <span className="shrink-0 font-mono text-[10.5px] text-faint">
+                  <span className="shrink-0 font-mono text-xs text-muted">
                     {basename(it.path)}:{it.line}
                   </span>
                 </div>
@@ -204,22 +204,22 @@ export function QuickOpen() {
             if (it.kind === 'resource')
               return (
                 <div key={`r-${it.path}`} {...common}>
-                  <Inbox size={14} className="shrink-0 text-muted" />
+                  <Inbox size={16} className="shrink-0 text-muted" aria-hidden />
                   <span className="truncate">{highlight(it.title, q)}</span>
-                  <span className="ml-auto shrink-0 text-[10.5px] text-faint">recurso</span>
+                  <span className="ml-auto shrink-0 text-xs text-muted">recurso</span>
                 </div>
               );
             return (
               <div key={`f-${it.root}-${it.path}`} {...common}>
-                {it.root === 'memoria' ? <FileCode2 size={14} className="shrink-0 text-muted" /> : <FileText size={14} className="shrink-0 text-muted" />}
+                {it.root === 'memoria' ? <FileCode2 size={16} className="shrink-0 text-muted" aria-hidden /> : <FileText size={16} className="shrink-0 text-muted" aria-hidden />}
                 <span className="shrink-0">{highlight(basename(it.path), q)}</span>
-                <span className="min-w-0 flex-1 truncate text-[11px] text-faint">{it.path}</span>
-                <span className="shrink-0 text-[10.5px] text-faint">{it.root === 'memoria' ? 'memoria' : 'notas'}</span>
+                <span className="min-w-0 flex-1 truncate text-sm text-muted">{it.path}</span>
+                <span className="shrink-0 text-xs text-muted">{it.root === 'memoria' ? 'memoria' : 'notas'}</span>
               </div>
             );
           })}
         </div>
-        <div className="flex min-h-7 shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-t border-line px-3 py-1 text-[10.5px] text-faint">
+        <div className="flex min-h-7 shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-t border-line px-3 py-1 text-xs text-muted">
           <span>{kbd('ArrowUp')}{kbd('ArrowDown')} navegar</span>
           <span>{kbd('Enter')} abrir</span>
           <span>{kbd('Alt-Enter')} / {kbd('Ctrl-Shift-Enter')} / clic central: abrir al lado</span>

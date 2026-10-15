@@ -178,7 +178,7 @@ export function App() {
           {ready ? (
             <Workspace />
           ) : (
-            <div className="flex flex-1 flex-col items-center justify-center gap-2 text-[12.5px] text-muted">
+            <div className="flex flex-1 flex-col items-center justify-center gap-2 text-ui text-muted">
               {statusError ? (
                 <>
                   <p className="text-danger">No se pudo contactar con el servidor: {statusError}</p>

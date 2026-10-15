@@ -1,9 +1,9 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import type { IDockviewPanelProps } from 'dockview-react';
-import { ArrowLeft, ExternalLink, Paperclip, Pencil } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Inbox, Paperclip, Pencil } from 'lucide-react';
 import { api, errorMessage, type ResourceFile, type LibraryUses } from '../api';
 import { MarkdownView } from '../components/Markdown';
-import { Banner, Button, Spinner, cx } from '../components/ui';
+import { Banner, Button, Spinner, StatusPill } from '../components/ui';
 import { openActions } from '../components/OpenActions';
 import { ext, formatDate, basename } from '../lib/paths';
 import { ResourceEditor } from '../components/ResourceEditor';
@@ -100,16 +100,16 @@ export function ResourcePanel({ params }: IDockviewPanelProps<FileParams>) {
     return (
       <div className="h-full overflow-auto bg-bg">
         <div className="mx-auto max-w-4xl px-6 py-5">
-          <Button className="mb-4" onClick={() => useUI.getState().showLibrary()}>
-            <ArrowLeft size={12} /> Biblioteca
+          <Button size="sm" variant="subtle" className="mb-4 -ml-2.5" onClick={() => useUI.getState().showLibrary()}>
+            <ArrowLeft size={16} aria-hidden /> Biblioteca
           </Button>
-          <div className="mb-1 flex flex-wrap items-center gap-2 text-[11px] text-muted">
+          <div className="mb-1 flex flex-wrap items-center gap-2 text-sm text-muted">
             <span>{KIND_LABEL[resourceKind(item)]}</span>
-            <StatusPill status={item.status} />
+            <ResourceStatus status={item.status} />
             <span>Añadido {formatDate(item.captured)}</span>
           </div>
-          <h1 className="mb-3 text-[23px] font-semibold">{item.title}</h1>
-          {libraryError && <Banner kind="warn">{libraryError}</Banner>}
+          <h1 className="mb-3 text-2xl font-bold">{item.title}</h1>
+          {libraryError && <Banner kind="warn" inline className="mb-4">{libraryError}</Banner>}
           <div className="mb-4 flex flex-wrap gap-2">
             <Button
               disabled={!!libraryError}
@@ -118,14 +118,14 @@ export function ResourcePanel({ params }: IDockviewPanelProps<FileParams>) {
                 setEditing(file);
               }}
             >
-              <Pencil size={12} /> Editar datos y notas
+              <Pencil size={16} aria-hidden /> Editar datos y notas
             </Button>
             {!item.schemaVersion && !libraryError && <Button onClick={() => setMigration(true)}>Actualizar formato</Button>}
-            <Button variant="ghost" {...openActions((side) => openFile('notes', path, { side }))}>
+            <Button variant="subtle" {...openActions((side) => openFile('notes', path, { side }))}>
               Abrir archivo Markdown
             </Button>
           </div>
-          <div className="mb-4 flex flex-wrap gap-1 text-[11px]">
+          <div className="mb-4 flex flex-wrap gap-1 text-sm">
             {item.id && !libraryError && (
               <div className="mb-4 flex flex-wrap gap-2">
                 {item.bibliography && <Button onClick={() => setUsing({ file, kind: 'reference' })}>Insertar cita</Button>}
@@ -156,15 +156,15 @@ export function ResourcePanel({ params }: IDockviewPanelProps<FileParams>) {
               href={url}
               target="_blank"
               rel="noreferrer"
-              className="mb-2 flex items-center gap-1 break-all text-[12px] text-accent hover:underline"
+              className="mb-2 flex items-center gap-1 break-all text-ui text-accent hover:underline"
             >
-              <ExternalLink size={12} className="shrink-0" />
+              <ExternalLink size={16} className="shrink-0" aria-hidden />
               {url}
             </a>
           ))}
           {item.bibliography && (
-            <section className="my-4 rounded border border-line bg-soft p-3 text-[12px]">
-              <h2 className="mb-1 font-semibold">Referencia bibliográfica</h2>
+            <section className="my-4 rounded-lg border border-line bg-soft p-3 text-ui">
+              <h2 className="mb-1 font-bold">Referencia bibliográfica</h2>
               {item.bibliography.authority === 'library' && item.bibliography.source && (
                 <a
                   className="text-accent hover:underline"
@@ -188,7 +188,7 @@ export function ResourcePanel({ params }: IDockviewPanelProps<FileParams>) {
                     .filter(([, value]) => value)
                     .map(([key, value]) => (
                       <div key={key}>
-                        <dt className="inline font-medium">{BIB_FIELD_LABEL[key] ?? `Campo: ${key}`}: </dt>
+                        <dt className="inline font-bold">{BIB_FIELD_LABEL[key] ?? `Campo: ${key}`}: </dt>
                         <dd className="inline break-words">{value}</dd>
                       </div>
                     ))}
@@ -198,42 +198,42 @@ export function ResourcePanel({ params }: IDockviewPanelProps<FileParams>) {
           )}
           {file.attachments.map((attachment, i) => (
             <section key={i}>
-              {attachment.warning && <Banner kind="warn">{attachment.warning}</Banner>}
+              {attachment.warning && <Banner kind="warn" inline className="mt-4">{attachment.warning}</Banner>}
               {attachment.path && <Attachment path={attachment.path} />}
             </section>
           ))}
           <section className="mt-6">
-            <h2 className="mb-2 text-[14px] font-semibold">Notas</h2>
+            <h2 className="mb-2 text-base font-bold">Notas</h2>
             {item.note?.trim() ? (
               <MarkdownView content={item.note} path={path} showFrontmatter={false} />
             ) : (
-              <p className="text-[12px] text-faint">Sin notas. Puedes añadirlas al editar la ficha.</p>
+              <p className="text-ui text-muted">Sin notas. Puedes añadirlas al editar la ficha.</p>
             )}
           </section>
           {item.id && (
             <section className="mt-6 space-y-2">
-              <h2 className="text-[14px] font-semibold">Usos en esta memoria</h2>
-              {usesError && <Banner kind="warn">No se pudieron consultar los usos: {usesError}</Banner>}
+              <h2 className="text-base font-bold">Usos en esta memoria</h2>
+              {usesError && <Banner kind="warn" inline>No se pudieron consultar los usos: {usesError}</Banner>}
               {uses?.references.some((r) => r.outdated) && (
-                <Banner kind="warn">
+                <Banner kind="warn" inline>
                   La referencia cambió en Biblioteca. La copia de la memoria se conserva hasta que decidas actualizarla.
                 </Banner>
               )}
-            {uses?.available===false&&<p className="text-[12px] text-muted">Configura una memoria para consultar sus usos; la Biblioteca sigue disponible.</p>}
+            {uses?.available===false&&<p className="text-ui text-muted">Configura una memoria para consultar sus usos; la Biblioteca sigue disponible.</p>}
             {uses?.available!==false&&!uses?.uses.length && !usesError && (
-                <p className="text-[12px] text-muted">
+                <p className="text-ui text-muted">
                   Aún no se detectan citas ni figuras guardadas. Los borradores aparecen al guardarlos.
                 </p>
               )}
               {uses?.uses.map((u, i) => (
-                <Button key={i} onClick={() => openFile('memoria', u.file, { line: u.line })}>
+                <Button key={i} size="sm" className="mr-2" onClick={() => openFile('memoria', u.file, { line: u.line })}>
                   {u.kind === 'citation' ? 'Cita' : 'Figura'} · {u.file}:{u.line}
                 </Button>
               ))}
               {uses?.figures.map((f) => (
-                <div key={f.path} className="flex flex-wrap items-center gap-2 text-[12px]">
+                <div key={f.path} className="flex flex-wrap items-center gap-2 text-ui">
                   <span>Copia: {f.path}</span>
-                  <Button onClick={() => setUsing({ file, kind: 'figure', replaceCopy: f.path, updateOnly: true })}>
+                  <Button size="sm" onClick={() => setUsing({ file, kind: 'figure', replaceCopy: f.path, updateOnly: true })}>
                     Actualizar esta copia de imagen
                   </Button>
                 </div>
@@ -241,7 +241,7 @@ export function ResourcePanel({ params }: IDockviewPanelProps<FileParams>) {
             </section>
           )}
           {item.provenance && (
-            <p className="mt-6 text-[11px] text-faint">
+            <p className="mt-6 text-sm text-muted">
               Procedencia:{' '}
               {(
                 {
@@ -268,18 +268,15 @@ export function ResourcePanel({ params }: IDockviewPanelProps<FileParams>) {
   );
 }
 
-export function StatusPill({ status }: { status: string }) {
+// Estado de revisión de la ficha: icono + texto.
+export function ResourceStatus({ status }: { status: string }) {
   return (
-    <span
-      className={cx(
-        'inline-flex h-[18px] items-center rounded-full px-1.5 text-[10.5px] font-semibold',
-        status === 'inbox' && 'bg-active text-accent',
-        status === 'revisado' && 'bg-ok/15 text-ok',
-        status === 'descartado' && 'bg-hover text-faint',
-      )}
+    <StatusPill
+      tone={status === 'revisado' ? 'ok' : status === 'inbox' ? 'info' : 'neutral'}
+      icon={status === 'inbox' ? <Inbox size={13} className="shrink-0" aria-hidden /> : undefined}
     >
       {STATUS_LABEL[status] ?? status}
-    </span>
+    </StatusPill>
   );
 }
 
@@ -288,14 +285,14 @@ function Attachment({ path }: { path: string }) {
   const e = ext(path);
   const isImg = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif'].includes(e);
   return (
-    <div className="mt-4 rounded-md border border-line">
+    <div className="mt-4 overflow-hidden rounded-lg border border-line">
       <a
         href={url}
         target="_blank"
         rel="noreferrer"
-        className="flex items-center gap-1.5 border-b border-line px-2 py-1 text-[12px] text-accent hover:underline"
+        className="et-focus-inset flex min-h-(--et-row) items-center gap-1.5 border-b border-line px-3 py-1 text-ui text-accent hover:underline"
       >
-        <Paperclip size={12} /> {basename(path)}
+        <Paperclip size={16} aria-hidden /> {basename(path)}
       </a>
       {isImg && <img src={url} alt={basename(path)} className="max-h-[480px] w-full object-contain p-2" />}
       {e === 'pdf' && (
