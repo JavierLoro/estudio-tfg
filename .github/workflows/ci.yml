@@ -64,11 +64,13 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Recorridos básicos de biblioteca y conflictos
         run: npm run test:e2e -- --grep "@smoke"
-      - name: Validar enlaces de escritorio
+      - name: Instalar dependencias de escritorio sin ejecutar instaladores
+        run: npm ci --prefix desktop --ignore-scripts
+      - name: Validar enlaces y conexión de escritorio
         run: node --test desktop/*.test.mjs
       - name: Instalar Electron para macOS
         if: matrix.os == 'macos-latest'
-        run: npm ci --prefix desktop && node desktop/node_modules/electron/install.js
+        run: node desktop/node_modules/electron/install.js
       - name: Recorrido de Electron en macOS con datos ficticios
         if: matrix.os == 'macos-latest'
         run: E2E_DESKTOP=1 E2E_SYSTEM_FOCUS=1 npm run test:e2e -- --grep "@desktop"
