@@ -1,6 +1,8 @@
 import { lazy, StrictMode, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
+// Fija tema, tamaño de texto y densidad en <html> antes del primer pintado.
+import './state/appearance';
 import { App } from './App';
 
 const PdfViewer = lazy(() => import('./components/PdfViewer'));

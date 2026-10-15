@@ -1,78 +1,121 @@
 @import 'tailwindcss';
 @import 'dockview-react/dist/styles/dockview.css';
+/* Tipografía empaquetada (OFL, sin CDN): Atkinson Hyperlegible Next para la interfaz (latin + latin-ext). */
+@import '@fontsource/atkinson-hyperlegible-next/400.css';
+@import '@fontsource/atkinson-hyperlegible-next/700.css';
 
-/* ---------- Tokens de color (claro / oscuro según el sistema) ---------- */
-:root {
-  color-scheme: light;
-  --et-bg: #ffffff;
-  --et-bg-soft: #f6f7f9;
-  --et-bg-sunken: #eef0f3;
-  --et-rail: #eceef2;
-  --et-hover: rgba(15, 23, 42, 0.06);
-  --et-active: rgba(37, 99, 235, 0.12);
-  --et-border: #dfe2e8;
-  --et-border-strong: #c8ccd4;
-  --et-fg: #1d2330;
-  --et-muted: #646c7c;
-  --et-faint: #9aa1ae;
-  --et-accent: #2563eb;
-  --et-accent-fg: #ffffff;
-  --et-ok: #15803d;
-  --et-warn: #b45309;
-  --et-warn-bg: #fef3c7;
-  --et-danger: #c62828;
-  --et-danger-bg: #fdecec;
-  --et-shadow: 0 10px 30px rgba(15, 23, 42, 0.18), 0 2px 6px rgba(15, 23, 42, 0.08);
-
-  /* Sintaxis */
-  --syn-keyword: #7c3aed;
-  --syn-command: #1d4ed8;
-  --syn-string: #047857;
-  --syn-comment: #8a8f98;
-  --syn-number: #b45309;
-  --syn-bracket: #be185d;
-  --syn-heading: #1d2330;
-  --syn-link: #2563eb;
-  --syn-meta: #0f766e;
-  --cm-selection: rgba(37, 99, 235, 0.18);
-  --cm-active-line: rgba(15, 23, 42, 0.035);
+/* Literata para lectura (notas, títulos de página): solo latin y latin-ext, 500 y 600. */
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url(../node_modules/@fontsource/literata/files/literata-latin-ext-500-normal.woff2) format('woff2');
+  unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url(../node_modules/@fontsource/literata/files/literata-latin-500-normal.woff2) format('woff2');
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url(../node_modules/@fontsource/literata/files/literata-latin-ext-600-normal.woff2) format('woff2');
+  unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url(../node_modules/@fontsource/literata/files/literata-latin-600-normal.woff2) format('woff2');
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --et-bg: #17191e;
-    --et-bg-soft: #1d2026;
-    --et-bg-sunken: #13151a;
-    --et-rail: #121418;
-    --et-hover: rgba(255, 255, 255, 0.06);
-    --et-active: rgba(96, 165, 250, 0.16);
-    --et-border: #2b2f37;
-    --et-border-strong: #3a3f49;
-    --et-fg: #e3e6ec;
-    --et-muted: #9aa2b1;
-    --et-faint: #6b7280;
-    --et-accent: #60a5fa;
-    --et-accent-fg: #0b1220;
-    --et-ok: #4ade80;
-    --et-warn: #fbbf24;
-    --et-warn-bg: rgba(251, 191, 36, 0.12);
-    --et-danger: #f87171;
-    --et-danger-bg: rgba(248, 113, 113, 0.12);
-    --et-shadow: 0 10px 30px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.35);
+/* ---------- Tokens de color ----------
+   Cada token es light-dark(claro, oscuro); el tema lo fija color-scheme según data-theme en <html>
+   (light / dark / system). Contrastes comprobados en server/test/contrast.test.ts:
+   texto ≥ 4,5:1 sobre las superficies donde aparece; bordes de control, foco e iconos ≥ 3:1.
+   «faint» ya no es color de texto: solo iconos y marcas no textuales. */
+:root {
+  color-scheme: light dark;
+  --et-bg: light-dark(#fdfcfa, #1c1a17);
+  --et-bg-soft: light-dark(#f7f5f1, #23211d);
+  --et-bg-sunken: light-dark(#efebe5, #171512);
+  --et-rail: light-dark(#f1eee8, #151310);
+  --et-hover: light-dark(rgba(60, 45, 25, 0.07), rgba(255, 240, 220, 0.08));
+  --et-active: light-dark(#dfe8f8, #263752);
+  --et-border: light-dark(#e2ddd4, #38342e);
+  --et-border-strong: light-dark(#8a8176, #7f776c);
+  --et-fg: light-dark(#211e1a, #eeeae3);
+  --et-muted: light-dark(#5b554c, #b8b0a4);
+  --et-faint: light-dark(#857d72, #8c8478);
+  --et-accent: light-dark(#1f59c7, #8fb5ff);
+  --et-accent-hover: light-dark(#184aa8, #b0caff);
+  --et-accent-fg: light-dark(#ffffff, #101a2e);
+  --et-focus: light-dark(#1f59c7, #8fb5ff);
+  --et-ok: light-dark(#1a6b33, #72d293);
+  --et-ok-bg: light-dark(#e6f2e8, #1e3224);
+  --et-warn: light-dark(#8a4f00, #f0bc5e);
+  --et-warn-bg: light-dark(#fbefd5, #382c14);
+  --et-danger: light-dark(#b0261d, #ff9a8f);
+  --et-danger-bg: light-dark(#fbe9e6, #3d211d);
+  --et-info: light-dark(#0b6584, #72c9e8);
+  --et-info-bg: light-dark(#e2f0f5, #163139);
+  --et-mark: light-dark(#fbe38e, #6b5414);
+  --et-shadow-1: light-dark(rgba(30, 20, 10, 0.18), rgba(0, 0, 0, 0.55));
+  --et-shadow-2: light-dark(rgba(30, 20, 10, 0.08), rgba(0, 0, 0, 0.35));
+  --et-shadow: 0 10px 30px var(--et-shadow-1), 0 2px 6px var(--et-shadow-2);
 
-    --syn-keyword: #c4a5ff;
-    --syn-command: #7cb7ff;
-    --syn-string: #7ee2b0;
-    --syn-comment: #6f7785;
-    --syn-number: #f5b86b;
-    --syn-bracket: #f49ac1;
-    --syn-heading: #f1f3f7;
-    --syn-link: #7cb7ff;
-    --syn-meta: #5eead4;
-    --cm-selection: rgba(96, 165, 250, 0.28);
-    --cm-active-line: rgba(255, 255, 255, 0.035);
-  }
+  /* Sintaxis */
+  --syn-keyword: light-dark(#6d32d9, #c8aaff);
+  --syn-command: light-dark(#1d4ed8, #86bcff);
+  --syn-string: light-dark(#047054, #7ee2b0);
+  --syn-comment: light-dark(#6a645b, #a2998c);
+  --syn-number: light-dark(#a14a06, #f5b86b);
+  --syn-bracket: light-dark(#b0185a, #f49ac1);
+  --syn-heading: light-dark(#211e1a, #f3efe8);
+  --syn-link: light-dark(#1f59c7, #8fb5ff);
+  --syn-meta: light-dark(#0f6b63, #5eead4);
+  --cm-selection: light-dark(rgba(31, 89, 199, 0.18), rgba(143, 181, 255, 0.28));
+  --cm-active-line: light-dark(rgba(60, 45, 25, 0.04), rgba(255, 240, 220, 0.04));
+
+  /* Tipografía y densidad (se ajustan con data-text-size y data-density) */
+  --et-root-size: 16px;
+  --et-text: 1rem;
+  --et-control: 2.5rem;
+  --et-control-sm: 2rem;
+  --et-icon-btn: 2.25rem;
+  --et-row: 2.125rem;
+  --et-toolbar: 3rem;
+  --et-tab: 2.5rem;
+}
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+:root[data-text-size='grande'] {
+  --et-root-size: 18px;
+}
+:root[data-text-size='muy-grande'] {
+  --et-root-size: 20px;
+}
+:root[data-density='compacta'] {
+  --et-text: 0.9375rem;
+  --et-control: 2rem;
+  --et-control-sm: 1.75rem;
+  --et-icon-btn: 2rem;
+  --et-row: 1.75rem;
+  --et-toolbar: 2.5rem;
+  --et-tab: 2.125rem;
 }
 
 @theme inline {
@@ -88,15 +131,39 @@
   --color-muted: var(--et-muted);
   --color-faint: var(--et-faint);
   --color-accent: var(--et-accent);
+  --color-accent-hover: var(--et-accent-hover);
   --color-accent-fg: var(--et-accent-fg);
+  --color-focus: var(--et-focus);
   --color-ok: var(--et-ok);
+  --color-ok-bg: var(--et-ok-bg);
   --color-warn: var(--et-warn);
   --color-warn-bg: var(--et-warn-bg);
   --color-danger: var(--et-danger);
   --color-danger-bg: var(--et-danger-bg);
+  --color-info: var(--et-info);
+  --color-info-bg: var(--et-info-bg);
+  --color-mark: var(--et-mark);
   --shadow-pop: var(--et-shadow);
-  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  --font-sans: 'Atkinson Hyperlegible Next', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-serif: 'Literata', Georgia, 'Times New Roman', serif;
   --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  /* Escala en rem: nada por debajo de 0,75 rem (12 px con el tamaño Normal). */
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.4;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.45;
+  --text-base: 1rem;
+  --text-base--line-height: 1.5;
+  --text-ui: var(--et-text);
+  --text-ui--line-height: 1.5;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.35;
+  --text-2xl: 1.625rem;
+  --text-2xl--line-height: 1.25;
+}
+
+html {
+  font-size: var(--et-root-size);
 }
 
 html,
@@ -110,7 +177,8 @@ body {
   background: var(--et-bg);
   color: var(--et-fg);
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: var(--et-text);
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
 }
@@ -122,9 +190,31 @@ button:disabled {
   cursor: default;
 }
 
+/* Foco visible en todo control: anillo de 2 px con separación (≥ 3:1 sobre cualquier superficie). */
 :focus-visible {
-  outline: 2px solid var(--et-accent);
+  outline: 2px solid var(--et-focus);
+  outline-offset: 2px;
+}
+/* Controles pegados a un borde (filas, pestañas, campos sin borde propio): anillo hacia dentro. */
+.et-focus-inset:focus-visible,
+.dv-tab:focus-visible {
   outline-offset: -2px;
+}
+
+/* Movimiento reducido: sin transiciones ni animaciones; el indicador de carga gira despacio. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .et-spin {
+    animation-duration: 2.4s !important;
+    animation-iteration-count: infinite !important;
+  }
 }
 
 /* Scrollbars discretas */
@@ -138,8 +228,8 @@ button:disabled {
 .dockview-theme-dark {
   --dv-group-view-background-color: var(--et-bg);
   --dv-tabs-and-actions-container-background-color: var(--et-bg-soft);
-  --dv-tabs-and-actions-container-height: 30px;
-  --dv-tabs-and-actions-container-font-size: 12px;
+  --dv-tabs-and-actions-container-height: var(--et-tab);
+  --dv-tabs-and-actions-container-font-size: 0.875rem;
   --dv-activegroup-visiblepanel-tab-background-color: var(--et-bg);
   --dv-activegroup-hiddenpanel-tab-background-color: var(--et-bg-soft);
   --dv-inactivegroup-visiblepanel-tab-background-color: var(--et-bg);
@@ -148,7 +238,7 @@ button:disabled {
   --dv-activegroup-visiblepanel-tab-color: var(--et-fg);
   --dv-activegroup-hiddenpanel-tab-color: var(--et-muted);
   --dv-inactivegroup-visiblepanel-tab-color: var(--et-muted);
-  --dv-inactivegroup-hiddenpanel-tab-color: var(--et-faint);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--et-muted);
   --dv-separator-border: var(--et-border);
   --dv-paneview-header-border-color: var(--et-border);
   --dv-active-sash-color: var(--et-accent);
@@ -166,7 +256,7 @@ body.et-dragging iframe {
 /* ---------- CodeMirror ---------- */
 .cm-editor {
   height: 100%;
-  font-size: 13.5px;
+  font-size: calc(var(--et-text) * 0.9375);
 }
 .cm-editor.cm-focused {
   outline: none;
@@ -177,13 +267,15 @@ body.et-dragging iframe {
 }
 .et-prose-editor .cm-scroller {
   font-family: var(--font-sans);
-  font-size: 14px;
+  font-size: var(--et-text);
 }
 
 /* ---------- Lectura de notas ---------- */
 .et-md {
-  font-size: 14.5px;
-  line-height: 1.65;
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: 1.0625rem;
+  line-height: 1.7;
   color: var(--et-fg);
   max-width: 76ch;
   margin: 0 auto;
@@ -195,7 +287,7 @@ body.et-dragging iframe {
 .et-md h2,
 .et-md h3,
 .et-md h4 {
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1.25;
   margin: 1.4em 0 0.5em;
 }
@@ -226,7 +318,8 @@ body.et-dragging iframe {
   text-decoration-style: dotted;
 }
 .et-md a.et-wikilink.missing {
-  color: var(--et-faint);
+  color: var(--et-muted);
+  text-decoration-style: dashed;
 }
 .et-md code {
   font-family: var(--font-mono);
@@ -264,7 +357,8 @@ body.et-dragging iframe {
 }
 .et-md th {
   background: var(--et-bg-soft);
-  font-weight: 600;
+  font-family: var(--font-sans);
+  font-weight: 700;
 }
 .et-md img {
   max-width: 100%;
@@ -318,6 +412,12 @@ body.et-resizing, body.et-resizing * {
   background: color-mix(in srgb, var(--et-accent) 22%, transparent);
   outline: 2px solid color-mix(in srgb, var(--et-accent) 70%, transparent);
   animation: et-synctex-fade 2.6s ease-out forwards;
+}
+/* Sin movimiento: el resaltado se queda estático unos segundos (lo retira PdfViewer) en lugar de desvanecerse. */
+@media (prefers-reduced-motion: reduce) {
+  .et-synctex-hl {
+    animation: none !important;
+  }
 }
 @keyframes et-synctex-fade {
   0%,

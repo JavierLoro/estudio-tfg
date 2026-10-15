@@ -135,7 +135,7 @@ const BADGE: Record<string, string> = {
 };
 
 const theme = EditorView.theme({
-  '.cm-tooltip.cm-tooltip-autocomplete': { padding: '3px', fontSize: '12.5px' },
+  '.cm-tooltip.cm-tooltip-autocomplete': { padding: '3px', fontSize: '0.875rem' },
   '.cm-tooltip.cm-tooltip-autocomplete > ul': { fontFamily: 'var(--font-mono)', maxHeight: '16em', maxWidth: '38em' },
   '.cm-tooltip-autocomplete ul li': { display: 'flex', alignItems: 'center', gap: '6px', padding: '3px 8px', color: 'var(--et-fg)', borderRadius: '4px', lineHeight: '1.4' },
   '.cm-tooltip-autocomplete ul li[aria-selected]': { backgroundColor: 'var(--et-active)', color: 'var(--et-fg)' },
@@ -157,18 +157,18 @@ const theme = EditorView.theme({
     maxWidth: '22em',
     color: 'var(--et-fg)',
     fontFamily: 'var(--font-sans, system-ui, sans-serif)',
-    fontSize: '12.5px',
+    fontSize: '0.875rem',
   },
   '.et-cm-info': { display: 'flex', flexDirection: 'column', gap: '2px' },
   '.et-cm-info-title': { fontWeight: '600' },
-  '.et-cm-info > div:not(.et-cm-info-title)': { color: 'var(--et-muted)', fontSize: '11.5px', wordBreak: 'break-word' },
+  '.et-cm-info > div:not(.et-cm-info-title)': { color: 'var(--et-muted)', fontSize: '0.75rem', wordBreak: 'break-word' },
   '.et-cm-badge': {
     flex: 'none',
     minWidth: '1.6em',
     textAlign: 'center',
     borderRadius: '4px',
     padding: '0 3px',
-    fontSize: '10.5px',
+    fontSize: '0.75rem',
     fontWeight: '700',
     lineHeight: '1.5',
     backgroundColor: 'var(--et-bg-sunken)',

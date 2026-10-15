@@ -4,6 +4,7 @@
 // fija su configuración justo antes (initialize parte siempre de los valores por defecto).
 
 import type { MermaidConfig } from 'mermaid';
+import { isDarkTheme } from '../state/appearance';
 
 type Mermaid = typeof import('mermaid').default;
 
@@ -15,7 +16,7 @@ export function loadMermaid(): Promise<Mermaid> {
 
 /** Configuración de las notas: tema de la app. */
 export function appMermaidConfig(): MermaidConfig {
-  const dark = window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+  const dark = isDarkTheme();
   return { startOnLoad: false, securityLevel: 'strict', theme: dark ? 'dark' : 'default', fontFamily: 'inherit' };
 }
 
