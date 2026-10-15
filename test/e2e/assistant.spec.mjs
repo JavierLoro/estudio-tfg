@@ -20,6 +20,7 @@ test('el asistente flotante conserva posición y borrador, revisa cambios y recu
   const launch = () => _electron.launch({ executablePath: require('electron'), args: ['--use-mock-keychain', path.join(repo, 'test/e2e/assistant-fixture.mjs')], env });
   try {
     electron = await launch(); let page = await electron.firstWindow();
+    await electron.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1024, 643));
     const editor = page.locator('.cm-editor').first(); await expect(editor).toBeVisible();
     const editorWidth = (await editor.boundingBox()).width;
     await page.getByRole('button', { name: 'Asistente', exact: true }).click();
@@ -51,7 +52,8 @@ test('el asistente flotante conserva posición y borrador, revisa cambios y recu
     expect((await composer.boundingBox()).height).toBeLessThanOrEqual(128);
     await expect(page.getByRole('button', { name: 'Enviar', exact: true })).toBeInViewport();
     await composer.evaluate(el => { el.style.height = ''; });
-    await editor.locator('.cm-content').click(); await expect(editor.locator('.cm-content')).toBeFocused();
+    // El centro queda bajo el asistente en pantallas pequeñas; se pulsa el borde visible.
+    await editor.locator('.cm-content').click({ position: { x: 8, y: 8 } }); await expect(editor.locator('.cm-content')).toBeFocused();
     await page.getByRole('button', { name: 'Inicio', exact: true }).click(); await expect(floating).toBeVisible();
     await page.getByRole('button', { name: 'Memoria', exact: true }).click(); await expect(floating).toBeVisible();
     await page.getByText('Permisos y modelo', { exact: true }).click();
