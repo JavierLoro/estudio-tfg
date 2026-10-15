@@ -7,6 +7,7 @@ import { isConfigured } from './settings.ts';
 export { loadConfig, userDataDir } from './config.ts';
 export { requireAdmin, isConfigured, instanceId } from './settings.ts';
 export { computeSourceRev } from './compile.ts';
+export { assistantRoutes } from './assistant.ts';
 
 /** Entrada reutilizable por la app de escritorio; no lee .env ni instala señales. */
 export async function startServer(env: NodeJS.ProcessEnv = process.env, opts: BuildOptions = {}) {

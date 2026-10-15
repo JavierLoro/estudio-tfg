@@ -1,12 +1,13 @@
-import { app, BrowserWindow, dialog, Menu, session, shell } from 'electron';
+import { app, BrowserWindow, dialog, Menu, session, shell, safeStorage } from 'electron';
 import crypto from 'node:crypto';
 import { mkdirSync, readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import { startServer, userDataDir } from '../server/dist/server.mjs';
+import { startServer, userDataDir, assistantRoutes } from '../server/dist/server.mjs';
 import { APP_ORIGIN, isAppUrl, isExternalUrl } from './security.mjs';
 import { setupRoutes } from './setup.mjs';
 import { checkUpdates } from './updater.mjs';
 import { aboutOptions } from './about.mjs';
+import { ChatGPT } from './chatgpt.mjs';
 
 app.setName('Estudio TFG');
 app.commandLine.appendSwitch('lang', 'es-ES');
@@ -47,13 +48,19 @@ else {
     const distributionFile = path.join(root, 'desktop', 'distribution.json');
     const distribution = existsSync(distributionFile) ? JSON.parse(readFileSync(distributionFile, 'utf8')) : { variant: 'online' };
     const token = crypto.randomBytes(32).toString('hex');
+    const chatgpt = new ChatGPT({ dataDir, safeStorage, openBrowser: url => shell.openExternal(url) });
+    try { await chatgpt.init(); }
+    catch { chatgpt.storageError = true; chatgpt.error = 'No se pudo preparar el almacenamiento de ChatGPT. La app sigue disponible sin el asistente.'; }
     server = await startServer({ ...process.env, DATA_DIR: dataDir, HOST: '127.0.0.1', PORT: '0', AUTH_TOKEN: token,
       TEMPLATES_DIR: process.env.TEMPLATES_DIR || path.join(root, 'templates'),
       WEB_DIST: process.env.WEB_DIST || path.join(root, 'web/dist'),
       NOTES_DIR: process.env.NOTES_DIR || path.join(app.getPath('documents'), 'Estudio TFG', 'Notas'),
       MEMORIA_DIR: process.env.MEMORIA_DIR || path.join(app.getPath('documents'), 'Estudio TFG', 'Memoria'),
       COMPILE_ENGINE: process.env.COMPILE_ENGINE || 'local',
-    }, { desktopDataDir: dataDir, configure: (app, ctx) => setupRoutes(app, ctx, { dataDir, manifest, archive }) });
+    }, { desktopDataDir: dataDir, configure: async (app, ctx) => {
+      await setupRoutes(app, ctx, { dataDir, manifest, archive });
+      await assistantRoutes(app, ctx, chatgpt);
+    } });
     const ses = session.fromPartition('persist:estudio-tfg');
     await ses.cookies.set({ url: APP_ORIGIN, name: 'et_token', value: token, httpOnly: true, sameSite: 'strict' });
     ses.setPermissionCheckHandler((_contents, permission, origin) => permission === 'clipboard-sanitized-write' && origin === APP_ORIGIN);
