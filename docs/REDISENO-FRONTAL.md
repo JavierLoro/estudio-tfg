@@ -79,7 +79,7 @@ Los mensajes de error explican qué pasó y qué hacer; el texto técnico del se
 
 | Paso | Contenido | Estado |
 |---|---|---|
-| R1 | U1 base accesible (tokens, tipografía, rem, tema/tamaño/densidad, foco, movimiento reducido, test de contraste) + U2 componentes y migración de botones y campos | pendiente |
+| R1 | U1 base accesible (tokens, tipografía, rem, tema/tamaño/densidad, foco, movimiento reducido, test de contraste) + U2 componentes y migración de botones y campos | hecho: tokens `light-dark()` con `data-theme`, Atkinson Hyperlegible Next + Literata empaquetadas, escala en rem, Apariencia en Ajustes, `server/test/contrast.test.ts`; componentes en `ui.tsx` y migración (quedan nativos filas, tarjetas y menús) |
 | R2 | U3 lenguaje + U4 navegación y modo avanzado + U5 Mi TFG | pendiente |
 | R3 | U6 primer arranque común (web y escritorio) + Ajustes reorganizado | pendiente |
 | R4 | U7 prototipo de «Escribir sin LaTeX» y decisión de alcance | pendiente |
