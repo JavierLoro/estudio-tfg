@@ -21,6 +21,7 @@ import { kbd } from '../lib/kbd';
 import { notifySettingsChanged, useSettings } from '../state/settings';
 import { toast, useUI } from '../state/ui';
 import { useDesktop } from '../state/desktop';
+import { ChatGPTAccount } from '../components/ChatGPTAccount';
 
 const LABELS: Record<SettingsKey, string> = {
   notesDir: 'Carpeta de notas (vault)',
@@ -327,6 +328,7 @@ export function SettingsPanel() {
         </Banner>
       )}
       {generalError && <Banner kind="danger">{generalError}</Banner>}
+      {desktop && <div className="px-3 pt-3"><ChatGPTAccount /></div>}
       {creationWarning && <Banner kind="warn">{creationWarning}</Banner>}
       {loadError && !data && (
         <Banner kind="danger" actions={<Button onClick={() => void useSettings.getState().load()}>Reintentar</Button>}>

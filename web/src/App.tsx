@@ -25,8 +25,10 @@ import { connectEvents } from './state/events';
 import { initInstance, useSettings, watchSettingsTransitions } from './state/settings';
 import { useUI } from './state/ui';
 import { activeFile } from './state/workspace';
+import { useAssistant } from './state/assistant';
 const BibliotecaPanel = lazy(() => import('./panels/BibliotecaPanel'));
 const DesktopSetup = lazy(() => import('./components/DesktopSetup'));
+const AssistantWindow = lazy(() => import('./components/AssistantWindow'));
 
 function useBoot() {
   useEffect(() => {
@@ -156,6 +158,7 @@ export function App() {
   const ready = useSettings((s) => s.ready);
   const statusError = useUI((s) => s.statusError);
   const motor = useUI((s) => s.status?.motor);
+  const assistantOpened = useAssistant(s => s.opened);
   return (
     <div className="flex h-full flex-col">
       <Header />
@@ -193,6 +196,7 @@ export function App() {
           )}
         </main>
       </div>
+      {ready && assistantOpened && <Suspense fallback={null}><AssistantWindow /></Suspense>}
       <CaptureModal />
       <CaptureQueueDialog />
       <ResourceConflictDialog />

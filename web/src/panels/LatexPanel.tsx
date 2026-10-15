@@ -16,6 +16,7 @@ import { openFile, openPdf, type FileParams } from '../state/workspace';
 import { showInPdf } from '../state/synctex';
 import { useCursor } from '../state/cursor';
 import type { Diagnostic } from '../api';
+import { AskAssistant } from '../components/AskAssistant';
 
 export async function saveAndCompile(key?: string) {
   if (key) await saveDoc(key);
@@ -86,6 +87,7 @@ export function LatexPanel({ params, api }: IDockviewPanelProps<FileParams>) {
           {path}
         </span>
         <SaveIndicator docKey={key} />
+        <AskAssistant root={root} path={path} />
         {canSync && (
           <IconButton label={`Ver en PDF (${kbd(shortcutFor('showInPdf'))})`} onClick={() => showHere()} disabled={!hasPdf}>
             <FileSearch size={17} />

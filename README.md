@@ -8,6 +8,11 @@ Se desarrolla y prueba en macOS. El modo Docker y el arranque nativo están prep
 
 Especificación: [docs/CONTRACT.md](docs/CONTRACT.md) · Worker y requisitos de la plantilla: [worker/README.md](worker/README.md) · Guía para agentes de código: [AGENTS.md](AGENTS.md)
 
+La app de escritorio incorpora un [asistente con tu cuenta de ChatGPT](docs/ASISTENTE.md):
+autoriza fuentes por conversación, consulta texto/PDF/imágenes y revisa propuestas
+para varios archivos antes de guardarlas. Conserva historial local y recuperación;
+la disponibilidad depende de tu cuenta y plan. La app funciona sin conectarlo.
+
 Cada push y PR ejecuta tests, typecheck y build en Linux, macOS y Windows con
 Node 24, incluidos recorridos básicos de Biblioteca en Chromium. Otro job construye
 el worker, compila todos los perfiles con cero avisos y ejecuta la suite completa

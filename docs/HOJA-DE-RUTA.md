@@ -2,11 +2,11 @@
 
 > Objetivo de producto: reunir fuentes en una **Biblioteca** y utilizarlas al escribir la memoria: añadir, organizar, consultar, citar e insertar figuras. Primero se corrigen los riesgos de pérdida de datos detectados en la auditoría del 09-10-2026; después se construye la biblioteca y se retoman los motores de compilación y la distribución como **app instalable y portable para Windows y Mac** (Electron), sin obligar a instalar Docker.
 >
-> Cada tarea está escrita para que **un agente pueda hacerla leyendo solo su sección** (más AGENTS.md y lo que la sección enlace). Cada tarea de los bloques de entrega tiene su issue en GitHub con la etiqueta `hoja-de-ruta` y la de su fase (`fase-A`…`fase-G`, `fase-R` y `fase-L`). Las ideas del apartado final de nuevas funcionalidades están pendientes de concretar.
+> Cada tarea está escrita para que **un agente pueda hacerla leyendo solo su sección** (más AGENTS.md y lo que la sección enlace). Cada tarea de los bloques de entrega tiene su issue en GitHub con la etiqueta `hoja-de-ruta` y la de su fase (`fase-A`…`fase-G`, `fase-R` y `fase-L`). NF1 ya tiene tareas concretas; las demás ideas finales siguen pendientes de concretar.
 >
 > Fuentes: [PLATAFORMAS.md](PLATAFORMAS.md) (50 hallazgos de portabilidad; los IDs como `S1`, `P2`, `F4` se refieren a él), [CONTRACT.md](CONTRACT.md) y la auditoría del 09-10-2026, cuyas evidencias y acciones se describen en R1–R8 y L1–L5.
 >
-> **Estado actualizado:** A–D, R, L1–L9, E1–E4, F1 y G1–G5/G7 completadas y fusionadas; `v0.2.0` publicada como estable sin firma. **G6 (firma/notarización) está aplazada** por decisión del usuario. Las ideas finales siguen pendientes de evaluación y planificación.
+> **Estado actualizado:** A–D, R, L1–L9, E1–E4, F1 y G1–G5/G7 completadas y fusionadas; `v0.2.0` publicada como estable sin firma. **G6 (firma/notarización) está aplazada** por decisión del usuario. **NF1 en implementación y verificación**, con las issues #77–#79 reservadas; NF2 sigue pendiente de evaluación y planificación.
 
 ## Índice
 
@@ -21,8 +21,9 @@
 | [E](#fase-e) | Motores de compilación intercambiables (Docker / TeX del sistema / Tectonic) | E1–E4 | #23–#26 | A, L5, L9; E2 también R6 y R8 |
 | [F](#fase-f) | Exportar diagramas sin Docker | F1 | #27 | E1 |
 | [G](#fase-g) | App de escritorio con Electron | G1–G7 | #28–#34 | B1, C, D1, E1–E2, F1 |
+| [NF1](#nf1) | Asistente de escritorio con la cuenta personal de ChatGPT | NF1.1–NF1.3 | #77–#79 | L5, G3 |
 
-Después de las fases actuales: [Nuevas funcionalidades](#nuevas-funcionalidades), pendientes de evaluación y planificación.
+Las [nuevas funcionalidades](#nuevas-funcionalidades) se concretan por bloques: NF1 está autorizado; NF2 sigue como propuesta futura.
 
 ```text
 A–D (completadas)
@@ -95,7 +96,8 @@ Agrupación prevista de 2–4 tareas relacionadas; una tarea autónoma o con una
 | `f-diagramas` | Exportación de diagramas sin Docker | F1 | #27 |
 | `g-base` | Servidor empaquetable y app Electron funcional | G1, G2, G3 | #28, #29, #30 |
 | `g-entrega` | TeX privado, primer arranque e instaladores offline/online, licencia y guía | G4, G5, G7 | #31, #32, #34 |
-| `g-firma` | Firma y notarización de los instaladores | G6 | #33 |
+| `g-firma` | Firma y notarización de los instaladores (aplazado) | G6 | #33 |
+| `nf1-asistente` | Cuenta personal, consulta de fuentes y propuestas multidocumento revisables | NF1.1, NF1.2, NF1.3 | #77, #78, #79 |
 
 **Replanificación del 09-10-2026:** A–D permanecen cerradas. Se añaden R y L antes de E; E1/E2 se actualizan con las nuevas puertas de entrega y seguridad. Crear estas issues no las reserva ni inicia su implementación. No se publica ninguna funcionalidad por este cambio de planificación.
 
@@ -935,19 +937,35 @@ Resultado: app con **TeX Live reducido privado**, instaladores y versión portab
 ---
 
 <a id="nuevas-funcionalidades"></a>
-## Nuevas funcionalidades — pendientes para más adelante
+## Nuevas funcionalidades
 
-Ideas añadidas el 12-10-2026 para evaluar después de la hoja de ruta actual. **No son bloques disponibles**: antes de implementarlas, concretar alcance, crear sus issues y añadirlas a «Bloques de entrega». El orden actual R → L → E → F → G se mantiene.
+Ideas añadidas el 12-10-2026. NF1 se concreta y autoriza el 15-10-2026; las restantes requieren concretar alcance, crear issues y añadir su bloque antes de implementarlas. G6 permanece aplazado.
 
 <a id="nf1"></a>
 ### NF1 · Agentes asistentes con la suscripción personal de ChatGPT
 
-- **Objetivo**: que cada usuario conecte su cuenta y aproveche su propia suscripción para recibir ayuda dentro de Estudio TFG: consultar fuentes, revisar un apartado, proponer una estructura o corregir LaTeX.
-- **Vía a evaluar**: la documentación oficial de [Sign in with ChatGPT](https://developers.openai.com/siwc/quickstart) contempla solicitudes elegibles con el plan de usuarios Plus/Pro en aplicaciones de código abierto. Comparar una integración directa con Responses y [Codex app-server](https://developers.openai.com/siwc/token-sharing-open-source/codex-app-server); validar disponibilidad, condiciones, modelos y límites vigentes al implementarlo. No extraer cookies ni reutilizar credenciales de otros clientes.
-- **Primera entrega**: un asistente al que se le proporciona el texto seleccionado o el apartado activo y fuentes elegidas por el usuario. Mostrar las propuestas antes de aplicarlas; conservar `baseRev`, historial y deshacer. No dar acceso general a carpetas ni ejecutar comandos arbitrarios.
-- **Cuenta y privacidad**: conexión y desconexión por usuario, credenciales protegidas fuera del repo y del estado de la interfaz, explicación del contenido enviado y gestión de sesiones caducadas, cancelación y límites del plan. La aplicación debe seguir funcionando sin conectar una cuenta.
-- **Criterios de aceptación futuros**: conectar una cuenta elegible y completar una consulta sin clave de API independiente; aplicar o descartar una propuesta sin perder cambios; impedir cruces de contenido entre usuarios. Documentar limitaciones y verificar con fixtures ficticios y pruebas de autenticación simulada.
-- **Dependencias**: biblioteca validada (L5); decidir el encaje entre app local, Electron (G3) y despliegue self-hosted. Actualizar el contrato al introducir la funcionalidad.
+- **Estado**: implementado y verificado localmente; pendiente de revisión e integración en `develop`. Issues #77–#79 con `en-curso` hasta confirmar la fusión. Rama `hoja/nf1-asistente`, un PR conjunto y un commit por tarea.
+- **Decisión**: Electron primero; OAuth público de [Sign in with ChatGPT](https://developers.openai.com/siwc/quickstart) y Responses directo, sin clave de API ni proceso Codex. La app funciona sin cuenta. La suscripción no habilita embeddings ni NF2 automáticamente.
+- **Alcance aprobado**: búsqueda autónoma en fuentes autorizadas por conversación, texto/PDF/imágenes, actividad visible, historial local separado por cuenta/proyecto y propuestas sobre varios documentos con revisión previa. Sin terminal, navegación web, creación ni borrado de documentos.
+- **Guía y contrato**: [ASISTENTE.md](ASISTENTE.md) y [CONTRACT.md, v0.40](CONTRACT.md#asistente-de-escritorio-con-chatgpt-v040).
+
+#### NF1.1 · Conexión personal y sesiones seguras — #77
+
+- **Entrega**: PKCE, `state`, `nonce`, identidad OIDC validada, registro del cliente por cuenta, almacén seguro del sistema y renovación rotatoria serializada. Conectar, cambiar de cuenta, reconectar, autorizar uso del plan y desconectar desde la app. Catálogo de modelos de la cuenta y explicación de uso del plan.
+- **Aceptación y verificación**: OAuth y SSE simulados; credenciales nunca en el renderer ni en logs. El usuario confirmó conexión y respuesta real sin clave de API el 15-10-2026, en un perfil aislado sin acceso a documentos personales.
+- **Archivos**: `desktop/chatgpt*.mjs`, paquetes de escritorio, `ChatGPTAccount.tsx`, ajustes y cliente del asistente. **Depende de**: G3, L5.
+
+#### NF1.2 · Fuentes autorizadas e historial local — #78
+
+- **Entrega**: ventana Asistente flotante, compacta y no modal, arrastrable y minimizable con posición recordada; opciones desplegables, contexto desde editores/fichas, permisos separados de memoria, biblioteca y carpetas de notas; herramientas de búsqueda y lectura con validación de rutas. PDF e imágenes en línea, actividad, detener y recuperación del historial local. Límites: 100 000 caracteres, 20 MiB de adjuntos, ocho rondas y 24 herramientas por turno.
+- **Aceptación y verificación**: fuentes fuera de alcance bloqueadas, incluidas rutas mediante enlaces; aislamiento de cuentas/proyectos, fallos de respuesta y límites cubiertos con fixtures. Prueba nativa en Electron: arrastre, movimiento por teclado, minimizar/cerrar sin perder borrador, ajuste a la ventana y reinicio con posición e historial conservados.
+- **Archivos**: `server/src/assistant*.ts`, búsqueda, API/estado/paneles web y fixtures E2E. **Depende de**: NF1.1.
+
+#### NF1.3 · Propuestas revisables y recuperación — #79
+
+- **Entrega**: cambios en `.tex`, notas `.md` y bibliografía manual existente; elegir un subconjunto revisado, aplicar y deshacer con `baseRev`, copia e historial. Rechazar borradores pendientes, destinos protegidos y nuevas citas inexistentes. Registro recuperable por archivo; no se promete una transacción atómica de varios archivos.
+- **Aceptación y verificación**: conflictos previos sin escrituras, fallo entre archivos recuperable, concurrencia controlada y deshacer sin sobrescribir ediciones posteriores. Borrar un chat elimina sus mensajes/adjuntos y conserva solo los cambios aplicados necesarios para deshacer.
+- **Archivos**: `assistantChanges.ts`, herramientas/rutas del asistente, revisión web, pruebas y documentación. **Depende de**: NF1.2.
 
 <a id="nf2"></a>
 ### NF2 · Recomendaciones de recursos y notas según el apartado activo

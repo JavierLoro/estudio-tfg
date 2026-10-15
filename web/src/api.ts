@@ -504,7 +504,7 @@ async function request(path: string, init: RequestInit = {}, retried = false): P
   return res;
 }
 
-async function json<T>(path: string, init?: RequestInit): Promise<T> {
+export async function json<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await request(path, init);
   return (await res.json()) as T;
 }
