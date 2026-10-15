@@ -8,7 +8,7 @@ import { requireAdmin, instanceId } from './settings.ts';
 import { libraryId } from './libraryIdentity.ts';
 import { type RootName } from './paths.ts';
 import { validateScope, findSources, readSource, attachmentSources, sourceId, type AssistantScope, type AssistantSource } from './assistantFiles.ts';
-import { privateJson, readPrivate, UUID, type AssistantProposal } from './assistantChanges.ts';
+import { privateJson, readPrivate, prepareChanges, applyChanges, UUID, type AssistantProposal } from './assistantChanges.ts';
 
 export interface AssistantAccountView { accounts: { id: string; label: string; connected: boolean; enabled: boolean }[]; active: string | null; pending: boolean; error: string; persistent: boolean }
 export interface AssistantProvider {
@@ -35,6 +35,7 @@ export const ASSISTANT_TOOLS = [{ type: 'namespace', name: 'estudio_tfg', descri
   functionTool('buscar_fuentes', 'Busca notas, documentos y fichas por texto o metadatos. Devuelve IDs consultables.', { query: { type: 'string' } }),
   functionTool('leer_texto', 'Lee una fuente descubierta. Las fichas incluyen IDs de adjuntos. Paginación por caracteres, máximo 20000.', { id: { type: 'string' }, offset: { type: 'integer', minimum: 0 }, length: { type: 'integer', minimum: 1, maximum: 20000 } }),
   functionTool('consultar_adjunto', 'Consulta un PDF o imagen descubiertos. Consume el presupuesto de adjuntos.', { id: { type: 'string' } }),
+  functionTool('proponer_cambios', 'Prepara modificaciones de archivos consultados. Nunca escribe: el usuario revisa y aplica. Devuelve el ID de propuesta.', { files: { type: 'array', minItems: 1, maxItems: 20, items: { type: 'object', properties: { id: { type: 'string' }, after: { type: 'string' } }, required: ['id', 'after'], additionalProperties: false } } }),
 ] }];
 
 const visible = (thread: Thread) => ({ id: thread.id, title: thread.title, account: thread.account, instance: thread.instance, scope: thread.scope, model: thread.model,
@@ -170,6 +171,10 @@ export async function assistantRoutes(app: FastifyInstance, ctx: Ctx, provider: 
                 const attachments = await attachmentSources(snapshots, thread.scope, source); for (const a of attachments) addSource(a);
                 result = { id: source.id, rev: data.version, offset: args.offset, total: data.text.length, text: data.text.slice(args.offset, args.offset + args.length), attachments };
               }
+            } else if (tool.name === 'proponer_cambios') {
+              const op = await prepareChanges(snapshots, thread.scope, thread.sources, args, { thread: thread.id, account: thread.account, instance: thread.instance }, input.dirty);
+              thread.proposals.push(op); await save(thread); result = { proposal: op.id, message: 'Propuesta preparada. El usuario debe revisar y aplicar.' };
+              thread.messages.push({ role: 'tool', text: `Propuesta: ${op.files.length} archivos · ${op.id}` });
             } else throw badRequest('Herramienta no permitida');
           } catch (e: any) { result = { error: e instanceof HttpError ? e.message : 'No se pudo consultar la fuente o preparar los cambios' }; }
           if (!Array.isArray(result) || !result.length || !result.every(item => ['input_text', 'input_file', 'input_image'].includes(item.type))) { result = JSON.stringify(result); thread.contextChars += result.length; }
@@ -198,4 +203,14 @@ export async function assistantRoutes(app: FastifyInstance, ctx: Ctx, provider: 
     return visible(thread);
   });
   route('POST', '/threads/:id/cancel', async req => { const thread = await read(req.params.id); jobs.get(thread.id)?.abort(); return visible(thread); });
+  for (const action of ['apply', 'undo'] as const) route('POST', '/threads/:id/proposals/:proposal/' + action, async req => {
+    const thread = await read(req.params.id);
+    if (jobs.has(thread.id) || mutations.has(thread.id)) throw new HttpError(409, 'Espera a que termine la operación antes de modificar archivos');
+    const op = thread.proposals.find(p => p.id === req.params.proposal);
+    if (!op || op.account !== thread.account || op.instance !== thread.instance) throw badRequest('Propuesta no válida');
+    if (!Array.isArray(req.body?.dirty) || op.files.some(f => req.body.dirty.includes(`${f.source.root}:${f.source.path}`))) throw new HttpError(409, 'Guarda los borradores afectados antes de aplicar o deshacer');
+    mutations.add(thread.id);
+    try { await applyChanges({ ...ctx, cfg: { ...ctx.cfg } }, thread.scope, op, () => save(thread), req.body?.selected, action === 'undo', () => check(thread)); return visible(thread); }
+    finally { mutations.delete(thread.id); }
+  });
 }

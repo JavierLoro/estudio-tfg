@@ -8,10 +8,10 @@ export async function responseStream(response, onEvent = () => {}) {
     throw new ChatGPTError(body.error?.message || body.detail || 'ChatGPT no pudo aceptar la consulta', body.error?.code, response.status);
   }
   if (!response.body) throw new ChatGPTError('ChatGPT devolvió una respuesta vacía');
-  let pending = '', data = [], completed;
+  let pending = '', data = [], dataSize = 0, completed;
   const dispatch = () => {
     if (!data.length) return;
-    const value = data.join('\n'); data = [];
+    const value = data.join('\n'); data = []; dataSize = 0;
     if (value === '[DONE]') return;
     const event = JSON.parse(value);
     if (event.type === 'response.failed' || event.type === 'error')
@@ -22,7 +22,11 @@ export async function responseStream(response, onEvent = () => {}) {
   };
   const line = value => {
     if (!value) dispatch();
-    else if (value.startsWith('data:')) data.push(value.slice(5).replace(/^ /, ''));
+    else if (value.startsWith('data:')) {
+      dataSize += value.length;
+      if (dataSize > 32 * 1024 * 1024) throw new ChatGPTError('Evento de ChatGPT demasiado grande');
+      data.push(value.slice(5).replace(/^ /, ''));
+    }
   };
   const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
   try {

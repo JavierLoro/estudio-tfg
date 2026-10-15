@@ -7,9 +7,10 @@ import { load, remove, save } from '../lib/storage';
 import { releaseDoc, requestReveal } from './docs';
 import { useUI } from './ui';
 import { api as http } from '../api';
+import { addAssistantContext, type AssistantContext } from './assistant';
 
 // Tipos de panel y sus parámetros.
-export type PanelComponent = 'latex' | 'note' | 'diagram' | 'pdf' | 'resource' | 'search' | 'home' | 'settings' | 'datos';
+export type PanelComponent = 'latex' | 'note' | 'diagram' | 'pdf' | 'resource' | 'search' | 'home' | 'settings' | 'datos' | 'assistant';
 
 export interface FileParams {
   root: Root;
@@ -112,6 +113,11 @@ export function openHome() {
 
 export function openSettings(opts: OpenOptions = {}) {
   addOrFocus('settings', 'settings', 'Ajustes', {}, opts);
+}
+
+export function openAssistant(context?: AssistantContext) {
+  if (context) addAssistantContext(context);
+  addOrFocus('assistant', 'assistant', 'Asistente', {}, { side: true });
 }
 
 export function openDatos(opts: OpenOptions = {}) {

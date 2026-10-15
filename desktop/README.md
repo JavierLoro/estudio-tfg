@@ -50,3 +50,11 @@ release y se repite desde Ajustes. `engine-manifest.json` fija plataforma, versi
 URL, tamaño y hash; offline añade `engine.tar.gz` junto a ese manifiesto. Ambos
 archivos los genera el empaquetado G5, no el usuario. Los fallos y cancelaciones
 limpian staging sin tocar el motor anterior; las fuentes permanecen externas.
+
+## Asistente con ChatGPT
+
+El botón **Asistente** y la sección ChatGPT de Ajustes permiten conectar una cuenta
+personal elegible. La integración usa OAuth y Responses directamente; no necesita
+instalar Codex ni configurar una clave API. Elige fuentes por conversación y revisa
+cada propuesta antes de guardar. Credenciales e historial se separan entre el perfil
+instalado y el de desarrollo. Uso, límites y recuperación: [ASISTENTE.md](../docs/ASISTENTE.md).

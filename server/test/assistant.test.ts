@@ -4,6 +4,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { setup, canSymlink, type TestEnv } from './helpers.ts';
 import { assistantRoutes, type AssistantProvider } from '../src/assistant.ts';
 import { findSources, readSource, sourceId, validateScope, type AssistantSource } from '../src/assistantFiles.ts';
+import { prepareChanges, applyChanges, privateJson } from '../src/assistantChanges.ts';
+import { instanceId } from '../src/settings.ts';
+import { rev } from '../src/fsutil.ts';
 
 let env: TestEnv | undefined;
 afterEach(async () => { await env?.close(); env = undefined; });
@@ -120,4 +123,84 @@ describe('Asistente local', () => {
     expect((await finished(t, chat.id)).state).toBe('cancelled');
   });
 
+  it('borra los mensajes y adjuntos conservando únicamente los cambios necesarios para deshacer', async () => {
+    let calls = 0;
+    const candidate = source('notes', 'Sistema/Uno.md');
+    const t = await fixture(provider(async () => ++calls === 1 ? tool('proponer_cambios', { files: [{ id: candidate.id, after: 'Texto nuevo' }] }) : answer('Respuesta privada ficticia')));
+    await fs.writeFile(path.join(t.cfg.notesDir, candidate.path), 'Texto original');
+    const chat = await thread(t);
+    await t.app.inject({ method: 'POST', url: `/api/assistant/threads/${chat.id}/turns`, payload: { text: 'Pregunta privada ficticia', dirty: [], context: [candidate] } });
+    const result = await finished(t, chat.id), op = result.proposals[0];
+    expect(op).toBeDefined();
+    const operation = (action: string) => t.app.inject({ method: 'POST', url: `/api/assistant/threads/${chat.id}/proposals/${op.id}/${action}`, payload: { selected: [candidate.id], dirty: [] } });
+    expect((await operation('apply')).statusCode).toBe(200);
+    expect((await t.app.inject({ method: 'DELETE', url: `/api/assistant/threads/${chat.id}` })).json().archived).toBe(true);
+    const stored = JSON.parse(await fs.readFile(path.join(t.cfg.dataDir, 'assistant', chat.id + '.json'), 'utf8'));
+    expect(stored.history).toEqual([]); expect(stored.messages).toEqual([]); expect(stored.sources).toEqual([]);
+    expect(JSON.stringify(stored)).not.toContain('privada ficticia');
+    expect((await operation('undo')).statusCode).toBe(200);
+    expect(await fs.readFile(path.join(t.cfg.notesDir, candidate.path), 'utf8')).toBe('Texto original');
+    await t.app.inject({ method: 'DELETE', url: `/api/assistant/threads/${chat.id}` });
+    expect((await t.app.inject(`/api/assistant/threads/${chat.id}`)).statusCode).toBe(404);
+  });
+});
+
+describe('Propuestas recuperables', () => {
+  async function proposal(t: TestEnv) {
+    await fs.writeFile(path.join(t.cfg.notesDir, 'Sistema/Uno.md'), 'Texto uno');
+    await fs.writeFile(path.join(t.cfg.notesDir, 'Sistema/Dos.md'), 'Texto dos');
+    const sources = ['Sistema/Uno.md', 'Sistema/Dos.md'].map(rel => ({ ...source('notes', rel), rev: rev(rel.endsWith('Uno.md') ? 'Texto uno' : 'Texto dos') }));
+    return prepareChanges(t.ctx, scope, sources, { files: sources.map((s, i) => ({ id: s.id, after: `Nuevo ${i}` })) }, { thread: crypto.randomUUID(), account: 'ficticio', instance: instanceId(t.cfg) }, []);
+  }
+  it('aplica un subconjunto revisado, hace historial y deshace sin sobrescribir cambios nuevos', async () => {
+    const t = await fixture(), op = await proposal(t), file = path.join(t.cfg.dataDir, 'assistant/operacion.json');
+    const save = () => privateJson(file, op);
+    await applyChanges(t.ctx, scope, op, save, [op.files[0].source.id]); expect(op.state).toBe('done'); expect(op.files).toHaveLength(1);
+    expect(await fs.readFile(path.join(t.cfg.notesDir, 'Sistema/Uno.md'), 'utf8')).toBe('Nuevo 0');
+    expect(await fs.readFile(path.join(t.cfg.notesDir, 'Sistema/Dos.md'), 'utf8')).toBe('Texto dos');
+    await fs.writeFile(path.join(t.cfg.notesDir, 'Sistema/Uno.md'), 'Edición posterior');
+    await expect(applyChanges(t.ctx, scope, op, save, [], true)).rejects.toThrow('Cambió');
+    await fs.writeFile(path.join(t.cfg.notesDir, 'Sistema/Uno.md'), 'Nuevo 0');
+    await applyChanges(t.ctx, scope, op, save, [], true); expect(op.state).toBe('undone');
+    expect(await fs.readFile(path.join(t.cfg.notesDir, 'Sistema/Uno.md'), 'utf8')).toBe('Texto uno');
+  });
+  it('un 409 previo no escribe ningún archivo y los borradores impiden preparar el lote', async () => {
+    const t = await fixture(), op = await proposal(t);
+    await fs.writeFile(path.join(t.cfg.notesDir, 'Sistema/Dos.md'), 'Cambio ajeno');
+    await expect(applyChanges(t.ctx, scope, op, async () => {}, op.files.map(f => f.source.id))).rejects.toThrow('Cambió');
+    expect(await fs.readFile(path.join(t.cfg.notesDir, 'Sistema/Uno.md'), 'utf8')).toBe('Texto uno');
+    await expect(prepareChanges(t.ctx, scope, op.files.map(f => f.source), { files: [{ id: op.files[0].source.id, after: 'Cambio' }] }, { thread: op.thread, account: op.account, instance: op.instance }, ['notes:Sistema/Uno.md'])).rejects.toThrow('borrador');
+  });
+  it('una repetición simultánea no aplica un subconjunto distinto del ya revisado', async () => {
+    const t = await fixture(), op = await proposal(t), [first, second] = op.files.map(f => f.source.id);
+    await Promise.all([applyChanges(t.ctx, scope, op, async () => {}, [first]), applyChanges(t.ctx, scope, op, async () => {}, [second])]);
+    expect(op.files.map(f => f.source.id)).toEqual([first]);
+    expect(await fs.readFile(path.join(t.cfg.notesDir, 'Sistema/Dos.md'), 'utf8')).toBe('Texto dos');
+  });
+  it('impide editar mediante un alias que oculta un destino protegido', async () => {
+    if (!await canSymlink('file')) return;
+    const t = await fixture();
+    await fs.mkdir(path.join(t.cfg.memoriaDir, 'estilo'), { recursive: true });
+    await fs.writeFile(path.join(t.cfg.memoriaDir, 'estilo/protegido.tex'), 'Texto protegido');
+    await fs.symlink(path.join(t.cfg.memoriaDir, 'estilo/protegido.tex'), path.join(t.cfg.memoriaDir, 'alias.tex'));
+    const s = { ...source('memoria', 'alias.tex'), rev: rev('Texto protegido') };
+    await expect(prepareChanges(t.ctx, scope, [s], { files: [{ id: s.id, after: 'Cambio' }] }, { thread: crypto.randomUUID(), account: 'ficticio', instance: instanceId(t.cfg) }, [])).rejects.toThrow('original');
+  });
+  it('recupera un fallo después del primer archivo utilizando el registro persistido', async () => {
+    const t = await fixture(), op = await proposal(t), file = path.join(t.cfg.dataDir, 'assistant/operacion.json');
+    let failed = false;
+    const save = async () => { await privateJson(file, op); if (op.files[0].applied && !failed) { failed = true; throw new Error('fallo ficticio'); } };
+    await expect(applyChanges(t.ctx, scope, op, save, op.files.map(f => f.source.id))).rejects.toThrow('fallo ficticio');
+    const recovered = JSON.parse(await fs.readFile(file, 'utf8'));
+    expect(recovered.state).toBe('applying'); expect(recovered.files[0].applied).toBe(true);
+    await applyChanges(t.ctx, scope, recovered, () => privateJson(file, recovered), []);
+    expect(recovered.state).toBe('done'); expect(await fs.readFile(path.join(t.cfg.notesDir, 'Sistema/Dos.md'), 'utf8')).toBe('Nuevo 1');
+  });
+  it('no permite modificar bibliografía gestionada, datos internos ni referencias inventadas', async () => {
+    const t = await fixture();
+    const candidate = { ...source('memoria', 'biblioteca/referencias.bib'), rev: rev('') };
+    await expect(prepareChanges(t.ctx, scope, [candidate], { files: [{ id: candidate.id, after: 'No permitido' }] }, { thread: crypto.randomUUID(), account: 'ficticio', instance: instanceId(t.cfg) }, [])).rejects.toThrow('existentes');
+    const tex = source('memoria', 'tfg.tex'); const text = await readSource(t.ctx, scope, tex); tex.rev = text.version;
+    await expect(prepareChanges(t.ctx, scope, [tex], { files: [{ id: tex.id, after: text.text + '\n\\cite{referencia-inventada}' }] }, { thread: crypto.randomUUID(), account: 'ficticio', instance: instanceId(t.cfg) }, [])).rejects.toThrow('bibliográfica');
+  });
 });

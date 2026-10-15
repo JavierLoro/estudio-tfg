@@ -14,6 +14,7 @@ import { STATUS_LABEL, useResourceEdit } from '../state/resources';
 import { useUI } from '../state/ui';
 import { openFile, type FileParams } from '../state/workspace';
 import LibraryUseDialog from '../components/LibraryUseDialog';
+import { AskAssistant } from '../components/AskAssistant';
 
 const PdfViewer = lazy(() => import('../components/PdfViewer'));
 
@@ -104,6 +105,7 @@ export function ResourcePanel({ params }: IDockviewPanelProps<FileParams>) {
             <ArrowLeft size={12} /> Biblioteca
           </Button>
           <div className="mb-1 flex flex-wrap items-center gap-2 text-[11px] text-muted">
+            <AskAssistant root="notes" path={path} resource />
             <span>{KIND_LABEL[resourceKind(item)]}</span>
             <StatusPill status={item.status} />
             <span>Añadido {formatDate(item.captured)}</span>

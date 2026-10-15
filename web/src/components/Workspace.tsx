@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import {
   DockviewReact,
   themeDark,
@@ -34,6 +34,7 @@ import { DatosPanel } from '../panels/DatosPanel';
 import { DiagramPanel } from '../panels/DiagramPanel';
 import { indicatorColor } from './DocBanners';
 import { cx } from './ui';
+const Assistant = lazy(() => import('../panels/AssistantPanel').then(m => ({ default: m.AssistantPanel })));
 
 const components = {
   latex: LatexPanel,
@@ -45,6 +46,7 @@ const components = {
   home: HomePanel,
   settings: SettingsPanel,
   datos: DatosPanel,
+  assistant: () => <Suspense fallback={<p className="p-3">Cargando asistente…</p>}><Assistant /></Suspense>,
 };
 
 const ICONS: Record<string, React.ReactNode> = {

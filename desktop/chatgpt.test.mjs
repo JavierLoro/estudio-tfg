@@ -56,6 +56,15 @@ test('la identidad OIDC verifica firma, audiencia, nonce y caducidad', async () 
   await assert.rejects(verifyIdentity(token, 'oaiapp_ficticio', 'otro-nonce', keys));
   const expired = await new SignJWT({}).setProtectedHeader({ alg: 'RS256', kid: 'ficticio' }).setIssuer('https://auth.openai.com').setAudience('oaiapp_ficticio').setSubject('persona').setExpirationTime(1).sign(privateKey);
   await assert.rejects(verifyIdentity(expired, 'oaiapp_ficticio', undefined, keys));
+  const undated = await new SignJWT({}).setProtectedHeader({ alg: 'RS256', kid: 'ficticio' }).setIssuer('https://auth.openai.com').setAudience('oaiapp_ficticio').setSubject('persona').sign(privateKey);
+  await assert.rejects(verifyIdentity(undated, 'oaiapp_ficticio', undefined, keys));
+});
+
+test('dos inicios simultáneos conservan solo el último callback activo', async t => {
+  const f = await fixture(t);
+  const first = f.client.connect(), last = f.client.connect();
+  await assert.rejects(first, e => e.name === 'AbortError'); await last;
+  assert.equal((await f.finish()).status, 200); assert.equal(f.exchanges, 1);
 });
 
 test('consentimiento rechazado conserva la cuenta activa y no intercambia un código', async t => {
@@ -100,4 +109,6 @@ test('SSE procesa UTF-8 fragmentado y exige el evento de finalización', async (
   assert.equal(result[0].type, 'message'); assert.equal(seen[0].delta, 'Bibliografía ágil');
   await assert.rejects(responseStream(new Response('data: {"type":"response.output_text.delta","delta":"incompleto"}\n\n')), /interrumpió/);
   await assert.rejects(responseStream(new Response('data: {"type":"response.failed","response":{"error":{"code":"subscription_sharing_usage_limit_exceeded","message":"Límite"}}}\n\n')), e => e.code === 'subscription_sharing_usage_limit_exceeded');
+  const line = new TextEncoder().encode('data: ' + 'x'.repeat(4 * 1024 * 1024) + '\n');
+  await assert.rejects(responseStream(new Response(new ReadableStream({ start(c) { for (let i = 0; i < 9; i++) c.enqueue(line); c.close(); } }))), /demasiado grande/);
 });
