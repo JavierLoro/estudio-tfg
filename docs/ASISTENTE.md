@@ -6,15 +6,26 @@ disponibles sin conectar una cuenta y sin conexión a Internet.
 
 ## Conectar y consultar
 
-1. Abre **Asistente** en la barra lateral, o la sección ChatGPT de Ajustes.
+1. Abre **Asistente** en la barra lateral. Aparece como una ventana flotante
+   compacta, sin reducir el editor ni el PDF. También puedes conectar la cuenta
+   desde la sección ChatGPT de Ajustes.
 2. Pulsa **Continuar con ChatGPT** y autoriza la app en el navegador del sistema.
    Necesitas una cuenta elegible y permiso para usar su plan. No introduzcas una
    clave API ni copies las credenciales de Codex u otras aplicaciones.
-3. En una conversación nueva, elige el modelo y autoriza las fuentes: memoria,
+3. En una conversación nueva, despliega **Permisos y modelo** para elegir el modelo
+   y autorizar las fuentes: memoria,
    biblioteca con adjuntos y carpetas de notas relativas al vault. Todas empiezan
    desmarcadas; una lista vacía permite conversar sin documentos.
 4. Envía tu petición. El agente puede buscar y consultar dentro de ese alcance;
-   su actividad y los enlaces a las fuentes aparecen en el panel. Puedes detenerlo.
+   su actividad y los enlaces a las fuentes aparecen en desplegables. Puedes detenerlo.
+
+Arrastra la cabecera para situar la ventana; el botón **Mover asistente** también
+admite flechas (Mayús para pasos mayores). La posición se recuerda y se ajusta al
+reducir la ventana de la app. **Minimizar** deja solo la cabecera; **Cerrar** oculta
+el asistente. Ambos conservan la conversación y el mensaje pendiente durante esa
+sesión y permiten seguir trabajando en Inicio, Biblioteca o el editor. Para parar
+una consulta usa **Detener**. Al reabrir desde la barra o el editor se restaura la
+ventana. Cuenta, permisos, historial y actividad tienen opciones desplegables.
 
 El botón del editor envía la selección o el documento actual, incluido su borrador;
 el de Biblioteca añade la ficha. El documento debe pertenecer al alcance de la

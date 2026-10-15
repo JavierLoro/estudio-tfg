@@ -8,7 +8,7 @@ import { copyTemplate } from '../../scripts/memoria-template.mjs';
 const repo = path.resolve(import.meta.dirname, '../..');
 const require = createRequire(new URL('../../desktop/package.json', import.meta.url));
 test.skip(!process.env.E2E_DESKTOP, 'Activa E2E_DESKTOP=1 y prepara Electron, bundle y web');
-test('el asistente revisa varios archivos, aplica, deshace y recupera la conversación local @desktop', async ({}, info) => {
+test('el asistente flotante conserva posición y borrador, revisa cambios y recupera la conversación @desktop', async ({}, info) => {
   const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'estudio-tfg-asistente-e2e-')));
   const notes = path.join(root, 'Notas'), memoria = path.join(root, 'Memoria'), data = path.join(root, 'data');
   await fs.mkdir(notes); copyTemplate(memoria, { perfil: 'generico' });
@@ -20,9 +20,36 @@ test('el asistente revisa varios archivos, aplica, deshace y recupera la convers
   const launch = () => _electron.launch({ executablePath: require('electron'), args: ['--use-mock-keychain', path.join(repo, 'test/e2e/assistant-fixture.mjs')], env });
   try {
     electron = await launch(); let page = await electron.firstWindow();
+    const editor = page.locator('.cm-editor').first(); await expect(editor).toBeVisible();
+    const editorWidth = (await editor.boundingBox()).width;
     await page.getByRole('button', { name: 'Asistente', exact: true }).click();
+    const floating = page.getByRole('dialog', { name: 'Asistente', exact: true });
+    await expect(floating).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Asistente', exact: true })).toBeVisible();
     await page.getByRole('dialog', { name: 'Estás usando tu plan de ChatGPT' }).getByRole('button', { name: 'Entendido' }).click();
+    expect((await editor.boundingBox()).width).toBe(editorWidth);
+    expect((await floating.boundingBox()).width).toBeLessThanOrEqual(380);
+    const before = await floating.boundingBox(), handle = floating.getByRole('button', { name: 'Mover asistente', exact: true });
+    const grip = await handle.boundingBox();
+    await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2); await page.mouse.down();
+    await page.mouse.move(grip.x + grip.width / 2 - 180, grip.y + grip.height / 2 - 80, { steps: 6 }); await page.mouse.up();
+    const moved = await floating.boundingBox(); expect(Math.abs(moved.x - before.x + 180)).toBeLessThan(2); expect(Math.abs(moved.y - before.y + 80)).toBeLessThan(2);
+    await handle.focus(); await handle.press('ArrowRight');
+    expect((await floating.boundingBox()).x).toBe(moved.x + 10);
+    await page.getByRole('textbox', { name: 'Mensaje al asistente' }).fill('Borrador ficticio conservado');
+    await floating.getByRole('button', { name: 'Minimizar asistente' }).click();
+    expect((await floating.boundingBox()).height).toBeLessThan(50);
+    await expect(page.getByRole('textbox', { name: 'Mensaje al asistente' })).not.toBeVisible();
+    await floating.getByRole('button', { name: 'Restaurar asistente' }).click();
+    await expect(page.getByRole('textbox', { name: 'Mensaje al asistente' })).toHaveValue('Borrador ficticio conservado');
+    await floating.getByRole('button', { name: 'Cerrar asistente' }).click(); await expect(floating).not.toBeVisible();
+    await page.getByRole('button', { name: 'Asistente', exact: true }).click();
+    await expect(page.getByRole('textbox', { name: 'Mensaje al asistente' })).toHaveValue('Borrador ficticio conservado');
+    expect((await floating.boundingBox()).x).toBe(moved.x + 10);
+    await editor.locator('.cm-content').click(); await expect(editor.locator('.cm-content')).toBeFocused();
+    await page.getByRole('button', { name: 'Inicio', exact: true }).click(); await expect(floating).toBeVisible();
+    await page.getByRole('button', { name: 'Memoria', exact: true }).click(); await expect(floating).toBeVisible();
+    await page.getByText('Permisos y modelo', { exact: true }).click();
     await page.getByRole('checkbox', { name: 'Todas las notas (la Biblioteca se autoriza aparte)', exact: true }).check();
     await page.getByRole('textbox', { name: 'Mensaje al asistente' }).fill('Revisa las notas nf1-prueba y prepara cambios coordinados.');
     await page.getByRole('button', { name: 'Enviar', exact: true }).click();
@@ -34,7 +61,8 @@ test('el asistente revisa varios archivos, aplica, deshace y recupera la convers
     await dialog.getByRole('button', { name: 'Aplicar y guardar', exact: true }).click();
     await expect(dialog).not.toBeVisible();
     for (const file of files) expect(await fs.readFile(path.join(notes, file), 'utf8')).toContain('Texto revisado por el asistente de pruebas.');
-    await info.attach('asistente-ficticio.png', { body: await page.screenshot(), contentType: 'image/png' });
+    const screenshot = info.outputPath('asistente-ficticio.png'); await page.screenshot({ path: screenshot });
+    await info.attach('asistente-ficticio.png', { path: screenshot, contentType: 'image/png' });
     await page.getByRole('button', { name: 'Revisar y deshacer', exact: true }).click();
     dialog = page.getByRole('dialog', { name: 'Revisar y deshacer cambios' });
     await dialog.getByRole('button', { name: 'Deshacer conjunto', exact: true }).click();
@@ -42,9 +70,15 @@ test('el asistente revisa varios archivos, aplica, deshace y recupera la convers
     for (const file of files) expect(await fs.readFile(path.join(notes, file), 'utf8')).toBe('# Nota ficticia inicial\n');
     await electron.close(); electron = await launch(); page = await electron.firstWindow();
     await page.getByRole('button', { name: 'Asistente', exact: true }).click();
+    const restored = page.getByRole('dialog', { name: 'Asistente', exact: true });
+    await expect(restored).toBeVisible();
+    expect((await restored.boundingBox()).x).toBe(moved.x + 10);
+    await page.getByText(/^Conversaciones guardadas \(/).click();
     const saved = page.getByRole('combobox', { name: 'Conversaciones guardadas' }); await expect(saved).toBeVisible();
     await saved.selectOption({ label: 'Revisa las notas nf1-prueba y prepara cambios coordinados.' });
     await expect(page.getByText('He preparado una propuesta para revisar.', { exact: false })).toBeVisible();
     await expect(page.getByRole('region', { name: 'Panel del asistente' }).getByRole('alert')).toHaveCount(0);
+    await electron.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(900, 640));
+    await expect.poll(async () => { const box = await restored.boundingBox(); return box.x + box.width <= await page.evaluate(() => innerWidth) && box.y + box.height <= await page.evaluate(() => innerHeight); }).toBe(true);
   } finally { await electron?.close(); await fs.rm(root, { recursive: true, force: true }); }
 });

@@ -957,8 +957,8 @@ Ideas añadidas el 12-10-2026. NF1 se concreta y autoriza el 15-10-2026; las res
 
 #### NF1.2 · Fuentes autorizadas e historial local — #78
 
-- **Entrega**: panel Asistente, contexto desde editores/fichas, permisos separados de memoria, biblioteca y carpetas de notas; herramientas de búsqueda y lectura con validación de rutas. PDF e imágenes en línea, actividad, detener y recuperación del historial local. Límites: 100 000 caracteres, 20 MiB de adjuntos, ocho rondas y 24 herramientas por turno.
-- **Aceptación y verificación**: fuentes fuera de alcance bloqueadas, incluidas rutas mediante enlaces; aislamiento de cuentas/proyectos, fallos de respuesta y límites cubiertos con fixtures. Prueba nativa en Electron y reinicio con historial conservado.
+- **Entrega**: ventana Asistente flotante, compacta y no modal, arrastrable y minimizable con posición recordada; opciones desplegables, contexto desde editores/fichas, permisos separados de memoria, biblioteca y carpetas de notas; herramientas de búsqueda y lectura con validación de rutas. PDF e imágenes en línea, actividad, detener y recuperación del historial local. Límites: 100 000 caracteres, 20 MiB de adjuntos, ocho rondas y 24 herramientas por turno.
+- **Aceptación y verificación**: fuentes fuera de alcance bloqueadas, incluidas rutas mediante enlaces; aislamiento de cuentas/proyectos, fallos de respuesta y límites cubiertos con fixtures. Prueba nativa en Electron: arrastre, movimiento por teclado, minimizar/cerrar sin perder borrador, ajuste a la ventana y reinicio con posición e historial conservados.
 - **Archivos**: `server/src/assistant*.ts`, búsqueda, API/estado/paneles web y fixtures E2E. **Depende de**: NF1.1.
 
 #### NF1.3 · Propuestas revisables y recuperación — #79

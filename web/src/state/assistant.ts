@@ -13,7 +13,8 @@ export function assistantRequest<T>(url: string, body?: unknown, method = body =
 }
 export const useAssistant = create<{
   account: ChatGPTAccountView | null; context: AssistantContext[]; thread: AssistantThread | null; draft: string;
-}>(() => ({ account: null, context: [], thread: null, draft: '' }));
+  opened: boolean; visible: boolean; minimized: boolean;
+}>(() => ({ account: null, context: [], thread: null, draft: '', opened: false, visible: false, minimized: false }));
 export async function refreshAssistantAccount() {
   const account = await assistantRequest<ChatGPTAccountView>('/account');
   const old = useAssistant.getState().account;
