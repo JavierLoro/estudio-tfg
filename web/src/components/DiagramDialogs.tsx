@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Workflow } from 'lucide-react';
 import type { OutlineItem } from '../api';
 import { DIAGRAM_TEMPLATES } from '../lib/diagramTemplates';
 import { basename, docKey } from '../lib/paths';
@@ -17,6 +16,7 @@ import {
 import { outlineLabel, useOutline, walkOutline } from '../state/outline';
 import { ensureDoc, useDocs } from '../state/docs';
 import { Button, Modal, cx } from './ui';
+import { DiagramTemplatePicker } from './DiagramTemplatePicker';
 
 const input = 'h-8 w-full rounded-md border border-line-strong bg-bg px-2 text-[13px] outline-none focus:border-accent';
 
@@ -70,8 +70,8 @@ export function NewDiagramDialog() {
       >
         <label className="flex flex-col gap-1 text-[12px] text-muted">
           Nombre
-          <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="arquitectura-general" className={input} />
-          <span className="text-[11px] text-faint">
+          <input autoFocus aria-label="Nombre" aria-describedby="et-diagram-name-help" value={name} onChange={(e) => setName(e.target.value)} placeholder="arquitectura-general" className={input} />
+          <span id="et-diagram-name-help" className="text-[11px] text-faint">
             {full ? (
               <>
                 Se crea <span className="font-mono">{`${DIAGRAMAS_DIR}/${full}.mmd`}</span> y se exporta a{' '}
@@ -87,34 +87,7 @@ export function NewDiagramDialog() {
             Se copia el bloque de la nota: la nota y el diagrama quedan independientes.
           </p>
         ) : (
-          <fieldset className="flex flex-col gap-1">
-            <legend className="mb-1 text-[12px] text-muted">Plantilla</legend>
-            <div className="grid grid-cols-2 gap-1.5" role="radiogroup" aria-label="Plantilla">
-              {DIAGRAM_TEMPLATES.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={tpl === t.id}
-                  onClick={() => setTpl(t.id)}
-                  onDoubleClick={() => {
-                    setTpl(t.id);
-                    void submit();
-                  }}
-                  className={cx(
-                    'flex items-start gap-2 rounded-md border px-2 py-1.5 text-left',
-                    tpl === t.id ? 'border-accent bg-active' : 'border-line hover:bg-hover',
-                  )}
-                >
-                  <Workflow size={14} className={cx('mt-0.5 shrink-0', tpl === t.id ? 'text-accent' : 'text-muted')} />
-                  <span className="min-w-0">
-                    <span className="block text-[12.5px] font-medium">{t.label}</span>
-                    <span className="block text-[11px] text-faint">{t.description}</span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          </fieldset>
+          <DiagramTemplatePicker value={tpl} onChange={setTpl} />
         )}
       </form>
     </Modal>

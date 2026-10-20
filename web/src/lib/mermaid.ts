@@ -34,6 +34,6 @@ export function withMermaid<T>(config: MermaidConfig, fn: (m: Mermaid) => Promis
 }
 
 /** Dibuja con la configuración de las notas. */
-export function renderAppMermaid(id: string, code: string) {
-  return withMermaid(appMermaidConfig(), (m) => m.render(id, code));
+export function renderAppMermaid(id: string, code: string, container?: Element) {
+  return withMermaid(appMermaidConfig(), (m) => m.render(id, code, container));
 }

@@ -5,7 +5,7 @@ app de escritorio.** Distribuir **TeX Live reducido privado de la app**, con una
 versión completa offline y otra ligera online. Docker y TeX instalado por el
 usuario siguen como alternativas. TeX Live 2026 ya compila ambos perfiles sin
 avisos; sus requisitos y validación nativa macOS/Linux están en
-[README](../README.md#instalar-tex-para-la-plantilla).
+[guía técnica](README.md#instalar-tex-para-la-plantilla).
 
 Tectonic puede revisarse como motor opcional más adelante. Esta evaluación no
 añade un adaptador, cambia ajustes ni modifica `templates/`. Los experimentos

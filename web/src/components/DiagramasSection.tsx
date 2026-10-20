@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { sideHint } from '../lib/shortcuts';
 import { openActions } from './OpenActions';
-import { Ellipsis, Plus, RefreshCw, Workflow, X } from 'lucide-react';
+import { Ellipsis, PanelLeftClose, Plus, RefreshCw, Workflow, X } from 'lucide-react';
 import type { DiagramaItem } from '../api';
 import { basename } from '../lib/paths';
 import {
@@ -18,6 +18,7 @@ import {
 import { openFile, panelIdFor, useActivePanel } from '../state/workspace';
 import { openContextMenu, type MenuItem } from './ContextMenu';
 import { Button, Empty, IconButton, Spinner, cx } from './ui';
+import { useUI } from '../state/ui';
 
 const ESTADO: Record<DiagramaItem['estado'], { label: string; cls: string; title: string }> = {
   exportado: { label: 'Exportada', cls: 'text-ok', title: 'La figura de la memoria está al día' },
@@ -26,10 +27,11 @@ const ESTADO: Record<DiagramaItem['estado'], { label: string; cls: string; title
 };
 
 export function DiagramasSection() {
+  const multiview = useUI(s => s.multiview);
   const items = useDiagramas((s) => s.items);
   const error = useDiagramas((s) => s.error);
   const [filter, setFilter] = useState('');
-  const activeId = useActivePanel((s) => s.id);
+  const activeId = useActivePanel((s) => s.ids.diagramas);
 
   useEffect(() => {
     void useDiagramas.getState().refresh();
@@ -70,6 +72,7 @@ export function DiagramasSection() {
     <>
       <div className="flex h-8 shrink-0 items-center gap-0.5 pr-1.5 pl-3">
         <h2 className="flex-1 text-[11px] font-semibold tracking-wider text-muted uppercase">Diagramas</h2>
+        {!multiview && <IconButton label="Ocultar panel lateral" onClick={() => useUI.getState().toggleSidebar()}><PanelLeftClose size={13} /></IconButton>}
         <IconButton label="Nuevo diagrama" onClick={() => openNewDiagram('')}>
           <Plus size={14} />
         </IconButton>

@@ -6,18 +6,36 @@ disponibles sin conectar una cuenta y sin conexión a Internet.
 
 ## Conectar y consultar
 
-1. Abre **Asistente** en la barra lateral. Aparece como una ventana flotante
+1. Abre **Asistente** en la navegación superior. Aparece como una ventana flotante
    compacta, sin reducir el editor ni el PDF. También puedes conectar la cuenta
-   desde la sección ChatGPT de Ajustes.
+   desde su icono **Cuenta del asistente** o **Ajustes → Asistente**.
 2. Pulsa **Continuar con ChatGPT** y autoriza la app en el navegador del sistema.
+   Si aún no hay cuenta, el botón **Conectar cuenta** del chat abre ese diálogo.
    Necesitas una cuenta elegible y permiso para usar su plan. No introduzcas una
    clave API ni copies las credenciales de Codex u otras aplicaciones.
-3. En una conversación nueva, despliega **Permisos y modelo** para elegir el modelo
-   y autorizar las fuentes: memoria,
-   biblioteca con adjuntos y carpetas de notas relativas al vault. Todas empiezan
-   desmarcadas; una lista vacía permite conversar sin documentos.
-4. Envía tu petición. El agente puede buscar y consultar dentro de ese alcance;
-   su actividad y los enlaces a las fuentes aparecen en desplegables. Puedes detenerlo.
+   Tras conectar y autorizar el plan, la ventana recomienda revisar los permisos.
+   **Configurar permisos** abre directamente **Ajustes → Asistente** y cierra el
+   diálogo de cuenta. Puedes continuar sin autorizar documentos; ninguna casilla
+   se activa por conectar. La recomendación también aparece al volver a abrir la cuenta.
+3. La rueda **Ajustes del asistente** abre **Ajustes → Asistente**. Allí puedes
+   autorizar memoria, diagramas, fichas de Biblioteca y carpetas de notas relativas al
+   vault para conversaciones nuevas. También puedes elegir archivos concretos entre
+   los documentos abiertos en la app. PDF/imágenes y **Preparar cambios** tienen
+   casillas independientes: consultar una fuente no permite modificarla. Todas
+   empiezan desmarcadas; una lista vacía
+   permite conversar sin documentos. Se aplican al seleccionarlas y se conservan
+   durante la sesión, aisladas por cuenta y proyecto; no cambian los permisos de
+   conversaciones existentes. Elige el modelo en el selector junto a **Enviar**.
+4. Puedes escribir libremente o elegir una acción del documento activo: explicar,
+   resumir o revisar. La acción prepara un mensaje editable y adjunta el contexto;
+   no lo envía. Si falta acceso, **Autorizar documentos adjuntos** permite concederlo
+   solo a esos archivos y, opcionalmente, preparar propuestas. Mantiene el borrador
+   y prepara un chat nuevo sin ampliar el anterior ni tus permisos generales.
+   Autorizar no consulta nada: pulsa **Enviar** cuando quieras enviarlo a OpenAI.
+   Una selección necesita permiso para consultar el archivo completo; el diálogo lo indica.
+5. El agente puede buscar y consultar dentro de ese alcance. Las respuestas tienen
+   formato, **Copiar** y fuentes pulsables con el nombre del archivo. Puedes abrir
+   su actividad o detenerlo. Las imágenes remotas y HTML de una respuesta no se cargan.
 
 Arrastra la cabecera para situar la ventana; el botón **Mover asistente** también
 admite flechas (Mayús para pasos mayores). La posición se recuerda y se ajusta al
@@ -25,27 +43,64 @@ reducir la ventana de la app. **Minimizar** deja solo la cabecera; **Cerrar** oc
 el asistente. Ambos conservan la conversación y el mensaje pendiente durante esa
 sesión y permiten seguir trabajando en Inicio, Biblioteca o el editor. Para parar
 una consulta usa **Detener**. Al reabrir desde la barra o el editor se restaura la
-ventana. Cuenta, permisos, historial y actividad tienen opciones desplegables.
+ventana. La cuenta se abre desde su icono de la cabecera; los permisos están en
+Ajustes. Historial y actividad conservan sus desplegables.
+
+La esquina **Cambiar tamaño del asistente** permite ajustar ancho y alto arrastrando
+o con flechas al enfocarla; Mayús aumenta el paso e Inicio restaura el tamaño original.
+El tamaño se recuerda y se limita al espacio disponible.
+
+## Menú contextual
+
+Haz clic derecho sobre el texto o usa **Mayús+F10** en el editor o una zona de lectura
+enfocada. El menú cambia si hay selección y si estás en Notas, Memoria o código Mermaid.
+Incluye edición habitual y, en escritorio, explicar, resumir o mejorar redacción.
+Las acciones del asistente preparan el mensaje y adjuntan su contexto; conserva tu
+borrador anterior y no consulta nada hasta que pulses **Enviar**. La selección aún
+requiere autorizar el archivo completo, tal como indica el diálogo de permisos.
+
+En diagramas, el clic derecho sobre un bloque ofrece sus propiedades, texto,
+conexión y borrado recuperable; una conexión ofrece etiqueta y borrado, y el fondo
+permite añadir elementos. Usa Mayús+F10 con un elemento seleccionado para el mismo
+menú. Las acciones del asistente indican qué bloque o conexión quieres consultar
+y adjuntan el Mermaid del diagrama; todavía no permiten modificarlo mediante IA.
 
 El botón del editor envía la selección o el documento actual, incluido su borrador;
 el de Biblioteca añade la ficha. El documento debe pertenecer al alcance de la
-conversación. Para ampliar permisos o cambiar de modelo, inicia otra conversación.
+conversación. Si no lo está, la autorización contextual conserva mensaje y adjuntos.
+Para cambiar de modelo, inicia otra conversación. En Ajustes, **Esta conversación**
+muestra el alcance efectivo y **Próximas conversaciones** conserva las preferencias
+generales; puedes elegir carpetas sin escribir rutas o introducirlas manualmente.
+
+En **Ajustes → Asistente → Esta conversación**, **Retirar acceso de esta
+conversación** detiene la consulta y bloquea nuevos mensajes y aplicación de
+propuestas. No elimina el historial local ni retira contenido ya enviado a OpenAI.
+La retirada es definitiva para ese chat; inicia otro con los permisos que elijas.
+Los cambios guardados pueden seguir revisándose y deshaciéndose localmente.
 
 La búsqueda usa nombres, texto y metadatos existentes; no indexa semánticamente
 todos los PDF. El agente puede consultar los PDF e imágenes que encuentre en las
-fuentes autorizadas. Admite PDF, PNG, JPEG y WebP con un modelo compatible. No sigue
+fuentes autorizadas solo con el permiso independiente de adjuntos. Admite PDF,
+PNG, JPEG y WebP con un modelo compatible. No sigue
 enlaces web ni ejecuta comandos. Los documentos se tratan como datos, no como
 instrucciones que puedan ampliar los permisos.
 
 ## Revisar y guardar cambios
 
-El agente prepara propuestas de archivos existentes: `.tex` de la memoria,
+Con **Preparar cambios** concedido, el agente prepara propuestas de archivos existentes: `.tex` de la memoria,
 notas `.md` fuera de Biblioteca y `.bib` manuales. Excluye `estilo/`, `figuras/`,
 `biblioteca/`, configuración y archivos ocultos. Las referencias nuevas se añaden
 por Biblioteca; no se inventan claves ni se modifica su bibliografía generada.
 
+Las conversaciones anteriores a esta separación quedan disponibles para consultar
+el historial y deshacer cambios guardados. Para enviar otro mensaje o preparar/
+aplicar propuestas, inicia una conversación nueva y elige los permisos actuales.
+Así no se reenvían adjuntos del historial con permisos incompletos; las copias
+locales y la recuperación de lo ya aplicado se conservan.
+
 Guarda expresamente los borradores afectados antes de preparar el lote. **Revisar
-cambios** muestra cada versión anterior y propuesta; elige los archivos y confirma
+cambios** destaca el fragmento sustituido y permite desplegar los archivos completos.
+Los cambios dispersos pueden agruparse en un bloque. Elige los archivos y confirma
 **Aplicar y guardar**. Preparar una propuesta no modifica documentos. Si alguno
 cambió desde la consulta, se conserva la propuesta y se informa del conflicto sin
 pisar la versión nueva.

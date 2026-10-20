@@ -34,6 +34,7 @@ for (const folder of ['desktop', 'scripts', 'worker']) {
 }
 for (const folder of ['server/dist', 'web/dist', 'templates']) await fs.cp(path.join(repo, folder), path.join(runtime, folder), { recursive: true });
 await fs.copyFile(path.join(repo, 'LICENSE'), path.join(runtime, 'LICENSE'));
+await fs.cp(path.join(repo, 'desktop/icons'), path.join(runtime, 'desktop/icons'), { recursive: true });
 await command(process.execPath, ['--input-type=module', '-e', 'import {pathToFileURL} from "node:url"; const file=process.argv[1]; delete process.argv[1]; await import(pathToFileURL(file).href);', path.join(runtime, 'server/dist/server.mjs')], runtime);
 const manifest = JSON.parse(await fs.readFile(path.join(assets, `engine-${platform}.json`), 'utf8'));
 await writeCredits({ repo, runtime, assets, manifest, source: `https://github.com/JavierLoro/estudio-tfg/tree/${releaseTag}` });

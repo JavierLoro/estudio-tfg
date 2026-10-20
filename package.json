@@ -13,6 +13,7 @@
     "test:e2e": "npm test --prefix test/e2e --",
     "template:manifest": "node scripts/template-manifest.mjs",
     "desktop:tex": "node scripts/desktop-tex.mjs",
+    "desktop:dev": "node scripts/desktop-dev.mjs",
     "desktop:build": "node scripts/desktop-build.mjs",
     "desktop:verify": "node scripts/desktop-verify.mjs"
   }

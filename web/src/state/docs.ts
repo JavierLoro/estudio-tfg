@@ -15,10 +15,16 @@ export interface Conflict {
   source: 'save' | 'external';
 }
 
+export interface DiagramFormDraft {
+  code: string;
+  values: Record<string, string>;
+}
+
 export interface Draft {
   content: string;
   baseRev: string;
   savedAt: number;
+  form?: DiagramFormDraft;
 }
 
 export interface Doc {
@@ -38,6 +44,10 @@ export interface Doc {
   deleted: boolean;
   /** Borrador local distinto del disco, ofrecido al abrir. */
   draftOffer: Draft | null;
+  /** Campos del formulario aún sin aplicar a la fuente. */
+  formDraft?: DiagramFormDraft | null;
+  /** Candidato visual que aún se está validando; solo se conserva como borrador. */
+  pendingVisual?: string | null;
   /** Se incrementa cuando el contenido se reemplaza desde fuera del editor. */
   extVersion: number;
   lastSavedAt?: number;
@@ -46,7 +56,7 @@ export interface Doc {
 export type DocIndicator = 'guardado' | 'sin guardar' | 'conflicto' | 'guardando' | 'cargando' | 'error';
 
 export function isDirty(d: Doc | undefined): boolean {
-  return !!d && d.status === 'ready' && (d.content !== d.savedContent || d.deleted);
+  return !!d && d.status === 'ready' && (d.content !== d.savedContent || d.deleted || !!d.formDraft || d.pendingVisual != null);
 }
 
 export function indicatorOf(d: Doc | undefined): DocIndicator {
@@ -83,11 +93,11 @@ function writeDraftNow(key: string) {
   draftTimers.delete(key);
   const d = get().docs[key];
   if (!d || d.status !== 'ready') return;
-  if (d.content === d.savedContent && !d.deleted) {
+  if (d.content === d.savedContent && !d.deleted && !d.formDraft && d.pendingVisual == null) {
     remove(draftKey(key));
     return;
   }
-  const ok = save(draftKey(key), { content: d.content, baseRev: d.rev, savedAt: Date.now() } satisfies Draft);
+  const ok = save(draftKey(key), { content: d.pendingVisual ?? d.content, baseRev: d.rev, savedAt: Date.now(), ...(d.formDraft ? { form: d.formDraft } : {}) } satisfies Draft);
   if (!ok) console.warn('No se pudo guardar el borrador local de', key);
 }
 
@@ -106,7 +116,11 @@ export function flushDrafts() {
 }
 
 export function readDraft(root: Root, path: string): Draft | null {
-  return load<Draft | null>(draftKey(docKey(root, path)), null);
+  const draft = load<Draft | null>(draftKey(docKey(root, path)), null);
+  if (!draft || typeof draft.content !== 'string' || typeof draft.baseRev !== 'string' || !Number.isFinite(draft.savedAt)) return null;
+  if (draft.form && (typeof draft.form.code !== 'string' || !draft.form.values || typeof draft.form.values !== 'object'
+    || Array.isArray(draft.form.values) || !Object.values(draft.form.values).every(value => typeof value === 'string'))) return null;
+  return draft;
 }
 
 // ---- Carga ----
@@ -141,14 +155,14 @@ export function loadDoc(root: Root, path: string): Promise<void> {
       const draft = readDraft(root, path);
       let draftOffer: Draft | null = null;
       if (draft) {
-        if (draft.content === f.content) remove(draftKey(key));
+        if (draft.content === f.content && !draft.form) remove(draftKey(key));
         else draftOffer = draft;
       }
       const cur = get().docs[key];
       if (!cur) return;
       patch(key, {
         status: 'ready', error: undefined, content: f.content, savedContent: f.content, rev: f.rev, mtime: f.mtime,
-        draftOffer, deleted: false, extVersion: cur.extVersion + 1,
+        draftOffer, formDraft: null, pendingVisual: null, deleted: false, extVersion: cur.extVersion + 1,
       });
     } catch (e) {
       patch(key, { status: 'error', error: e instanceof ApiError && e.status === 404 ? 'El archivo no existe' : errorMessage(e) });
@@ -164,8 +178,8 @@ export function loadDoc(root: Root, path: string): Promise<void> {
 export function releaseDoc(key: string) {
   const d = get().docs[key];
   if (!d) return;
+  flushDrafts();
   if (isDirty(d)) {
-    flushDrafts();
     writeDraftNow(key);
     toast({ kind: 'warn', text: `«${d.path}» tenía cambios sin guardar: se conserva el borrador y se ofrecerá al reabrirlo.` });
   }
@@ -244,6 +258,20 @@ export function setContent(key: string, content: string) {
   scheduleDraft(key);
 }
 
+export function setFormDraft(key: string, formDraft: DiagramFormDraft | null) {
+  const d = get().docs[key];
+  if (!d || d.status !== 'ready' || d.formDraft === formDraft || (!d.formDraft && !formDraft)) return;
+  patch(key, { formDraft });
+  scheduleDraft(key);
+}
+
+export function setPendingVisual(key: string, pendingVisual: string | null) {
+  const d = get().docs[key];
+  if (!d || d.status !== 'ready' || (d.pendingVisual ?? null) === pendingVisual) return;
+  patch(key, { pendingVisual });
+  scheduleDraft(key);
+}
+
 /** Reemplaza el contenido desde fuera del editor (el editor se sincroniza con extVersion). */
 function replaceContent(key: string, p: Partial<Doc> & { content: string }) {
   const d = get().docs[key];
@@ -266,7 +294,7 @@ export function editContent(key: string, content: string): boolean {
 export function restoreDraft(key: string) {
   const d = get().docs[key];
   if (!d?.draftOffer) return;
-  replaceContent(key, { content: d.draftOffer.content, draftOffer: null });
+  replaceContent(key, { content: d.draftOffer.content, formDraft: d.draftOffer.form ?? null, draftOffer: null });
 }
 
 export function discardDraft(key: string) {
@@ -283,6 +311,14 @@ export function requestReveal(key: string, line: number) {
 export async function saveDoc(key: string, opts: { quiet?: boolean } = {}): Promise<boolean> {
   const d = get().docs[key];
   if (!d || d.status !== 'ready' || d.saving) return false;
+  if (d.pendingVisual != null) {
+    if (!opts.quiet) toast({ kind: 'info', text: 'Espera a que termine la validación del cambio del diagrama antes de guardar.' });
+    return false;
+  }
+  if (d.formDraft) {
+    if (!opts.quiet) toast({ kind: 'warn', text: 'Aplica o descarta los campos pendientes del diagrama antes de guardar.' });
+    return false;
+  }
   if (!isDirty(d) && !d.conflict) return true;
   const sent = d.content;
   patch(key, { saving: true });
@@ -367,7 +403,7 @@ export async function handleExternalChange(ev: ChangeEvent) {
   const cur = get().docs[key];
   if (!cur || cur.saving) return;
   if (f.rev === cur.rev && !cur.deleted) return; // nada nuevo (p. ej. nuestro guardado)
-  if (!isDirty(cur) || f.content === cur.content) {
+  if (!isDirty(cur) || (cur.formDraft && cur.content === cur.savedContent && !cur.deleted) || f.content === cur.content) {
     // Limpio (o idéntico): recarga silenciosa.
     replaceContent(key, { content: f.content, savedContent: f.content, rev: f.rev, mtime: f.mtime, deleted: false, conflict: null });
     return;

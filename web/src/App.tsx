@@ -1,4 +1,5 @@
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { X } from 'lucide-react';
 import { matchesShortcut } from './lib/shortcuts';
 import { registerTokenPrompt, type Status } from './api';
 import { CaptureQueueDialog } from './components/CaptureQueueDialog';
@@ -10,12 +11,11 @@ import { MoveDialog } from './components/MoveDialog';
 import { InsertFigureDialog, NewDiagramDialog } from './components/DiagramDialogs';
 import { PromptDialog } from './components/PromptDialog';
 import { QuickOpen } from './components/QuickOpen';
-import { Rail } from './components/Rail';
-import { Sidebar } from './components/Sidebar';
+import { Spaces } from './components/Spaces';
 import { Toasts } from './components/Toasts';
-import { Workspace } from './components/Workspace';
 import { HomePanel } from './panels/HomePanel';
-import { Banner, Button, Spinner } from './components/ui';
+import { Banner, Button, IconButton, Spinner } from './components/ui';
+import { load, save } from './lib/storage';
 import { docKey } from './lib/paths';
 import { initCaptureQueue } from './state/captureQueue';
 import { useCompile } from './state/compile';
@@ -26,9 +26,9 @@ import { initInstance, useSettings, watchSettingsTransitions } from './state/set
 import { useUI } from './state/ui';
 import { activeFile } from './state/workspace';
 import { useAssistant } from './state/assistant';
-const BibliotecaPanel = lazy(() => import('./panels/BibliotecaPanel'));
 const DesktopSetup = lazy(() => import('./components/DesktopSetup'));
 const AssistantWindow = lazy(() => import('./components/AssistantWindow'));
+const SettingsWindow = lazy(() => import('./components/SettingsWindow'));
 
 function useBoot() {
   useEffect(() => {
@@ -87,7 +87,8 @@ function useGlobalKeys() {
       } else if (matchesShortcut(e, 'save')) {
         // Mod-S fuera del editor (p. ej. nota en modo lectura): guardar el archivo activo.
         e.preventDefault();
-        if (useUI.getState().libraryView) return;
+        if (useUI.getState().section === 'resources' && useUI.getState().libraryView) return;
+        (document.activeElement as HTMLElement | null)?.blur?.();
         const f = activeFile();
         if (f) void saveDoc(docKey(f.root, f.path));
       } else if (matchesShortcut(e, 'sidebar')) {
@@ -104,14 +105,18 @@ function useGlobalKeys() {
 
 function useUnloadGuard() {
   useEffect(() => {
-    const onBefore = (e: BeforeUnloadEvent) => {
+    const persist = () => {
+      (document.activeElement as HTMLElement | null)?.blur?.();
       flushDrafts();
+    };
+    const onBefore = (e: BeforeUnloadEvent) => {
+      persist();
       if (anyDirty()) {
         e.preventDefault();
         e.returnValue = '';
       }
     };
-    const onHide = () => flushDrafts();
+    const onHide = persist;
     const onVis = () => document.visibilityState === 'hidden' && flushDrafts();
     window.addEventListener('beforeunload', onBefore);
     window.addEventListener('pagehide', onHide);
@@ -152,51 +157,40 @@ export function App() {
   useGlobalKeys();
   useUnloadGuard();
   useDragGuard();
-  const sidebarOpen = useUI((s) => s.sidebarOpen);
   const homeView = useUI((s) => s.homeView);
-  const libraryView = useUI((s) => s.libraryView);
   const ready = useSettings((s) => s.ready);
   const statusError = useUI((s) => s.statusError);
   const motor = useUI((s) => s.status?.motor);
+  const instance = useUI(s => s.status?.instanceId);
+  const noticeKey = `et:tex-notice:${instance ?? 'legacy'}:${motor?.seleccion ?? motor?.tipo ?? 'local'}`;
+  const [dismissedNotice, setDismissedNotice] = useState<string | null>(null);
   const assistantOpened = useAssistant(s => s.opened);
+  const settingsOpened = useUI(s => s.settingsOpened);
   return (
-    <div className="flex h-full flex-col">
+    <div className="et-app flex h-full flex-col">
       <Header />
-      {(motor?.seleccion === 'local' || motor?.seleccion === 'auto' || motor?.tipo === 'local') && (
-        <Banner kind="warn">
+      {(motor?.seleccion === 'local' || motor?.seleccion === 'auto' || motor?.tipo === 'local') && dismissedNotice !== noticeKey && load<boolean>(noticeKey, false) !== true && (
+        <Banner kind="warn" actions={<IconButton label="Cerrar aviso de TeX" onClick={() => { save(noticeKey, true); setDismissedNotice(noticeKey); }}><X size={14} /></IconButton>}>
           {motor?.seleccion === 'auto' && 'El modo Automático puede usar TeX del sistema si Docker no responde. '}
           TeX del sistema ejecuta herramientas con los permisos del usuario y no es un sandbox. Compila solo fuentes de confianza.
         </Banner>
       )}
       <div className="flex min-h-0 flex-1">
-        <Rail />
-        {sidebarOpen && !homeView && !libraryView && <Sidebar />}
-        {libraryView && ready && <main className="min-w-0 flex-1 overflow-hidden" aria-label="Biblioteca"><Suspense fallback={<div className="p-6"><Spinner/></div>}><BibliotecaPanel/></Suspense></main>}
         {homeView && ready && (
           <main className="min-w-0 flex-1 overflow-hidden bg-soft" aria-label="Inicio">
             <HomePanel />
           </main>
         )}
-        <main className={(homeView || libraryView) && ready ? 'hidden' : 'flex min-w-0 flex-1'} aria-label="Área de trabajo">
-          {ready ? (
-            <Workspace />
-          ) : (
-            <div className="flex flex-1 flex-col items-center justify-center gap-2 text-[12.5px] text-muted">
-              {statusError ? (
-                <>
-                  <p className="text-danger">No se pudo contactar con el servidor: {statusError}</p>
-                  <Button onClick={() => void useUI.getState().refreshStatus()}>Reintentar</Button>
-                </>
-              ) : (
-                <p className="flex items-center gap-2">
-                  <Spinner size={12} /> Conectando con el servidor…
-                </p>
-              )}
+        {ready ? <Spaces /> : (
+          <main className="flex min-w-0 flex-1 items-center justify-center" aria-label="Área de trabajo">
+            <div className="flex flex-col items-center gap-2 text-[12.5px] text-muted">
+              {statusError ? <><p className="text-danger">No se pudo contactar con el servidor: {statusError}</p><Button onClick={() => void useUI.getState().refreshStatus()}>Reintentar</Button></> : <p className="flex items-center gap-2"><Spinner size={12} /> Conectando con el servidor…</p>}
             </div>
-          )}
-        </main>
+          </main>
+        )}
       </div>
       {ready && assistantOpened && <Suspense fallback={null}><AssistantWindow /></Suspense>}
+      {ready && settingsOpened && <Suspense fallback={null}><SettingsWindow /></Suspense>}
       <CaptureModal />
       <CaptureQueueDialog />
       <ResourceConflictDialog />

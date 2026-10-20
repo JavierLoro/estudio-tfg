@@ -1,5 +1,9 @@
 @import 'tailwindcss';
 @import 'dockview-react/dist/styles/dockview.css';
+@import '@fontsource/source-sans-3/latin-400.css';
+@import '@fontsource/source-sans-3/latin-ext-400.css';
+@import '@fontsource/source-sans-3/latin-600.css';
+@import '@fontsource/source-sans-3/latin-ext-600.css';
 
 /* ---------- Tokens de color (claro / oscuro según el sistema) ---------- */
 :root {
@@ -95,7 +99,7 @@
   --color-danger: var(--et-danger);
   --color-danger-bg: var(--et-danger-bg);
   --shadow-pop: var(--et-shadow);
-  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  --font-sans: 'Source Sans 3', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
 }
 
@@ -156,6 +160,21 @@ button:disabled {
 
 .dv-tab {
   padding: 0 !important;
+}
+
+/* Escritorio compacto: navegación con nombres, explorador y dos grupos de pestañas. */
+.et-main-nav { min-height: 49px; }
+.et-section-button { min-height: 31px; padding: 5px 11px; font-size: 12px; white-space: nowrap; }
+.et-section-button > svg { width: 16px; height: 16px; flex-shrink: 0; }
+.et-section-button[aria-pressed='true'] { font-weight: 600; }
+.et-sidebar { padding-top: 7px; }
+.et-app .dv-tabs-and-actions-container { border-bottom: 1px solid var(--et-border); }
+.et-app .dv-tab { border-top: 2px solid transparent; }
+.et-app .dv-active-group .dv-tab.dv-active-tab { border-top-color: var(--et-accent); }
+.et-app .dv-groupview { min-width: 0; }
+@media (max-width: 1000px) {
+  .et-main-nav { gap: 12px; padding-inline: 12px; }
+  .et-section-button { padding-inline: 8px; font-size: 11px; }
 }
 
 /* Mientras se arrastra un separador, los iframes no deben tragarse el ratón. */
@@ -363,3 +382,22 @@ body.et-resizing, body.et-resizing * {
 
 /* El fondo del modal lo dibuja el componente; el navegador aplica la inactividad. */
 .et-modal::backdrop { background: transparent; }
+
+/* LaTeX visual sobre el mismo documento CodeMirror, sin regenerar las fuentes. */
+.et-latex-visual .cm-content { max-width: 850px; margin: 0 auto; font-family: var(--font-sans); font-size: 16px; line-height: 1.75; padding: 24px 20px 40vh; }
+.et-latex-visual .cm-gutters { display: none; }
+.et-latex-visual .cm-line { padding: 0 4px; }
+.et-latex-visual .et-visual-heading { font-weight: 650; padding-top: 14px; line-height: 1.4; color: var(--et-fg); }
+.et-latex-visual .et-visual-h1 { font-size: 30px; }
+.et-latex-visual .et-visual-h2 { font-size: 25px; }
+.et-latex-visual .et-visual-h3 { font-size: 21px; }
+.et-latex-visual .et-visual-h4 { font-size: 18px; }
+.et-latex-visual .et-visual-bold { font-weight: 700; }
+.et-latex-visual .et-visual-italic { font-style: italic; }
+.et-latex-visual .et-visual-item { padding-left: 24px; }
+.et-latex-visual .et-visual-structure { font-size: 10px; color: var(--et-faint); }
+.et-latex-visual .et-visual-code { font-family: var(--font-mono); font-size: 12px; background: var(--et-bg-soft); border-left: 2px solid var(--et-border-strong); padding-left: 10px; }
+.et-latex-visual .et-visual-code::before { content: attr(data-label); display: block; font: 10px var(--font-sans); color: var(--et-muted); }
+.et-latex-visual .et-visual-label { color: var(--et-muted); }
+
+.et-latex-visual .et-visual-code + .et-visual-code::before { display: none; }

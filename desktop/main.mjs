@@ -7,8 +7,10 @@ import { APP_ORIGIN, isAppUrl, isExternalUrl } from './security.mjs';
 import { setupRoutes } from './setup.mjs';
 import { checkUpdates } from './updater.mjs';
 import { aboutOptions } from './about.mjs';
+import { desktopAllowedRoots } from './folders.mjs';
 import { ChatGPT } from './chatgpt.mjs';
 
+const development = !app.isPackaged && process.env.ET_DESKTOP_DEV === '1';
 app.setName('Estudio TFG');
 app.commandLine.appendSwitch('lang', 'es-ES');
 const dataDir = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : userDataDir();
@@ -18,10 +20,15 @@ app.setPath('userData', dataDir);
 app.setPath('sessionData', path.join(dataDir, 'browser'));
 const ownsInstance = app.requestSingleInstanceLock();
 let server, mainWindow, quitting = false;
+let developmentClose = false;
 const requests = new AbortController();
 
 if (!ownsInstance) app.quit();
 else {
+  if (development) process.on('message', message => {
+    if (message === 'desktop-dev:reload') mainWindow?.webContents.reload();
+    if (message === 'desktop-dev:close') { developmentClose = true; app.quit(); }
+  });
   app.on('second-instance', () => {
     if (!mainWindow || mainWindow.isDestroyed()) return;
     const focus = () => { mainWindow.show(); app.focus({ steal: true }); mainWindow.focus(); };
@@ -42,9 +49,11 @@ else {
   app.whenReady().then(async () => {
     if (process.platform === 'darwin') app.setActivationPolicy('regular');
     const root = path.resolve(import.meta.dirname, '..');
-    const packageFile = path.join(root, 'desktop', 'engine-manifest.json');
+    const icon = path.join(root, 'desktop/icons', process.platform === 'darwin' ? 'macos.png' : 'windows.png');
+    if (process.platform === 'darwin' && !app.isPackaged) app.dock.setIcon(icon);
+    const packageFile = development ? path.join(dataDir, 'engine-manifest.json') : path.join(root, 'desktop', 'engine-manifest.json');
     const manifest = existsSync(packageFile) ? JSON.parse(readFileSync(packageFile, 'utf8')) : null;
-    const archive = manifest && existsSync(path.join(root, 'desktop', 'engine.tar.gz')) ? path.join(root, 'desktop', 'engine.tar.gz') : null;
+    const archive = !development && manifest && existsSync(path.join(root, 'desktop', 'engine.tar.gz')) ? path.join(root, 'desktop', 'engine.tar.gz') : null;
     const distributionFile = path.join(root, 'desktop', 'distribution.json');
     const distribution = existsSync(distributionFile) ? JSON.parse(readFileSync(distributionFile, 'utf8')) : { variant: 'online' };
     const token = crypto.randomBytes(32).toString('hex');
@@ -52,6 +61,7 @@ else {
     try { await chatgpt.init(); }
     catch { chatgpt.storageError = true; chatgpt.error = 'No se pudo preparar el almacenamiento de ChatGPT. La app sigue disponible sin el asistente.'; }
     server = await startServer({ ...process.env, DATA_DIR: dataDir, HOST: '127.0.0.1', PORT: '0', AUTH_TOKEN: token,
+      ALLOWED_ROOTS: desktopAllowedRoots(process.env.ALLOWED_ROOTS),
       TEMPLATES_DIR: process.env.TEMPLATES_DIR || path.join(root, 'templates'),
       WEB_DIST: process.env.WEB_DIST || path.join(root, 'web/dist'),
       NOTES_DIR: process.env.NOTES_DIR || path.join(app.getPath('documents'), 'Estudio TFG', 'Notas'),
@@ -91,8 +101,9 @@ else {
       if (isExternalUrl(url)) void shell.openExternal(url).catch(error => console.error('No se pudo abrir el enlace:', error));
     };
     const createWindow = (url, parent) => {
-      const window = new BrowserWindow({ title: 'Estudio TFG', width: 1440, height: 1000, minWidth: 900, minHeight: 650,
-        parent, show: false, webPreferences: { session: ses, nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true, webviewTag: false } });
+      const window = new BrowserWindow({ title: development ? 'Estudio TFG (desarrollo)' : 'Estudio TFG', width: 1440, height: 1000, minWidth: 900, minHeight: 650,
+        parent, icon, show: false, webPreferences: { session: ses, nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true, webviewTag: false } });
+      if (development) window.on('page-title-updated', event => event.preventDefault());
       window.webContents.on('will-navigate', (event, target) => {
         if (!isAppUrl(target)) { event.preventDefault(); openExternal(target); }
       });
@@ -112,8 +123,12 @@ else {
           message: 'Hay cambios sin guardar.', detail: 'Los borradores se conservarán para el próximo arranque.',
           buttons: ['Seguir editando', 'Cerrar y conservar borradores'], defaultId: 0, cancelId: 0 });
         if (choice === 1) event.preventDefault();
+        else if (developmentClose) { developmentClose = false; process.send?.('desktop-dev:cancelled'); }
       });
-      window.once('ready-to-show', () => { window.show(); if (!parent) { app.focus({ steal: true }); window.focus(); } });
+      window.once('ready-to-show', () => {
+        window.show();
+        if (!parent) { app.focus({ steal: true }); window.focus(); if (development) process.send?.('desktop-dev:ready'); }
+      });
       void window.loadURL(url).catch(error => { console.error('No se pudo abrir la interfaz:', error); app.quit(); });
       return window;
     };

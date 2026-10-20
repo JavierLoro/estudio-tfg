@@ -14,7 +14,6 @@ type ToolName = keyof typeof COMMANDS;
 export interface LocalHealth extends EngineHealth {
   tools: Record<ToolName, { path: string | null; version: string | null }>;
   warnings: string[];
-  message?: string;
 }
 const REFERENCE = { latexmk: '4.88', biber: '2.22', pdflatex: '1.40.29' } as const;
 let cached: { key: string; until: number; health: Promise<LocalHealth> } | null = null;

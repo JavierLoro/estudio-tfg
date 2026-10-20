@@ -1,12 +1,13 @@
-import type { DockviewApi, IDockviewPanel } from 'dockview-react';
+import type { DockviewApi, IDockviewPanel, SerializedDockview } from 'dockview-react';
 import { create } from 'zustand';
 import type { Root } from '../api';
 import { basename, docKey, panelKindFor } from '../lib/paths';
 import { layoutStorageKey } from '../lib/instance';
 import { load, remove, save } from '../lib/storage';
-import { releaseDoc, requestReveal } from './docs';
-import { useUI } from './ui';
+import { flushDrafts, releaseDoc, requestReveal } from './docs';
+import { persistSpaces, useUI } from './ui';
 import { api as http } from '../api';
+import { SECTIONS, panelSection, sectionLayout, validLayout, type Section, type ViewPreset } from '../lib/spaces';
 import { addAssistantContext, useAssistant, type AssistantContext } from './assistant';
 
 // Tipos de panel y sus parámetros.
@@ -31,24 +32,35 @@ export interface OpenOptions {
   mode?: 'edit';
 }
 
-// Layout por instancia (ver lib/instance.ts).
-const layoutKey = () => layoutStorageKey();
+// Un área de pestañas por apartado; los documentos siguen en el store compartido.
+const layoutKey = (section: Section) => section === 'memoria' ? layoutStorageKey() : `${layoutStorageKey()}:${section}`;
+const docks = new Map<Section, DockviewApi>();
+const pending = new Map<Section, (() => void)[]>();
+let restoring = false;
+export const getDock = (section: Section = useUI.getState().section) => docks.get(section) ?? null;
 
-let dock: DockviewApi | null = null;
-export const getDock = () => dock;
+export function setDock(section: Section, api: DockviewApi | null) {
+  if (api) docks.set(section, api); else docks.delete(section);
+  useActivePanel.setState({ ready: docks.size > 0 });
+}
 
-export function setDock(api: DockviewApi | null) {
-  dock = api;
-  useActivePanel.setState({ ready: api !== null });
+export function flushDockOpens(section: Section) {
+  const jobs = pending.get(section) ?? [];
+  pending.delete(section);
+  for (const job of jobs) job();
+}
+
+export function setActivePanel(section: Section, id: string | null) {
+  useActivePanel.setState(s => ({ ids: { ...s.ids, [section]: id }, ...(useUI.getState().section === section ? { id } : {}) }));
 }
 
 export function panelIdFor(component: PanelComponent, path?: string) {
   return path ? `${component}:${path}` : component;
 }
 
-function position(opts: OpenOptions) {
+function position(dock: DockviewApi, opts: OpenOptions) {
   if (!dock) return undefined;
-  const group = dock.activeGroup;
+  const group = dock.activeGroup?.api.isVisible ? dock.activeGroup : dock.groups.find(g => g.api.isVisible);
   if (opts.side && group) return { referenceGroup: group, direction: 'right' as const };
   if (group) return { referenceGroup: group };
   return undefined;
@@ -61,17 +73,23 @@ function addOrFocus(
   params: object,
   opts: OpenOptions = {},
   extra: { renderer?: 'always' | 'onlyWhenVisible' } = {},
+  queued = false,
 ): IDockviewPanel | null {
-  if (!dock) return null;
-  // Abrir o enfocar cualquier panel devuelve al espacio de trabajo.
-  if (!opts.inactive) useUI.getState().hideHome();
+  const section = panelSection(component, (params as Partial<FileParams>).root);
+  if (!opts.inactive && !queued) useUI.getState().revealSection(section);
+  if (component === 'resource' && !opts.inactive) { useUI.setState({ libraryView: false }); persistSpaces(); }
+  const dock = getDock(section);
+  if (!dock) {
+    pending.set(section, [...(pending.get(section) ?? []), () => addOrFocus(id, component, title, params, opts, extra, true)]);
+    return null;
+  }
   const existing = dock.getPanel(id);
   if (existing) {
     // Nunca dos editores para el mismo documento: se enfoca el existente.
     if (!opts.inactive) existing.api.setActive();
     return existing;
   }
-  const pos = position(opts);
+  const pos = position(dock, opts);
   return dock.addPanel({
     id,
     component,
@@ -103,6 +121,13 @@ export function openResource(path: string, opts: OpenOptions = {}) {
 }
 
 export function openPdf(opts: OpenOptions = {}) {
+  if (!useUI.getState().multiview) {
+    if (!opts.inactive) {
+      useUI.getState().revealSection('memoria');
+      requestAnimationFrame(() => document.getElementById('memoria-pdf')?.focus());
+    }
+    return;
+  }
   addOrFocus('pdf', 'pdf', 'PDF', {}, opts, { renderer: 'always' });
 }
 
@@ -111,13 +136,13 @@ export function openHome() {
   useUI.getState().showHome();
 }
 
-export function openSettings(opts: OpenOptions = {}) {
-  addOrFocus('settings', 'settings', 'Ajustes', {}, opts);
+export function openSettings(tab: 'general' | 'assistant' = 'general') {
+  useUI.setState({ settingsOpened: true, settingsOpen: true, settingsTab: tab });
 }
 
 export function openAssistant(context?: AssistantContext) {
   if (context) addAssistantContext(context);
-  useAssistant.setState({ opened: true, visible: true, minimized: false });
+  useAssistant.setState(s => ({ opened: true, visible: true, minimized: false, focusRequest: s.focusRequest + 1 }));
 }
 
 export function openDatos(opts: OpenOptions = {}) {
@@ -128,8 +153,8 @@ const isFilePanel = (c: string) => c === 'latex' || c === 'note' || c === 'diagr
 
 /** Cierra las pestañas de archivos de las raíces indicadas (los borradores se conservan). */
 export function closeFilePanels(roots: Root[]) {
-  if (!dock || !roots.length) return;
-  for (const p of [...dock.panels]) {
+  if (!roots.length) return;
+  for (const dock of docks.values()) for (const p of [...dock.panels]) {
     const params = p.params as Partial<FileParams> | undefined;
     const c = p.api.component;
     if (isFilePanel(c) && params?.root && roots.includes(params.root)) p.api.close();
@@ -140,8 +165,7 @@ const under = (path: string, base: string) => path === base || path.startsWith(b
 
 /** Cierra las pestañas de los archivos de `root` bajo `base` (archivo o carpeta eliminados). */
 export function closePanelsUnder(root: Root, base: string) {
-  if (!dock) return;
-  for (const p of [...dock.panels]) {
+  for (const dock of docks.values()) for (const p of [...dock.panels]) {
     const params = p.params as Partial<FileParams> | undefined;
     if (isFilePanel(p.api.component) && params?.root === root && params.path && under(params.path, base)) p.api.close();
   }
@@ -155,7 +179,11 @@ export function closePanelsUnder(root: Root, base: string) {
  * el cursor y el desplazamiento se restauran desde state/cursor.ts); el panel mantiene sus parámetros (modo).
  */
 export function rekeyPanels(root: Root, pairs: { from: string; to: string }[]) {
-  if (!dock || !pairs.length) return;
+  for (const dock of docks.values()) rekeyDockPanels(dock, root, pairs);
+}
+
+function rekeyDockPanels(dock: DockviewApi, root: Root, pairs: { from: string; to: string }[]) {
+  if (!pairs.length) return;
   const active = dock.activePanel;
   let newActive: string | null = null;
   for (const panel of [...dock.panels]) {
@@ -196,7 +224,9 @@ export function openSearch(q: string, scope: Root | 'all' = 'all', opts: OpenOpt
 }
 
 export function activeFile(): FileParams | null {
-  const p = dock?.activePanel;
+  const ui = useUI.getState();
+  if (ui.homeView || (ui.section === 'resources' && ui.libraryView)) return null;
+  const p = getDock()?.activePanel;
   if (!p) return null;
   const params = p.params as Partial<FileParams> | undefined;
   if ((p.api.component === 'latex' || p.api.component === 'note' || p.api.component === 'diagram') && params?.root && params.path) {
@@ -209,38 +239,85 @@ export function activeFile(): FileParams | null {
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 export function scheduleLayoutSave() {
-  if (!dock) return;
+  if (restoring) return;
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    if (dock) save(layoutKey(), dock.toJSON());
+    for (const [section, dock] of docks) save(layoutKey(section), dock.toJSON());
   }, 300);
 }
 
-export function restoreLayout(api: DockviewApi): boolean {
-  const data = load<unknown>(layoutKey(), null);
+export function restoreLayout(api: DockviewApi, section: Section): boolean {
+  const data = load<SerializedDockview | null>(layoutKey(section), null);
   if (!data) return false;
   try {
-    api.fromJSON(data as Parameters<DockviewApi['fromJSON']>[0]);
-    // Inicio ya no es una pestaña: se descarta si venía de un layout antiguo.
+    if (!validLayout(data)) throw new Error('Distribución no válida');
+    if (section === 'memoria') {
+      // Distribuir los documentos del antiguo espacio único sin perder sus grupos.
+      for (const target of SECTIONS.filter(s => s !== 'memoria')) {
+        if (load(layoutKey(target), null) == null) save(layoutKey(target), sectionLayout(data, target));
+      }
+    }
+    api.fromJSON(sectionLayout(data, section));
     api.getPanel('home')?.api.close();
     const assistant = api.getPanel('assistant');
-    if (assistant) { assistant.api.close(); openAssistant(); save(layoutKey(), api.toJSON()); }
-    return api.panels.length > 0;
+    if (assistant) { assistant.api.close(); openAssistant(); }
+    const settings = api.getPanel('settings');
+    if (settings) { settings.api.close(); openSettings(); }
+    save(layoutKey(section), api.toJSON());
+    return true;
   } catch (e) {
     console.warn('Layout guardado no válido, se descarta', e);
-    remove(layoutKey());
-    try {
-      api.clear();
-    } catch {
-      /* ignore */
-    }
+    remove(layoutKey(section));
+    try { api.clear(); } catch { /* El layout no llegó a crearse. */ }
     return false;
   }
 }
 
-export function defaultLayout(memoriaMain: string) {
+export function snapshotLayouts(): ViewPreset['layouts'] {
+  return Object.fromEntries(SECTIONS.map(section => [section, getDock(section)?.toJSON() ?? load<SerializedDockview | undefined>(layoutKey(section), undefined)]).filter(([, layout]) => layout !== undefined));
+}
+
+export function applyPreset(preset: ViewPreset): boolean {
+  (document.activeElement as HTMLElement | null)?.blur?.();
+  flushDrafts();
+  const previous = snapshotLayouts();
+  restoring = true;
+  try {
+    for (const section of preset.pair) {
+      const dock = getDock(section);
+      if (!dock) continue;
+      const layout = preset.layouts[section];
+      if (layout) dock.fromJSON(sectionLayout(layout, section)); else dock.clear();
+      setActivePanel(section, dock.activePanel?.id ?? null);
+    }
+    for (const section of preset.pair) {
+      const layout = preset.layouts[section];
+      if (layout) save(layoutKey(section), sectionLayout(layout, section)); else remove(layoutKey(section));
+    }
+    const ui = useUI.getState();
+    const sidebars = { ...ui.sidebars };
+    for (const section of preset.pair) sidebars[section] = { ...preset.sidebars[section] };
+    useUI.setState({ viewPair: [...preset.pair], viewRatio: preset.ratio, sidebars, libraryView: preset.pair.includes('resources') ? preset.libraryView : ui.libraryView });
+    useUI.getState().showMultiview();
+    return true;
+  } catch {
+    for (const section of preset.pair) {
+      const dock = getDock(section);
+      if (!dock) continue;
+      const layout = previous[section];
+      if (layout) dock.fromJSON(layout); else dock.clear();
+      setActivePanel(section, dock.activePanel?.id ?? null);
+    }
+    useUI.getState().toast({ kind: 'error', text: 'No se pudo abrir esta vista guardada. Se conserva la distribución anterior.' });
+    return false;
+  } finally { restoring = false; }
+}
+
+export function defaultLayout(memoriaMain: string, section: Section = 'memoria') {
+  const dock = getDock(section);
   if (!dock) return;
   dock.clear();
+  if (section !== 'memoria') return;
   const main = memoriaMain || 'tfg.tex';
   dock.addPanel({ id: panelIdFor('latex', main), component: 'latex', title: basename(main), params: { root: 'memoria', path: main } });
   dock.addPanel({
@@ -255,13 +332,14 @@ export function defaultLayout(memoriaMain: string) {
 }
 
 export function resetLayout() {
-  remove(layoutKey());
-  useUI.getState().hideHome();
+  remove(layoutKey('memoria'));
+  useUI.getState().setSection('memoria');
   defaultLayout(useUI.getState().status?.memoriaMain ?? 'tfg.tex');
 }
 
 /** Al cerrar una pestaña de archivo se libera su documento. */
 export function onPanelRemoved(panel: IDockviewPanel) {
+  if (restoring) return;
   const params = panel.params as Partial<FileParams> | undefined;
   const c = panel.api.component;
   if ((c === 'latex' || c === 'note' || c === 'diagram') && params?.root && params.path) {
@@ -270,4 +348,7 @@ export function onPanelRemoved(panel: IDockviewPanel) {
 }
 
 // ---- Panel activo (para resaltar en el árbol) ----
-export const useActivePanel = create<{ id: string | null; ready: boolean }>(() => ({ id: null, ready: false }));
+export const useActivePanel = create<{ id: string | null; ready: boolean; ids: Partial<Record<Section, string | null>> }>(() => ({ id: null, ready: false, ids: {} }));
+useUI.subscribe((state, prev) => {
+  if (state.section !== prev.section) useActivePanel.setState({ id: getDock()?.activePanel?.id ?? null });
+});

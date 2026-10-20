@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, AlertTriangle, CheckCircle2, FolderOpen, FolderPlus, RotateCcw, Save, Settings } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle2, FolderOpen, FolderPlus, RotateCcw, Save, Settings, X } from 'lucide-react';
 import {
   api,
   errorMessage,
@@ -14,13 +14,14 @@ import {
   type SettingsValues,
 } from '../api';
 import { DirPicker } from '../components/DirPicker';
-import { Banner, Button, Spinner, cx } from '../components/ui';
+import { Banner, Button, IconButton, Spinner, cx } from '../components/ui';
 import { isAbsPath, joinAbs, parentAbs, relUnder } from '../lib/abspath';
 import { kbd } from '../lib/kbd';
 import { notifySettingsChanged, useSettings } from '../state/settings';
 import { toast, useUI } from '../state/ui';
 import { useDesktop } from '../state/desktop';
 import { ChatGPTAccount } from '../components/ChatGPTAccount';
+import { AssistantPermissions } from '../components/AssistantPermissions';
 
 const LABELS: Record<SettingsKey, string> = {
   notesDir: 'Carpeta de notas (vault)',
@@ -65,8 +66,10 @@ function levelText(level: SettingsCheck['level']) {
 
 type Picker = { kind: 'dir'; key: 'notesDir' | 'memoriaDir' | 'resourcesSubdir' } | { kind: 'create' } | null;
 
-export function SettingsPanel() {
+export function SettingsPanel({ onClose }: { onClose: () => void }) {
   const desktop = useDesktop(s => s.info);
+  const tab = useUI(s => s.settingsTab);
+  const assistantTab = !!desktop && tab === 'assistant';
   const data = useSettings((s) => s.data);
   const loadError = useSettings((s) => s.error);
   const loading = useSettings((s) => s.loading);
@@ -232,7 +235,7 @@ export function SettingsPanel() {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
       e.preventDefault();
       e.stopPropagation();
-      void save();
+      if (!assistantTab) void save();
     }
   };
 
@@ -305,23 +308,37 @@ export function SettingsPanel() {
     <div className="flex h-full flex-col bg-soft" onKeyDown={onKeyDown}>
       <div className="flex h-10 shrink-0 items-center gap-2 border-b border-line bg-bg px-3">
         <Settings size={15} className="text-muted" />
-        <h1 className="text-[13px] font-semibold">Ajustes</h1>
+        <h1 id="settings-title" className="text-[13px] font-semibold">Ajustes</h1>
         {desktop && <Button onClick={() => useDesktop.getState().setOpen(true)}>Asistente inicial</Button>}
         {loading && <Spinner size={11} />}
         <div className="flex-1" />
-        {dirty && (
+        {!assistantTab && dirty && (
           <span className="flex items-center gap-1.5 text-[12px] text-warn">
             <span className="h-2 w-2 rounded-full bg-warn" /> Cambios sin guardar
           </span>
         )}
-        <Button variant="ghost" onClick={discard} disabled={!dirty || saving}>
+        {!assistantTab && <><Button variant="ghost" onClick={discard} disabled={!dirty || saving}>
           Descartar
         </Button>
         <Button variant="primary" onClick={() => void save()} disabled={!dirty || saving} title={`Guardar y aplicar (${kbd('Mod-S')})`}>
           {saving ? <Spinner size={11} /> : <Save size={12} />} Guardar
-        </Button>
+        </Button></>}
+        <IconButton label="Cerrar ajustes" onClick={onClose}><X size={15} /></IconButton>
       </div>
 
+      {desktop && <div role="tablist" aria-label="Apartados de Ajustes" className="flex shrink-0 gap-2 border-b border-line bg-bg px-3 py-2" onKeyDown={e => {
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+        e.preventDefault();
+        const next = e.key === 'Home' ? 'general' : e.key === 'End' ? 'assistant' : assistantTab ? 'general' : 'assistant';
+        useUI.setState({ settingsTab: next });
+        document.getElementById(`settings-tab-${next}`)?.focus();
+      }}>
+        {(['general', 'assistant'] as const).map(value => <button key={value} type="button" role="tab" id={`settings-tab-${value}`} aria-controls={`settings-panel-${value}`} aria-selected={(assistantTab ? 'assistant' : 'general') === value} tabIndex={(assistantTab ? 'assistant' : 'general') === value ? 0 : -1} onClick={() => useUI.setState({ settingsTab: value })} className={cx('rounded px-3 py-1 text-[13px] focus-visible:outline-2 focus-visible:outline-accent', (assistantTab ? 'assistant' : 'general') === value ? 'bg-active text-accent' : 'text-muted hover:bg-hover')}>
+          {value === 'general' ? 'General' : 'Asistente'}
+        </button>)}
+      </div>}
+      {desktop && <div role="tabpanel" id="settings-panel-assistant" aria-labelledby="settings-tab-assistant" hidden={!assistantTab} className="min-h-0 flex-1 overflow-auto p-3"><div className="mx-auto max-w-3xl space-y-3"><ChatGPTAccount /><AssistantPermissions /></div></div>}
+      <div role={desktop ? 'tabpanel' : undefined} id="settings-panel-general" aria-labelledby={desktop ? 'settings-tab-general' : undefined} hidden={assistantTab} className={cx('min-h-0 flex-1 flex-col', assistantTab ? 'hidden' : 'flex')}>
       {status?.configured === false && (
         <Banner kind="warn">
           <strong>Falta configurar Estudio TFG.</strong>{' '}
@@ -332,7 +349,6 @@ export function SettingsPanel() {
         </Banner>
       )}
       {generalError && <Banner kind="danger">{generalError}</Banner>}
-      {desktop && <div className="px-3 pt-3"><ChatGPTAccount /></div>}
       {creationWarning && <Banner kind="warn">{creationWarning}</Banner>}
       {loadError && !data && (
         <Banner kind="danger" actions={<Button onClick={() => void useSettings.getState().load()}>Reintentar</Button>}>
@@ -483,6 +499,7 @@ export function SettingsPanel() {
                 <div className="space-y-2 px-3 py-2.5 text-[12px]">
                   <p>Motor actual: <strong>{status?.motor?.tipo === 'local' ? 'TeX del sistema' : 'Docker'}</strong>.</p>
                   <p>Docker: <span className={engines.docker.ok ? 'text-ok' : 'text-warn'}>{engines.docker.ok ? 'Disponible' : 'No responde'}</span>{engines.docker.version && ` · ${engines.docker.version}`}</p>
+                  {engines.docker.message && <p className="text-warn">{engines.docker.message}</p>}
                   <p>TeX del sistema: <span className={engines.local.ok ? 'text-ok' : 'text-warn'}>{engines.local.ok ? 'Disponible' : 'No disponible'}</span>{engines.local.version && ` · ${engines.local.version}`}</p>
                   {engines.local.message && <p className="text-warn">{engines.local.message}</p>}
                   <ul className="space-y-1">
@@ -560,6 +577,7 @@ export function SettingsPanel() {
             )}
           </div>
         )}
+      </div>
       </div>
 
       {pickerProps && (

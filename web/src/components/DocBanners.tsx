@@ -89,7 +89,8 @@ export function DocBanners({ docKey, lang }: { docKey: string; lang: EditorLang 
             </>
           }
         >
-          Hay un borrador local sin guardar ({formatDate(doc.draftOffer.savedAt)}) distinto del archivo en disco.
+          Hay un borrador local sin guardar ({formatDate(doc.draftOffer.savedAt)}){doc.draftOffer.form
+            ? ', con campos del diagrama pendientes de aplicar.' : ' distinto del archivo en disco.'}
         </Banner>
       )}
       {doc.deleted && !doc.conflict && (

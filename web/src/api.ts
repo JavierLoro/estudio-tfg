@@ -12,7 +12,7 @@ export interface Status {
   resourcesSubdir: string;
   syncConflicts: string[];
   worker: 'up' | 'down';
-  motor?: { seleccion?: 'auto' | 'docker' | 'local'; tipo: 'docker' | 'local'; estado: 'up' | 'down'; version: string | null; capacidades: { compile: boolean; svg2pdf: boolean } };
+  motor?: { seleccion?: 'auto' | 'docker' | 'local'; tipo: 'docker' | 'local'; estado: 'up' | 'down'; version: string | null; capacidades: { compile: boolean; svg2pdf: boolean }; mensaje?: string };
   watcher: 'ok' | 'error';
   watcherMessage?: string;
   /** v0.2: false si `notesDir` o `memoriaDir` no existen. */
@@ -46,6 +46,7 @@ export interface EngineHealth {
   ok: boolean;
   version: string | null;
   capabilities: { compile: boolean; svg2pdf: boolean };
+  message?: string;
 }
 
 export interface EnginesResponse {
@@ -53,7 +54,6 @@ export interface EnginesResponse {
   local: EngineHealth & {
     tools: Record<'latexmk' | 'biber' | 'pdflatex' | 'rsvg', { path: string | null; version: string | null }>;
     warnings: string[];
-    message?: string;
   };
 }
 
