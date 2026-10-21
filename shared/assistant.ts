@@ -29,3 +29,23 @@ export interface DiagramGeneration {
   id: string; state: 'running' | 'prepared' | 'error' | 'cancelled'; name: string; type: string; description: string;
   model: string; code: string; explanation: string; assumptions: string; context?: ContextSnapshot; error?: string;
 }
+
+export interface SearchFilters { need: string; kinds: string[]; language: string; fromYear?: number; toYear?: number }
+export interface SearchEvidence { url: string; title: string; provider: 'crossref' | 'chatgpt'; consulted: boolean }
+export interface SearchCandidate {
+  id: string; title: string; kind: string; url: string; doi?: string; description: string; authors?: string; year?: number;
+  publication?: string; language?: string; metadata?: Record<string, unknown>; evidence: SearchEvidence[];
+  explanation?: { purpose: string; contribution: string; usage: string; limitations: string };
+  state: 'pending' | 'discarded' | 'saving' | 'saved'; path?: string; saveError?: string;
+}
+export interface SearchRun {
+  id: string; rev: string; account: string; project: string; library: string; createdAt: number; updatedAt: number;
+  filters: SearchFilters; mode: 'quick' | 'extended'; provider: 'web' | 'crossref'; model: string; context?: ContextSnapshot;
+  state: 'running' | 'idle' | 'partial' | 'cancelled'; calls: number;
+  parts: Record<string, { state: 'pending' | 'running' | 'done' | 'error'; error?: string }>;
+  candidates: SearchCandidate[]; warnings: string[];
+}
+export interface SearchSaveReview {
+  title: string; kind: string; description: string; assistantNote: string; tags: string[]; collections: string[];
+  duplicates: { path: string; title: string; rev: string; reason: string }[];
+}

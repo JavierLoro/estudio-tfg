@@ -163,3 +163,13 @@ Antes de enviar un chat o generar un diagrama, revisa el **Contexto efectivo ant
 ## Diagramas con asistente
 
 En Nuevo diagrama elige **Con asistente**, nombre, uno de los quince tipos y descripción. Concede su permiso propio en Ajustes y elige un modelo disponible. **Generar propuesta** conserva código, explicación y supuestos, sin crear archivos. Puedes recuperar propuestas, detener la generación, corregir el código o pedir otra expresamente. **Crear diagrama** solo se habilita cuando la propuesta se dibuja correctamente con el renderer existente. Nunca sobrescribe un nombre ocupado. La exportación y la inserción en Memoria se realizan después; no se ofrece edición asistida de diagramas existentes.
+
+## Descubrir fuentes públicas
+
+Biblioteca → Añadir → Buscar con asistente mantiene un permiso propio por cuenta/proyecto. No concede navegación al chat. Rápida usa un agente; Ampliada coordina dos especialistas desde la app. El modelo auxiliar se conserva por cuenta/proyecto en una preferencia duradera con revisión, incluso antes de ejecutar; elige otro expresamente si deja de estar disponible. No se presupone ahorro de cuota ni soporte web en todos los modelos.
+
+Solo la necesidad y filtros visibles llegan a los buscadores; nunca los documentos privados ni el resumen completo del TFG. Si marcas el contexto, una valoración posterior sin navegación utiliza su versión autorizada. Retirar acceso corta tareas y bloquea nuevos envíos, incluso de derivados del contexto, conservando el historial local. Las explicaciones se vinculan a fuentes efectivamente devueltas y se identifican como inferencias, no como evaluación de calidad científica.
+
+La bandeja es independiente de Biblioteca. Permite detener, retomar consultas y reintentar partes fallidas; no incorpora ni descarga al cerrar. Guarda solo después de revisar datos y duplicados. Consulta los límites y la recuperación en la guía de Biblioteca.
+
+Validación automatizada de estos bloques: OAuth/proveedores ficticios, privacidad de contexto, límites, conflictos, persistencia, parciales, recibos y recorridos de navegador/Electron. La búsqueda web real depende de la cuenta/modelo: **queda pendiente el ensayo final con una cuenta conectada en un perfil aislado** (Rápida, Ampliada, contexto seleccionado y un diagrama). No se han copiado credenciales de la app personal ni consumido su suscripción para estos tests.

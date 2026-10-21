@@ -7,7 +7,7 @@ import { atomicWrite, backup, createExclusive, rev } from './fsutil.ts';
 import { isInside, resolveSafe } from './paths.ts';
 import { treeKey } from './fileops.ts';
 import { ensureLibrary, libraryId } from './libraryIdentity.ts';
-import { newLibraryData, updateLibraryContent, urls, UUID, type Bibliography } from './libraryModel.ts';
+import { newLibraryData, updateLibraryContent, urls, UUID, strings, RESOURCE_KINDS, type ResourceKind, type Bibliography } from './libraryModel.ts';
 import { listResources, readResourceFile } from './resources.ts';
 import { setFrontmatterKeys } from './frontmatter.ts';
 import {
@@ -29,6 +29,7 @@ export interface ImportSource {
   text: string;
 }
 interface Choice {
+  note?: string; tags?: string[]; collections?: string[]; kind?: ResourceKind;
   index: number;
   action: 'create' | 'associate' | 'merge' | 'skip';
   targetId?: string;
@@ -245,7 +246,13 @@ function checkedChoice(c: any): Choice {
     throw badRequest('Campos bibliográficos no válidos');
   if (c.action !== 'create' && (!UUID.test(c.targetId) || typeof c.baseRev !== 'string' || !/^[a-f0-9]{16}$/.test(c.baseRev)))
     throw badRequest('Asociar o combinar necesita identidad y revisión de la ficha');
+  if (c.note !== undefined && (c.action !== 'create' || typeof c.note !== 'string' || c.note.length > 100_000)) throw badRequest('Nota de importación no válida');
+  if (c.kind !== undefined && !RESOURCE_KINDS.includes(c.kind)) throw badRequest('Tipo de recurso no válido');
   return {
+    ...(c.note !== undefined ? { note: c.note } : {}),
+    ...(c.tags !== undefined ? { tags: strings(c.tags, 'tags') } : {}),
+    ...(c.collections !== undefined ? { collections: strings(c.collections, 'collections') } : {}),
+    ...(c.kind !== undefined ? { kind: c.kind } : {}),
     index: c.index,
     action: c.action,
     title: c.title,
@@ -297,7 +304,8 @@ async function finishImport(ctx: Ctx, op: ImportOperation) {
           const library = {
             ...newLibraryData({
               id,
-              kind: choice.entryType === 'book' ? 'book' : 'article',
+              kind: choice.kind ?? (choice.entryType === 'book' ? 'book' : 'article'),
+              collections: choice.collections,
               method: 'bibliography',
               urls: referenceUrls(choice.fields),
             }),
@@ -307,9 +315,9 @@ async function finishImport(ctx: Ctx, op: ImportOperation) {
             title: choice.title,
             status: 'inbox',
             captured: new Date().toISOString(),
-            tags: ['recurso'],
+            tags: [...new Set(['recurso', ...(choice.tags ?? [])])],
             biblioteca: library,
-          });
+          }) + (choice.note ?? '');
           plan = { id, path: rel, before: null, after };
         } else {
           const matches = items.filter((r) => r.id === choice.targetId);

@@ -6,7 +6,7 @@
 >
 > Fuentes: [PLATAFORMAS.md](PLATAFORMAS.md) (50 hallazgos de portabilidad; los IDs como `S1`, `P2`, `F4` se refieren a él), [CONTRACT.md](CONTRACT.md) y la auditoría del 09-10-2026, cuyas evidencias y acciones se describen en R1–R8 y L1–L5.
 >
-> **Estado actualizado:** A–D, R, L1–L9, E1–E4, F1 y G1–G5/G7 completadas y fusionadas; `v0.2.0` publicada como estable sin firma. **G6 (firma/notarización) está aplazada** por decisión del usuario. **NF1 fusionado en `develop` mediante el PR #80**; las mejoras posteriores de edición, espacios y permisos se agrupan en una nueva entrega. NF2 sigue pendiente. El siguiente bloque solicitado es la búsqueda de contenido desde Biblioteca → Añadir (NF3), aún sin implementar.
+> **Estado actualizado:** A–D, R, L1–L9, E1–E4, F1 y G1–G5/G7 completadas y fusionadas; `v0.2.0` publicada como estable sin firma. **G6 (firma/notarización) está aplazada** por decisión del usuario. **NF1 fusionado en `develop` mediante el PR #80**; las mejoras posteriores de edición, espacios y permisos se agrupan en una nueva entrega. NF2 sigue pendiente. Biblioteca por tipos, contexto y búsqueda asistida están implementados en los PR #86 → #87 → #88, pendientes de integración y del ensayo final con cuenta real en un perfil aislado.
 
 ## Índice
 
@@ -1017,3 +1017,13 @@ Encargo del 21-10-2026: tres bloques autorizados, cada uno con rama desde `devel
 - **B3 (#85), `hoja/busqueda-revision`:** búsqueda Rápida/Ampliada con ChatGPT web y Crossref, modelo elegido y máximo dos agentes/cinco peticiones/veinte candidatos. Descubrimiento sin documentos privados; revisión posterior sin navegación con contexto autorizado. Bandeja durable, citas verificables, decisiones y guardado revisado/idempotente. Sin descargas automáticas, proveedores de pago alternativos, bases de datos ni embeddings.
 
 Cada bloque actualiza contrato, guías y respaldo; verifica tests sin consumo de cuenta, tipos, build y navegador aislado. La verificación real requiere perfil aislado y conexión autorizada. B3 depende de los contratos de contexto de B2; no se fusiona ninguna rama automáticamente para resolver esa dependencia.
+
+### Estado de los bloques B1–B3
+
+| Bloque | Issue | PR hacia develop | Estado |
+|---|---|---|---|
+| B1 · Biblioteca por tipos | [#83](https://github.com/JavierLoro/estudio-tfg/issues/83) | [#86](https://github.com/JavierLoro/estudio-tfg/pull/86) | Implementado y probado; pendiente de integración |
+| B2 · Contexto y diagramas | [#84](https://github.com/JavierLoro/estudio-tfg/issues/84) | [#87](https://github.com/JavierLoro/estudio-tfg/pull/87) | Implementado y probado; depende de B1 |
+| B3 · Búsqueda y revisión | [#85](https://github.com/JavierLoro/estudio-tfg/issues/85) | [#88](https://github.com/JavierLoro/estudio-tfg/pull/88) | Implementado y probado; depende de B2 |
+
+Las ramas nacieron de develop y se encadenaron mediante dependencias locales para conservar ambas documentaciones y resolver su integración sin modificar develop. Orden de revisión/integración: #86 → #87 → #88; no se ha fusionado ningún PR. Se conservan las modificaciones documentales preparadas antes del encargo. La integración pasa scripts, servidor, tipos, build y los recorridos apropiados con proveedores ficticios; Crossref se comprobó también con HTTP real y términos genéricos. Sigue pendiente el ensayo real de ChatGPT (Rápida, Ampliada, contexto seleccionado y diagrama) en un perfil aislado con una cuenta conectada.

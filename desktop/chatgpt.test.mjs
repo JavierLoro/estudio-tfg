@@ -112,3 +112,17 @@ test('SSE procesa UTF-8 fragmentado y exige el evento de finalización', async (
   const line = new TextEncoder().encode('data: ' + 'x'.repeat(4 * 1024 * 1024) + '\n');
   await assert.rejects(responseStream(new Response(new ReadableStream({ start(c) { for (let i = 0; i < 9; i++) c.enqueue(line); c.close(); } }))), /demasiado grande/);
 });
+
+test('separa propósitos y solo descubrimiento recibe búsqueda web, sin campos hospedados no admitidos', async t => {
+  const f = await fixture(t); await f.client.connect(); await f.finish(); const bodies = [];
+  f.client.fetcher = async (_target, init) => {
+    bodies.push(JSON.parse(init.body));
+    return new Response('data: ' + JSON.stringify({ type: 'response.completed', response: { output: [{ type: 'message', content: [{ type: 'output_text', text: '{}' }] }] } }) + '\n\n', { headers: { 'content-type': 'text/event-stream' } });
+  };
+  const signal = new AbortController().signal;
+  for (const purpose of ['chat', 'context', 'diagram', 'review', 'search']) await f.client.respond('modelo-ficticio', [], purpose === 'search' ? [{ type: 'web_search' }] : [], signal, () => {}, { purpose });
+  for (const body of bodies) { assert.equal(body.store, false); assert.equal(body.stream, true); assert.equal('multi_agent' in body, false); assert.equal('max_tool_calls' in body, false); }
+  assert.deepEqual(bodies.at(-1).tools, [{ type: 'web_search' }]); assert.ok(bodies.at(-1).include.includes('web_search_call.action.sources'));
+  assert.ok(bodies.slice(0, -1).every(b => b.tools.length === 0));
+  await assert.rejects(f.client.respond('modelo-ficticio', [], [{ type: 'web_search' }], signal, () => {}, { purpose: 'chat' }), /solo está permitida/);
+});

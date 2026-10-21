@@ -157,6 +157,7 @@ export interface MigrationPreview {
 }
 export interface BibliographySource { format:'bibtex'|'ris'|'doi'; text:string }
 export interface ImportChoice {
+  note?: string; tags?: string[]; collections?: string[]; kind?: ResourceKind;
   index:number; action:'create'|'associate'|'merge'|'skip'; title:string; key:string; entryType:string; fields:Record<string,string>; targetId?:string; baseRev?:string;
 }
 export interface ImportCandidate { id:string; path:string; title:string; baseRev:string; reason:string; exact:boolean; manual:boolean }
