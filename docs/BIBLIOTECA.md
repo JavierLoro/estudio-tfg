@@ -74,3 +74,9 @@ Insertar conserva el borrador y el texto seleccionado, con deshacer aislado en C
 Los usos se reconstruyen de los `.tex` guardados y los registros/copias del proyecto actual; llevan a archivo/línea y se muestran antes de borrar. El escáner no expande macros TeX ni observa borradores de otro cliente: estos aparecen al guardar. Las operaciones se recuperan desde `data/library/<id>/integrations/`; una memoria cambiada o una revisión obsoleta detiene la aplicación sin borrar su staging. Respalda tanto estos registros como el proyecto completo.
 
 La CI verifica citas/figuras en ambos perfiles y otra compilación después de copiar cada memoria y retirar su biblioteca original. El comando reproducible está en contrato v0.25; siempre utiliza fixtures y un worker/output temporales propios.
+
+## Explorar por tipos
+
+El lateral reúne tipos, colecciones y revisión; Más filtros contiene etiquetas y orden. La búsqueda incluye autores, año y publicación cuando estén disponibles. Elige un recurso para consultar su ficha plegable y pulsa **Abrir** para editar o usar los visores, citas y figuras existentes. En un panel estrecho, **Volver a la lista** recupera la exploración. Las imágenes se muestran inicialmente en cuadrícula; puedes elegir Lista.
+
+Los metadatos proceden de la referencia actual, también si está en un .bib manual de Memoria. Los ausentes quedan vacíos; un vínculo manual no disponible muestra un aviso y no se modifica. El formato PDF/EPUB/PNG pertenece al adjunto, no al tipo. No se requiere convertir las fichas antiguas.
