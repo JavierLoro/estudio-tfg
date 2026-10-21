@@ -8,6 +8,7 @@ import { useDocs, isDirty, loadDoc } from '../state/docs';
 import { openFile } from '../state/workspace';
 import { load, save } from '../lib/storage';
 import { attachedScope, contextAllowed } from '../lib/assistant';
+import { ContextForAction, useContextView } from '../components/ProjectContext';
 import { AssistantActions } from '../components/AssistantActions';
 import { AssistantDiff } from '../components/AssistantDiff';
 
@@ -16,6 +17,8 @@ const AssistantMessage = lazy(() => import('../components/AssistantMessage'));
 const dirtyDocs = () => Object.values(useDocs.getState().docs).filter(d => isDirty(d) || d.conflict || d.saving).map(d => d.key);
 export function AssistantPanel({ onOpenAccount }: { onOpenAccount: () => void }) {
   const account = useAssistant(s => s.account), thread = useAssistant(s => s.thread), context = useAssistant(s => s.context), draft = useAssistant(s => s.draft);
+  useContextView();
+  const [contextVersion, setContextVersion] = useState<string | undefined>();
   const instance = useUI(s => s.status?.instanceId);
   const previousInstance = useRef(instance);
   const override = useAssistant(s => s.scopeOverride), resources = useUI(s => s.status?.resourcesSubdir ?? 'Recursos');
@@ -60,7 +63,7 @@ export function AssistantPanel({ onOpenAccount }: { onOpenAccount: () => void })
     if (!draft.trim()) return;
     if (missing.length) { setAuthorizeChanges(false); setAuthorize(true); return; }
     const current = thread || await create();
-    const result = await assistantRequest<AssistantThread>('/threads/' + current.id + '/turns', { text: draft, context: context.map(({ root, path, text }) => ({ root, path, ...(text !== undefined ? { text } : {}) })), dirty: dirtyDocs() });
+    const result = await assistantRequest<AssistantThread>('/threads/' + current.id + '/turns', { text: draft, context: context.map(({ root, path, text }) => ({ root, path, ...(text !== undefined ? { text } : {}) })), dirty: dirtyDocs(), ...(contextVersion ? { contextVersion } : {}) });
     if (accept(result)) useAssistant.setState({ thread: result, draft: '', context: [] }); await list();
   });
   const submitProposal = async () => {
@@ -110,6 +113,7 @@ export function AssistantPanel({ onOpenAccount }: { onOpenAccount: () => void })
         <strong>{message.role === 'user' ? 'Tú' : 'Asistente'}</strong>
         {message.role === 'assistant' && message.text ? <><Suspense fallback={<p className="whitespace-pre-wrap break-words">{message.text}</p>}><AssistantMessage text={message.text} sources={thread.sources} /></Suspense><Button aria-label="Copiar respuesta" className="mt-2" onClick={() => void act(async () => { if (!navigator.clipboard) throw new Error('No se pudo acceder al portapapeles. Selecciona y copia el texto.'); await navigator.clipboard.writeText(message.text); useUI.getState().toast({ kind: 'ok', text: 'Respuesta copiada' }); })}><Copy size={13} />Copiar</Button></> : <p className="mt-1 whitespace-pre-wrap break-words">{message.text || (thread.state === 'running' ? 'Pensando…' : '')}</p>}
       </article>)}</div>
+      {!!thread?.projectContexts?.length && <details><summary>Versiones del contexto del TFG utilizadas ({thread.projectContexts.length})</summary>{thread.projectContexts.map((snapshot, i) => <div key={i}><p>Versión {snapshot.version}</p><pre className="max-h-52 overflow-auto whitespace-pre-wrap break-words">{snapshot.text}</pre></div>)}</details>}
       {!!thread?.sources.length && <details><summary>Fuentes de esta conversación ({thread.sources.length})</summary><ul>{thread.sources.map(source => <li key={source.id}><button type="button" className="text-accent underline" title={source.path} onClick={() => openFile(source.root, source.path, { side: true })}>{source.title}</button></li>)}</ul></details>}
       {thread?.proposals.map(proposal => <section key={proposal.id} className="space-y-2 rounded border border-line p-3"><h2 className="font-semibold">Propuesta · {proposal.files.length} archivos · {proposal.state === 'done' ? 'aplicada' : proposal.state === 'undone' ? 'deshecha' : proposal.state === 'prepared' ? 'pendiente de revisión' : 'operación interrumpida'}</h2>
         {proposal.error && <p className="text-warn">{proposal.error}</p>}
@@ -121,6 +125,7 @@ export function AssistantPanel({ onOpenAccount }: { onOpenAccount: () => void })
     <footer className="shrink-0 space-y-2 border-t border-line p-2 pb-6">
       {!!context.length && <ul aria-label="Contexto adjunto" className="max-h-24 overflow-y-auto">{context.map((c, i) => <li key={c.root + c.path} className="flex items-center gap-2"><span className="truncate" title={c.path}>{c.path}{c.selection ? ' · selección' : c.text !== undefined ? ' · documento o borrador' : ''}</span><Button aria-label={`Quitar ${c.path}`} onClick={() => useAssistant.setState({ context: context.filter((_, n) => n !== i) })}><X size={13} /></Button></li>)}</ul>}
       {!!missing.length && <div role="status" className="space-y-1 rounded border border-warn/40 p-2"><p>Falta permiso para {missing.map(c => c.path).join(', ')}.</p><Button disabled={busy || thread?.state === 'running' || !active?.connected || !active.enabled} onClick={() => { setAuthorizeChanges(false); setAuthorize(true); }}>Autorizar documentos adjuntos</Button></div>}
+      <ContextForAction onChange={setContextVersion} />
       <label className="block">Mensaje al asistente<textarea ref={composer} aria-label="Mensaje al asistente" placeholder="Escribe tu pregunta o elige una acción…" rows={2} value={draft} onChange={e => useAssistant.setState({ draft: e.target.value })} className="mt-1 block max-h-32 min-h-12 w-full resize-y rounded border border-line bg-bg p-2" /></label>
       <div className="flex items-center gap-2"><Button variant="primary" disabled={unavailable || !!missing.length || !active?.connected || !active.enabled || !draft.trim() || (!thread && !model)} onClick={() => void send()}><Send size={14} />Enviar</Button>
         <select aria-label="Modelo del asistente" title={thread ? 'Inicia otra conversación para cambiar de modelo' : 'Modelo para la nueva conversación'} className="min-w-0 flex-1 rounded border border-line bg-bg p-1 disabled:opacity-60" value={thread?.model ?? model} disabled={!!thread || busy || !models.length} onChange={e => { setModel(e.target.value); if (active) save('et:chatgpt:model:' + active.id, e.target.value); }}>

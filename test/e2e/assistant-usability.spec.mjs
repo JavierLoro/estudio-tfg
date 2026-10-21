@@ -1,3 +1,4 @@
+import { emptyContext } from './context-fixture.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { test, expect } from './fixtures.mjs';
@@ -14,6 +15,7 @@ async function setup(studio, page) {
     const body = request.method() === 'POST' ? request.postDataJSON() : null;
     if (endpoint === '/account') return route.fulfill({ json: account() });
     if (endpoint === '/account/select') { active = body.id; return route.fulfill({ json: account() }); }
+    if (endpoint === '/context') return route.fulfill({ json: emptyContext() });
     if (endpoint === '/models') return route.fulfill({ json: { models: [{ id: 'modelo-ficticio', name: 'Modelo ficticio' }] } });
     if (endpoint === '/threads' && body) {
       created.push(body);

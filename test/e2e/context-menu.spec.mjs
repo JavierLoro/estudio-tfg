@@ -1,3 +1,4 @@
+import { emptyContext } from './context-fixture.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { test, expect } from './fixtures.mjs';
@@ -7,6 +8,7 @@ async function desktop(page) {
   await page.route('**/api/desktop/setup', route => route.fulfill({ json: { needsSetup: false, engine: { phase: 'ready', available: true, installed: true, current: true } } }));
   await page.route('**/api/assistant/**', route => {
     const endpoint = new URL(route.request().url()).pathname;
+    if (endpoint === '/api/assistant/context') return route.fulfill({ json: emptyContext() });
     if (endpoint === '/api/assistant/account') return route.fulfill({ json: { active: null, accounts: [], pending: false, error: '', persistent: false } });
     calls.push(endpoint); return route.abort();
   });

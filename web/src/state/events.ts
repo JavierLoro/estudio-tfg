@@ -1,3 +1,4 @@
+import { refreshProjectContext, refreshContextSoon } from './projectContext';
 import type { ChangeEvent, CompileResult, Root, SettingsResponse } from '../api';
 import { notifySettingsChanged } from './settings';
 import { handleExternalChange } from './docs';
@@ -57,6 +58,7 @@ export function connectEvents() {
     }
   };
   es.onerror = () => useConnection.setState({ connected: false });
+  es.addEventListener('project-context', () => void refreshProjectContext().catch(() => {}));
   es.addEventListener('watcher', () => void useUI.getState().refreshStatus());
   es.addEventListener('change', (msg) => {
     let ev: ChangeEvent;
@@ -78,6 +80,7 @@ export function connectEvents() {
     if (ev.path.includes('.sync-conflict-')) refreshStatusSoon();
     void handleExternalChange(ev);
     for (const l of listeners) l(ev);
+    refreshContextSoon();
   });
   es.addEventListener('settings', (msg) => {
     // Datos: los valores nuevos (o el formato completo de GET /api/settings).

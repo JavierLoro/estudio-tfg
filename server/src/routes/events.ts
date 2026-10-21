@@ -21,11 +21,13 @@ export default async function eventsRoutes(app: FastifyInstance, { ctx }: { ctx:
     const onCompile = (r: CompileResult) => send('compile', r);
     const onSettings = (v: unknown) => send('settings', v);
     const onOutline = (v: unknown) => send('outline', v);
+    const onProjectContext = () => send('project-context', {});
     const onWatcher = (v: unknown) => send('watcher', v);
     ctx.bus.on('change', onChange);
     ctx.bus.on('compile', onCompile);
     ctx.bus.on('settings', onSettings);
     ctx.bus.on('outline', onOutline);
+    ctx.bus.on('project-context', onProjectContext);
     ctx.bus.on('watcher', onWatcher);
     const ping = setInterval(() => res.write(': ping\n\n'), 25_000);
     const cleanup = () => {
@@ -34,6 +36,7 @@ export default async function eventsRoutes(app: FastifyInstance, { ctx }: { ctx:
       ctx.bus.off('compile', onCompile);
       ctx.bus.off('settings', onSettings);
       ctx.bus.off('outline', onOutline);
+      ctx.bus.off('project-context', onProjectContext);
       ctx.bus.off('watcher', onWatcher);
     };
     req.raw.on('close', cleanup);

@@ -149,3 +149,17 @@ La integración directa sigue el [registro OAuth de OpenAI](https://developers.o
 la [gestión de sesiones](https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions)
 y las [limitaciones de la preview](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations).
 La disponibilidad futura y los límites no están garantizados por la app.
+
+## Contexto del TFG
+
+En Ajustes → Asistente, rellena la ficha y guarda su selección. El título sigue en Datos del trabajo. Desactivado conserva las elecciones sin elaborar ni enviar contexto. Todo incluye también nuevos documentos compatibles de las raíces configuradas; Parcial permite ámbitos completos, carpetas y archivos. Las exclusiones prevalecen. El checkbox de una nota edita esta misma selección, sin tocar Obsidian; desmarcar desde Todo pasa a Parcial y lo indica.
+
+Autoriza por separado elaborar propuestas, usar el contexto y preparar diagramas nuevos. Cada cuenta/proyecto comienza con esas casillas cerradas. Los permisos del chat sobre originales, adjuntos y modificaciones siguen siendo independientes. Los cambios locales solo producen avisos: nunca se consulta IA al editar. Los derivados de archivos modificados, eliminados o excluidos quedan fuera de los próximos envíos.
+
+Guarda los borradores y elige un modelo para **Actualizar contexto**. Cada propuesta procesa tres fragmentos de hasta 20.000 caracteres; muestra procedencia, revisión, cambios y pendientes. Corrige los resúmenes antes de aceptar, o rechaza la propuesta; **Deshacer última actualización** recupera el conjunto anterior sin reactivar fuentes retiradas. Continúa los documentos grandes pulsando Actualizar otra vez. El límite por archivo compatible es 2 MiB; los no consultables aparecen con aviso.
+
+Antes de enviar un chat o generar un diagrama, revisa el **Contexto efectivo antes de enviar** y marca expresamente Usar contexto del TFG. Su versión se conserva en el historial; si una fuente de un chat previo cambia o se retira, inicia una conversación nueva para que el contenido retirado no vuelva a enviarse. El historial local permanece.
+
+## Diagramas con asistente
+
+En Nuevo diagrama elige **Con asistente**, nombre, uno de los quince tipos y descripción. Concede su permiso propio en Ajustes y elige un modelo disponible. **Generar propuesta** conserva código, explicación y supuestos, sin crear archivos. Puedes recuperar propuestas, detener la generación, corregir el código o pedir otra expresamente. **Crear diagrama** solo se habilita cuando la propuesta se dibuja correctamente con el renderer existente. Nunca sobrescribe un nombre ocupado. La exportación y la inserción en Memoria se realizan después; no se ofrece edición asistida de diagramas existentes.

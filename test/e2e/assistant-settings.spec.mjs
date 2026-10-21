@@ -1,3 +1,4 @@
+import { emptyContext } from './context-fixture.mjs';
 import { test, expect } from './fixtures.mjs';
 
 for (const connected of [false, true]) {
@@ -37,6 +38,7 @@ test('tras conectar recomienda configurar permisos y abre Ajustes sin concederlo
     const endpoint = new URL(route.request().url()).pathname.replace('/api/assistant', '');
     if (endpoint === '/account/connect') { phase = 'pending'; return route.fulfill({ json: account() }); }
     if (endpoint === '/account') { if (phase === 'pending') phase = 'connected'; return route.fulfill({ json: account() }); }
+    if (endpoint === '/context') return route.fulfill({ json: emptyContext() });
     if (endpoint === '/models') return route.fulfill({ json: { models: [{ id: 'modelo-ficticio', name: 'Modelo ficticio' }] } });
     if (endpoint === '/threads' && route.request().method() === 'GET') return route.fulfill({ json: { threads: [] } });
     sent++; return route.abort();
@@ -86,6 +88,7 @@ test('permisos en Ajustes, cuenta por icono y modelo junto a Enviar @smoke', asy
     const body = request.method() === 'POST' ? request.postDataJSON() : null;
     if (endpoint === '/account/select') { active = body.id; return route.fulfill({ json: account() }); }
     if (endpoint === '/account') return route.fulfill({ json: account() });
+    if (endpoint === '/context') return route.fulfill({ json: emptyContext() });
     if (endpoint === '/models') return route.fulfill({ json: { models: [{ id: 'modelo-a', name: 'Modelo A ficticio' }, { id: 'modelo-b', name: 'Modelo B ficticio' }] } });
     if (endpoint === '/threads' && body) {
       created.push(body);
@@ -109,7 +112,7 @@ test('permisos en Ajustes, cuenta por icono y modelo junto a Enviar @smoke', asy
   const composer = floating.getByRole('textbox', { name: 'Mensaje al asistente', exact: true });
   const model = floating.getByRole('combobox', { name: 'Modelo del asistente', exact: true });
   await expect(model).toHaveValue('modelo-a');
-  await expect(floating.getByRole('checkbox')).toHaveCount(0);
+  await expect(floating.getByRole('checkbox', { name: 'Usar contexto del TFG en esta acción' })).toBeDisabled();
   await expect(floating.getByRole('region', { name: 'Cuenta de ChatGPT' })).toHaveCount(0);
   const send = floating.getByRole('button', { name: 'Enviar', exact: true });
   expect(Math.abs((await send.boundingBox()).y - (await model.boundingBox()).y)).toBeLessThan(8);

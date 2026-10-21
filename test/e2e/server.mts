@@ -3,6 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { buildApp } from '../../server/src/app.ts';
+import { assistantRoutes, type AssistantProvider } from '../../server/src/assistant.ts';
+import { DIAGRAM_TEMPLATES } from '../../web/src/lib/diagramTemplates.ts';
 import { loadConfig, REPO_ROOT } from '../../server/src/config.ts';
 
 const root = await fs.realpath(process.argv[2]);
@@ -45,7 +47,23 @@ const cfg = loadConfig({ NOTES_DIR: notes, MEMORIA_DIR: memoria, BUILD_DIR: buil
 cfg.settingsFile = path.join(root, 'data/settings.json');
 cfg.historyDir = path.join(root, 'data/history');
 await fs.access(path.join(cfg.webDist, 'index.html'));
-const { app } = await buildApp(cfg, { logger: true, watch: true, fetchMetadata: async (url) => {
+const response = (value: unknown) => [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(value) }] }];
+const fakeProvider: AssistantProvider = {
+  view: () => ({ accounts: [{ id: 'cuenta-contexto-ficticia', label: 'Ficticia', connected: true, enabled: true }], active: 'cuenta-contexto-ficticia', pending: false, persistent: false, error: '' }),
+  connect: async () => fakeProvider.view(), select: async () => fakeProvider.view(), disconnect: async () => fakeProvider.view(), cancelSignIn: async () => {},
+  models: async () => [{ id: 'modelo-contexto-ficticio', name: 'Modelo de pruebas' }], subscribe: () => () => {}, close: async () => {},
+  respond: async (_m, input, tools, signal, _event, options) => {
+    signal.throwIfAborted(); assert(tools.length === 0, 'No hay herramientas en las pruebas de contexto');
+    const text = input[0].content[0].text;
+    if (options?.purpose === 'diagram') {
+      const type = /del tipo ([^.]+)/.exec(text)?.[1];
+      return response({ code: DIAGRAM_TEMPLATES.find(t => t.id === type)!.source, explanation: 'Explicación ficticia', assumptions: 'Supuestos ficticios' });
+    }
+    if (options?.purpose === 'context') { const chunks = JSON.parse(text.slice(text.indexOf('\n') + 1)); return response({ fragments: chunks.map((f: any) => ({ id: f.id, text: 'Resumen ficticio de ' + f.source.path })) }); }
+    return response({ text: 'Respuesta ficticia' });
+  },
+};
+const { app } = await buildApp(cfg, { logger: true, watch: true, configure: process.env.E2E_CONTEXT ? (app, ctx) => assistantRoutes(app, ctx, fakeProvider) : undefined, fetchMetadata: async (url) => {
   assert(new URL(url).hostname === 'ejemplo.invalid', 'Los metadatos E2E deben ser ficticios');
   return { status: 200, headers: { 'content-type': 'text/html' }, body: Buffer.from('<title>Web ficticia E2E</title>') };
 } });
