@@ -15,6 +15,7 @@ import { ensureDoc, saveDoc, useDocs } from '../state/docs';
 import { onFileChange } from '../state/events';
 import { openFile, type FileParams } from '../state/workspace';
 import { useUI } from '../state/ui';
+import { NoteContextCheckbox } from '../components/ProjectContext';
 import { textContextMenu } from '../components/TextContextMenu';
 
 type Mode = 'read' | 'edit';
@@ -57,6 +58,7 @@ export function NotePanel({ params, api: panelApi }: IDockviewPanelProps<FilePar
         <span className="min-w-0 flex-1 truncate" title={path}>
           {path}
         </span>
+        {root === 'notes' && isMd && <NoteContextCheckbox path={path} />}
         <SaveIndicator docKey={key} />
         <IconButton label={`Guardar (${kbd('Mod-S')})`} onClick={() => saveDoc(key)} disabled={status !== 'ready'}>
           <Save size={14} />

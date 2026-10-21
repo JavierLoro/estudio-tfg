@@ -74,3 +74,5 @@ Insertar conserva el borrador y el texto seleccionado, con deshacer aislado en C
 Los usos se reconstruyen de los `.tex` guardados y los registros/copias del proyecto actual; llevan a archivo/línea y se muestran antes de borrar. El escáner no expande macros TeX ni observa borradores de otro cliente: estos aparecen al guardar. Las operaciones se recuperan desde `data/library/<id>/integrations/`; una memoria cambiada o una revisión obsoleta detiene la aplicación sin borrar su staging. Respalda tanto estos registros como el proyecto completo.
 
 La CI verifica citas/figuras en ambos perfiles y otra compilación después de copiar cada memoria y retirar su biblioteca original. El comando reproducible está en contrato v0.25; siempre utiliza fixtures y un worker/output temporales propios.
+
+El contexto del TFG puede seleccionar fichas de Biblioteca y bibliografía mediante su ámbito propio en Ajustes → Asistente. Esto no concede al chat acceso directo a sus originales, PDF o imágenes. El bloque de búsqueda y su bandeja se sigue por separado en #85.

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { json, type Root } from '../api';
 import { useUI } from './ui';
+import type { ContextSnapshot } from '../../../shared/assistant';
 import type { AssistantContext, AssistantScope } from '../lib/assistant';
 export type { AssistantContext, AssistantScope } from '../lib/assistant';
 
@@ -13,7 +14,7 @@ export function scopeSummary(scope: AssistantScope) {
 }
 export interface AssistantProposal { id: string; state: 'prepared' | 'applying' | 'done' | 'undoing' | 'undone'; error?: string;
   files: { source: AssistantSource; before: string; after: string; baseRev: string; afterRev: string; applied: boolean }[] }
-export interface AssistantThread { id: string; account: string; instance: string; title: string; model: string; scope: AssistantScope;
+export interface AssistantThread { projectContexts?: ContextSnapshot[]; id: string; account: string; instance: string; title: string; model: string; scope: AssistantScope;
   messages: { role: 'user' | 'assistant' | 'tool'; text: string }[]; sources: AssistantSource[]; proposals: AssistantProposal[]; state: 'idle' | 'running' | 'error' | 'cancelled'; error?: string; errorCode?: string; archived?: boolean; revoked?: boolean; permissionsOutdated?: boolean }
 export function assistantRequest<T>(url: string, body?: unknown, method = body === undefined ? 'GET' : 'POST'): Promise<T> {
   return json<T>('/api/assistant' + url, { method, ...(body === undefined ? {} : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }) });

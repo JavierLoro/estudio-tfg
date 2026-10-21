@@ -21,6 +21,7 @@ import { notifySettingsChanged, useSettings } from '../state/settings';
 import { toast, useUI } from '../state/ui';
 import { useDesktop } from '../state/desktop';
 import { ChatGPTAccount } from '../components/ChatGPTAccount';
+import { ContextSettings } from '../components/ProjectContext';
 import { AssistantPermissions } from '../components/AssistantPermissions';
 
 const LABELS: Record<SettingsKey, string> = {
@@ -337,7 +338,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
           {value === 'general' ? 'General' : 'Asistente'}
         </button>)}
       </div>}
-      {desktop && <div role="tabpanel" id="settings-panel-assistant" aria-labelledby="settings-tab-assistant" hidden={!assistantTab} className="min-h-0 flex-1 overflow-auto p-3"><div className="mx-auto max-w-3xl space-y-3"><ChatGPTAccount /><AssistantPermissions /></div></div>}
+      {desktop && <div role="tabpanel" id="settings-panel-assistant" aria-labelledby="settings-tab-assistant" hidden={!assistantTab} className="min-h-0 flex-1 overflow-auto p-3"><div className="mx-auto max-w-3xl space-y-3"><ChatGPTAccount /><AssistantPermissions /><ContextSettings /></div></div>}
       <div role={desktop ? 'tabpanel' : undefined} id="settings-panel-general" aria-labelledby={desktop ? 'settings-tab-general' : undefined} hidden={assistantTab} className={cx('min-h-0 flex-1 flex-col', assistantTab ? 'hidden' : 'flex')}>
       {status?.configured === false && (
         <Banner kind="warn">

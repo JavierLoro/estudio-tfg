@@ -1,3 +1,4 @@
+import { emptyContext } from './context-fixture.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { test, expect } from './fixtures.mjs';
