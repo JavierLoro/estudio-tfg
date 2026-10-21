@@ -46,6 +46,8 @@ const visible = (thread: Thread) => ({ id: thread.id, title: thread.title, accou
   projectContexts: thread.projectContexts, messages: thread.messages, sources: thread.sources, proposals: thread.proposals, state: thread.state, error: thread.error, errorCode: thread.errorCode, archived: thread.archived, revoked: thread.revoked });
 
 export async function assistantRoutes(app: FastifyInstance, ctx: Ctx, provider: AssistantProvider) {
+  const privateHistory = path.join(ctx.cfg.historyDir, 'notes', '.asistente');
+  await fs.mkdir(privateHistory, { recursive: true, mode: 0o700 }); await fs.chmod(privateHistory, 0o700);
   const projectContext = new ProjectContext(ctx, provider);
   await projectContext.init();
   await projectContext.routes(app);

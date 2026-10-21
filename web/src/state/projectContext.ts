@@ -11,7 +11,7 @@ export async function refreshProjectContext() {
   const expected = owner();
   if (expected !== useProjectContext.getState().owner) useProjectContext.setState({ value: null, owner: expected, error: '' });
   const value = await assistantRequest<ContextView>('/context');
-  if (expected === owner()) useProjectContext.setState({ value, owner: expected, error: '' });
+  if (expected === owner() && (!useAssistant.getState().account || value.account === useAssistant.getState().account?.active)) useProjectContext.setState({ value, owner: expected, error: '' });
   return value;
 }
 export function contextBody(value: ContextView) { return { baseRev: value.rev, project: value.project, account: value.account }; }

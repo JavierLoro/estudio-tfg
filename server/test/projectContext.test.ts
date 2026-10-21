@@ -131,3 +131,9 @@ it('recupera contexto y propuestas tras reiniciar sin nuevas llamadas al proveed
     expect(respond).toHaveBeenCalledTimes(calls);
   } finally { await app.close(); }
 });
+it('los documentos aún pendientes no se cuentan como cambios tras aceptar el primer lote y las bases no duplican el historial', async () => {
+  await configure(true); const v = await accept(await prepare()); expect(v.changed.files).toBe(0);
+  const stored = JSON.parse(await fs.readFile(path.join(t.cfg.dataDir, 'project-context', v.project, 'state.json'), 'utf8'));
+  expect(stored.baselineFormat).toBe('refs'); expect(Object.values(stored.baselines).every(value => /^[a-f0-9]{16}$/.test(String(value)))).toBe(true);
+  expect(await fs.readdir(path.join(t.cfg.dataDir, 'project-context', v.project, 'baselines'))).not.toHaveLength(0);
+});
