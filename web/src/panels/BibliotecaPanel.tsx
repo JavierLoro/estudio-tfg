@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, FolderOpen, Grid2X2, List, Plus, RefreshCw } from 'lucide-react';
 import { api } from '../api';
 import { Button, Banner, Empty, Spinner, cx } from '../components/ui';
@@ -25,6 +25,13 @@ export default function BibliotecaPanel() {
     [migration, setMigration] = useState(false);
   const [importing,setImporting]=useState(false);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const detailRef = useRef<HTMLElement>(null), previousSelection = useRef<string | null>(null);
+  const rowRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  useEffect(() => {
+    if (selectedPath) detailRef.current?.focus();
+    else if (previousSelection.current) rowRefs.current[previousSelection.current]?.focus();
+    previousSelection.current = selectedPath;
+  }, [selectedPath]);
   const selected = resources?.find(r => r.path === selectedPath);
   const showGrid = grid;
   useEffect(() => {
@@ -201,6 +208,7 @@ export default function BibliotecaPanel() {
                   !showGrid && 'flex items-center gap-3 p-3',
                 )}
                 {...openActions((side) => side ? openResource(resource.path, { side }) : setSelectedPath(resource.path))}
+                ref={el => { rowRefs.current[resource.path] = el; }}
                 aria-pressed={selectedPath === resource.path}
               >
                 {showGrid && (
@@ -242,7 +250,7 @@ export default function BibliotecaPanel() {
             </li>
           ))}
         </ul>
-        {selected && <section aria-label="Ficha de consulta" className="min-w-0 flex-1 rounded-lg border border-line bg-bg p-4 @5xl:max-w-sm">
+        {selected && <section ref={detailRef} tabIndex={-1} aria-label="Ficha de consulta" className="min-w-0 flex-1 rounded-lg border border-line bg-bg p-4 @5xl:max-w-sm">
           <Button onClick={() => setSelectedPath(null)}>Volver a la lista</Button>
           <details open className="mt-3">
             <summary className="cursor-pointer text-[16px] font-semibold">{selected.title}</summary>

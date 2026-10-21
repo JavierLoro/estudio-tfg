@@ -317,10 +317,12 @@ test('tipos, ficha con teclado y consulta estrecha en ambos temas', async ({ stu
   await page.keyboard.press('Enter');
   const detail = page.getByRole('region', { name: 'Ficha de consulta' });
   await expect(detail).toBeVisible();
+  await expect(detail).toBeFocused();
   await expect(row).not.toBeVisible();
   await page.emulateMedia({ colorScheme: 'dark' });
   await expect(detail.getByText('Licencia sin indicar')).toBeVisible();
   await detail.getByRole('button', { name: 'Volver a la lista' }).click();
   await expect(row).toBeVisible();
+  await expect(row).toBeFocused();
   await page.emulateMedia({ colorScheme: 'light' });
 });

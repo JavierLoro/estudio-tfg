@@ -883,3 +883,5 @@ Los diagramas viven en la memoria: fuente en `diagramas/<nombre>.mmd` (Mermaid) 
 `GET /api/resources` y `/api/resources/file` añaden `presentation`, una proyección de solo lectura: authors, year, publication, publisher, edition, description, domain, accessed, source, license, formats y pdf; los campos ausentes se omiten. La referencia gestionada sigue siendo autoridad; las manuales se leen desde su .bib en Memoria con límite de 1 MiB y clave única; si no está disponible se muestra warning, sin sustituirla ni escribir. Formatos describe adjuntos, kind el recurso. No requiere migración.
 
 Biblioteca conserva filtros, colecciones, etiquetas y visores; tipos/colecciones/revisión ocupan el lateral, y etiqueta/orden Más filtros. Seleccionar consulta la ficha plegable; Abrir lleva al panel actual, Abrir al lado conserva el gesto existente. En espacios estrechos la ficha sustituye la lista y ofrece Volver. Filtrar imágenes elige cuadrícula, que puede cambiarse manualmente. Miniaturas únicamente desde adjuntos locales.
+
+Seleccionar un recurso lleva el foco a la ficha de consulta; Volver lo devuelve a su fila para continuar con teclado.
