@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
+import { discoveryRoutes } from './discovery.ts';
 import { ProjectContext } from './projectContext.ts';
 import type { ContextSnapshot } from '../../shared/assistant.ts';
 import type { Ctx } from './context.ts';
@@ -46,9 +47,12 @@ const visible = (thread: Thread) => ({ id: thread.id, title: thread.title, accou
   projectContexts: thread.projectContexts, messages: thread.messages, sources: thread.sources, proposals: thread.proposals, state: thread.state, error: thread.error, errorCode: thread.errorCode, archived: thread.archived, revoked: thread.revoked });
 
 export async function assistantRoutes(app: FastifyInstance, ctx: Ctx, provider: AssistantProvider) {
+  const privateHistory = path.join(ctx.cfg.historyDir, 'notes', '.asistente');
+  await fs.mkdir(privateHistory, { recursive: true, mode: 0o700 }); await fs.chmod(privateHistory, 0o700);
   const projectContext = new ProjectContext(ctx, provider);
   await projectContext.init();
   await projectContext.routes(app);
+  await discoveryRoutes(app, ctx, provider, projectContext);
   const dir = path.join(ctx.cfg.dataDir, 'assistant');
   await fs.mkdir(dir, { recursive: true, mode: 0o700 });
   const cache = new Map<string, Thread>(), jobs = new Map<string, AbortController>(), mutations = new Set<string>();

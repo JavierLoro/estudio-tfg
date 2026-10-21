@@ -5,7 +5,7 @@ import type { FastifyInstance } from 'fastify';
 import type { Ctx } from './context.ts';
 import type { AssistantProvider } from './assistant.ts';
 import { privateJson, readPrivate } from './assistantChanges.ts';
-import { backup, rev, walkFiles } from './fsutil.ts';
+import { backup, rev, walkFiles, HISTORY_KEEP } from './fsutil.ts';
 import { requireAdmin, instanceId } from './settings.ts';
 import { libraryId } from './libraryIdentity.ts';
 import { resolveSafe } from './paths.ts';
@@ -35,6 +35,7 @@ export function modelObject(output: any[]) {
 }
 interface RecordData {
   profile: ContextProfile; selection: ContextSelection; grants: Record<string, ContextGrants>;
+  baselineFormat?: 'refs';
   fragments: ContextFragment[]; baselines: Record<string, string>;
   proposals: ContextProposal[]; history: { fragments: ContextFragment[]; baselines: Record<string, string> }[];
   diagrams: (DiagramGeneration & { account: string })[];
@@ -53,16 +54,35 @@ export class ProjectContext {
   project = () => digest([instanceId(this.ctx.cfg), libraryId(this.ctx.cfg)]);
   account = () => this.provider.view().active;
   private file = (project = this.project()) => path.join(this.ctx.cfg.dataDir, 'project-context', project, 'state.json');
-  private defaults = (): RecordData => ({ profile: emptyProfile(), selection: { mode: 'off', scopes: [], folders: [], files: [], excluded: [] }, grants: {}, fragments: [], baselines: {}, proposals: [], history: [], diagrams: [] });
+  private defaults = (): RecordData => ({ profile: emptyProfile(), selection: { mode: 'off', scopes: [], folders: [], files: [], excluded: [] }, grants: {}, baselineFormat: 'refs', fragments: [], baselines: {}, proposals: [], history: [], diagrams: [] });
   private async read(project = this.project()): Promise<RecordData> {
-    try { return await readPrivate(this.file(project)); }
+    try {
+      const record: RecordData = await readPrivate(this.file(project));
+      if (record.baselineFormat !== 'refs') {
+        for (const item of [record, ...record.history]) for (const [key, text] of Object.entries(item.baselines)) item.baselines[key] = await this.storeBaseline(text, project);
+        record.baselineFormat = 'refs';
+      }
+      return record;
+    }
     catch (e: any) { if (e.code === 'ENOENT') return this.defaults(); throw e; }
   }
-  private async change<T>(expected: unknown, fn: (r: RecordData) => T | Promise<T>, project = this.project()) {
+  private async storeBaseline(text: string, project = this.project()) {
+    const version = rev(text), file = path.join(path.dirname(this.file(project)), 'baselines', version + '.json');
+    try { if ((await readPrivate(file)).text !== text) throw new HttpError(409, 'Una base del contexto cambió; conserva el registro para revisarlo'); }
+    catch (e: any) { if (e.code !== 'ENOENT') throw e; await privateJson(file, { text }); }
+    return version;
+  }
+  private async baselineText(version: string) {
+    if (!/^[a-f0-9]{16}$/.test(version)) throw badRequest('Base de contexto no válida');
+    const record = await readPrivate(path.join(path.dirname(this.file()), 'baselines', version + '.json'));
+    if (typeof record.text !== 'string' || rev(record.text) !== version) throw new HttpError(409, 'La base del contexto está dañada; conserva una copia antes de repararla');
+    return record.text as string;
+  }
+  private async change<T>(expected: unknown, fn: (r: RecordData, project: string) => T | Promise<T>, project = this.project()) {
     return this.ctx.locks.run('project-context:' + project, async () => {
       const r = await this.read(project);
       if (expected !== undefined && (typeof expected !== 'string' || expected !== digest(r))) throw new HttpError(409, 'El contexto cambió en otro cliente. Conserva el formulario y revisa la versión actual.', { rev: digest(r) });
-      const result = await fn(r);
+      const result = await fn(r, project);
       if (expected !== undefined && project !== this.project()) throw new HttpError(409, 'El proyecto cambió durante la edición');
       try { await backup(this.ctx.cfg, 'notes', `.asistente/${project}/context.json`, await fs.readFile(this.file(project))); }
       catch (e: any) { if (e.code !== 'ENOENT') throw e; }
@@ -125,7 +145,7 @@ export class ProjectContext {
     const fragments = (await this.valid(r)).filter(f => f.valid);
     const profile = CONTEXT_FIELDS.filter(k => r.profile[k]).map(k => `${CONTEXT_LABELS[k]}: ${r.profile[k]}`).join('\n');
     const text = [profile, ...fragments.map(f => `[${f.source.root}:${f.source.path} @${f.source.rev}:${f.source.offset}] ${f.text}`)].filter(Boolean).join('\n\n');
-    return { version: digest([r.profile, fragments]), profileRev: digest(r.profile), text, sources: fragments.map(f => f.source) };
+    return { version: digest([this.project(), r.profile, fragments]), profileRev: digest(r.profile), text, sources: fragments.map(f => f.source) };
   }
   async effective(version: unknown): Promise<ContextSnapshot> {
     const snapshot = await this.snapshot(await this.read(), this.account());
@@ -147,13 +167,13 @@ export class ProjectContext {
     const r = await this.read(), { sources, warnings } = await this.inventory(r), fragments = await this.valid(r);
     let files = 0, count = 0, pending = 0;
     for (const s of sources) {
-      if ((r.baselines[key(s)] !== undefined || r.history.length > 0) && r.baselines[key(s)] !== s.text) { files++; count += changedWords(r.baselines[key(s)] ?? '', s.text); }
+      if ((r.baselines[key(s)] !== undefined || r.history.length > 0) && r.baselines[key(s)] !== s.rev) { files++; count += changedWords(r.baselines[key(s)] ? await this.baselineText(r.baselines[key(s)]) : '', s.text); }
       const chunks = Math.max(1, Math.ceil(s.text.length / 20_000));
       pending += chunks - r.fragments.filter(f => key(f.source) === key(s) && f.source.rev === s.rev).length;
     }
     for (const [k, old] of Object.entries(r.baselines)) {
       const i = k.indexOf(':'), source = { root: k.slice(0, i) as ContextPath['root'], path: k.slice(i + 1) };
-      if (this.selected(r.selection, source) && !sources.some(s => key(s) === k)) { files++; count += words(old).length; }
+      if (this.selected(r.selection, source) && !sources.some(s => key(s) === k)) { files++; count += words(await this.baselineText(old)).length; }
     }
     return { rev: digest(r), project: this.project(), account: this.account(), profile: r.profile, selection: r.selection,
       grants: r.grants[this.account() ?? ''] ?? { ...NO_GRANTS }, fragments, proposals: r.proposals,
@@ -219,7 +239,7 @@ export class ProjectContext {
       this.cancelAll(); this.ctx.bus.emit('project-context'); return this.view();
     });
     route('POST', '/context/prepare', async req => {
-      this.requireRevision(req.body); const owner = this.owner(); await this.grant('prepareContext');
+      this.requireRevision(req.body); if (req.body.account !== this.account()) throw new HttpError(409, 'La cuenta cambió; revisa la acción'); const owner = this.owner(); await this.grant('prepareContext');
       if (!Array.isArray(req.body.dirty) || req.body.dirty.length) throw new HttpError(409, 'Guarda los borradores antes de preparar contexto desde los documentos');
       if (this.jobs.size) throw new HttpError(409, 'Espera o detén la propuesta en curso');
       const model = await this.model(req.body.model), id = crypto.randomUUID();
@@ -257,7 +277,7 @@ export class ProjectContext {
     route('POST', '/context/cancel', async () => { this.cancelAll(); return this.view(); });
     for (const action of ['accept', 'reject'] as const) route('POST', '/context/proposals/:id/' + action, async req => {
       this.requireRevision(req.body);
-      await this.change(req.body.baseRev, async r => {
+      await this.change(req.body.baseRev, async (r, project) => {
         const p = r.proposals.find(p => p.id === req.params.id); if (!p || p.state !== 'prepared') throw badRequest('Propuesta no disponible');
         if (action === 'reject') { p.state = 'rejected'; return; }
         if (r.selection.mode === 'off') throw badRequest('El contexto está desactivado');
@@ -270,9 +290,11 @@ export class ProjectContext {
         });
         if ((await this.valid(r, next)).some(f => !f.valid)) throw new HttpError(409, 'Las fuentes cambiaron o fueron excluidas. Prepara otra propuesta.');
         r.history.push({ fragments: structuredClone(r.fragments), baselines: { ...r.baselines } });
+        if (r.history.length === 1) for (const source of (await this.inventory(r)).sources) if (!r.baselines[key(source)]) r.baselines[key(source)] = await this.storeBaseline(source.text, project);
+        r.history = r.history.slice(-HISTORY_KEEP);
         for (const f of next) {
           r.fragments = r.fragments.filter(old => key(old.source) !== key(f.source) || (old.source.rev === f.source.rev && old.source.offset !== f.source.offset));
-          r.fragments.push(f); r.baselines[key(f.source)] = (await this.source(f.source, r.selection))!.text;
+          r.fragments.push(f); r.baselines[key(f.source)] = await this.storeBaseline((await this.source(f.source, r.selection))!.text, project);
         }
         p.state = 'accepted';
       });
@@ -282,7 +304,7 @@ export class ProjectContext {
     route('GET', '/diagram-generations', async () => ({ rev: digest(await this.read()), items: (await this.read()).diagrams.filter(d => d.account === this.account()) }));
     route('POST', '/diagram-generations/cancel', async () => { this.cancelAll(); return { ok: true }; });
     route('POST', '/diagram-generations', async req => {
-      this.requireRevision(req.body); const owner = this.owner(); await this.grant('prepareDiagrams');
+      this.requireRevision(req.body); if (req.body.account !== this.account()) throw new HttpError(409, 'La cuenta cambió; revisa la acción'); const owner = this.owner(); await this.grant('prepareDiagrams');
       if (this.jobs.size) throw new HttpError(409, 'Espera o detén la propuesta en curso');
       if (!DIAGRAM_TYPES.includes(req.body.type) || typeof req.body.description !== 'string' || !req.body.description.trim() || req.body.description.length > 4000 || typeof req.body.name !== 'string' || !/^[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*$/.test(req.body.name) || req.body.name.length > 200) throw badRequest('Revisa nombre, tipo y descripción del diagrama');
       const model = await this.model(req.body.model), snapshot = req.body.contextVersion === undefined ? undefined : await this.effective(req.body.contextVersion);
