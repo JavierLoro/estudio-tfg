@@ -878,6 +878,14 @@ Los diagramas viven en la memoria: fuente en `diagramas/<nombre>.mmd` (Mermaid) 
 - Un separador permite ajustar editor/PDF mediante arrastre, flechas izquierda/derecha (5 %), Inicio/Fin y doble clic para volver a mitades iguales. Ambas zonas mantienen un mínimo del 20 %. La proporción se recuerda por proyecto con `et:memoria:pdf-ratio:<instanceId>` y no cambia los anchos de Multivista.
 - En Multivista se mantiene el PDF como pestaña de Memoria, con su distribución y cierre habituales; no se añade un segundo visor fijo. Alternar los modos conserva los documentos abiertos, borradores e historial de edición. Los layouts antiguos que mezclaban PDF y documentos separan el visor sin cerrar los editores.
 
+## Biblioteca por tipos y ficha de consulta (v0.64)
+
+`GET /api/resources` y `/api/resources/file` añaden `presentation`, una proyección de solo lectura: authors, year, publication, publisher, edition, description, domain, accessed, source, license, formats y pdf; los campos ausentes se omiten. La referencia gestionada sigue siendo autoridad; las manuales se leen desde su .bib en Memoria con límite de 1 MiB y clave única; si no está disponible se muestra warning, sin sustituirla ni escribir. Formatos describe adjuntos, kind el recurso. No requiere migración.
+
+Biblioteca conserva filtros, colecciones, etiquetas y visores; tipos/colecciones/revisión ocupan el lateral, y etiqueta/orden Más filtros. Seleccionar consulta la ficha plegable; Abrir lleva al panel actual, Abrir al lado conserva el gesto existente. En espacios estrechos la ficha sustituye la lista y ofrece Volver. Filtrar imágenes elige cuadrícula, que puede cambiarse manualmente. Miniaturas únicamente desde adjuntos locales.
+
+Seleccionar un recurso lleva el foco a la ficha de consulta; Volver lo devuelve a su fila para continuar con teclado.
+
 ## Contexto del TFG y propuestas de diagramas (v0.65)
 
 Solo escritorio. `GET/POST /api/assistant/context` lee/edita ficha, selección y concesiones. POST exige `baseRev`, `project` y, al cambiar concesiones, `account`; 409 conserva el formulario. Ficha: tema, objetivos, alcance, metodología, terminología, decisiones y dudas; el título sigue en Datos del trabajo. Modos off/all/partial; ámbitos notes/memoria/library/diagrams, folders/files/excluded con raíz y ruta relativa. Las exclusiones prevalecen; todo incluye documentos nuevos. Desactivar conserva selección, fragmentos e historial. El checkbox de notas modifica este registro, nunca Markdown/frontmatter. Desmarcar desde Todo pasa a Parcial con exclusión explícita. Una exclusión de carpeta se revisa en Ajustes antes de incluir una nota de esa carpeta.

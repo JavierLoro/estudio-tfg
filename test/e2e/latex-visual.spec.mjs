@@ -185,6 +185,7 @@ test('insertar una figura desde Biblioteca sigue funcionando con el destino en V
   const created = await add(page, 'Figura ficticia visual', [{ name: 'figura.png', mimeType: 'image/png', buffer: png }]);
   await created.getByRole('button', { name: 'Listo', exact: true }).click();
   await page.getByRole('main', { name: 'Biblioteca', exact: true }).getByRole('button', { name: /Figura ficticia visual/ }).click();
+  await page.getByRole('region', { name: 'Ficha de consulta' }).getByRole('button', { name: 'Abrir', exact: true }).click();
   await page.getByRole('button', { name: 'Insertar figura', exact: true }).click();
   const figure = page.getByRole('dialog', { name: 'Insertar figura en la memoria' });
   await figure.getByLabel('Archivo de destino').selectOption('capitulo.tex');
