@@ -4,7 +4,7 @@ import { api } from '../api';
 import { Button, Banner, Empty, Spinner, cx } from '../components/ui';
 import { openActions } from '../components/OpenActions';
 import { LibraryMigrationDialog } from '../components/LibraryMigrationDialog';
-import { DEFAULT_FILTERS, KIND_LABEL, filterResources, kinds, resourceKind, type LibraryFilters } from '../lib/library';
+import { DEFAULT_FILTERS, KIND_LABEL, filterResources, kinds, resourceKind, resourceSummary, safeUrl, type LibraryFilters } from '../lib/library';
 import { load, save } from '../lib/storage';
 import { formatDate } from '../lib/paths';
 import { useUI } from '../state/ui';
@@ -24,14 +24,19 @@ export default function BibliotecaPanel() {
   const [grid, setGrid] = useState(() => load('et:library-grid', false)),
     [migration, setMigration] = useState(false);
   const [importing,setImporting]=useState(false);
+  const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const selected = resources?.find(r => r.path === selectedPath);
+  const showGrid = grid;
   useEffect(() => {
     setFilters(load(key, DEFAULT_FILTERS));
+    setSelectedPath(null);
     void useUI.getState().refreshResources();
   }, [key]);
   const filter = (name: keyof LibraryFilters, value: string) => {
     const next = { ...filters, [name]: value };
     setFilters(next);
     save(key, next);
+    if (name === 'kind') { setGrid(value === 'image'); save('et:library-grid', value === 'image'); }
   };
   const list = useMemo(() => filterResources(resources ?? [], filters), [resources, filters]);
   const tags = [...new Set((resources ?? []).flatMap((r) => r.tags).filter((tag) => tag !== 'recurso'))].sort();
@@ -84,18 +89,15 @@ export default function BibliotecaPanel() {
             aria-label="Buscar en Biblioteca"
             className={cx(input, 'min-w-48 flex-1')}
           />
+        </div>
+        <div className="flex flex-col gap-4 @3xl:flex-row">
+        <aside aria-label="Filtros de Biblioteca" className="flex shrink-0 flex-wrap gap-2 @3xl:w-44 @3xl:flex-col">
           <select aria-label="Filtrar por tipo" className={input} value={filters.kind} onChange={(e) => filter('kind', e.target.value)}>
             <option value="">Todos los tipos</option>
             {kinds.map((kind) => (
               <option value={kind} key={kind}>
                 {KIND_LABEL[kind]}
               </option>
-            ))}
-          </select>
-          <select aria-label="Filtrar por etiqueta" className={input} value={filters.tag} onChange={(e) => filter('tag', e.target.value)}>
-            <option value="">Todas las etiquetas</option>
-            {tags.map((tag) => (
-              <option key={tag}>{tag}</option>
             ))}
           </select>
           <select
@@ -120,19 +122,31 @@ export default function BibliotecaPanel() {
             <option value="revisado">Revisados</option>
             <option value="descartado">Descartados</option>
           </select>
+          <details className="rounded border border-line bg-bg p-2 text-[12px]">
+            <summary className="cursor-pointer">Más filtros</summary>
+            <div className="mt-2 flex flex-col gap-2">
+          <select aria-label="Filtrar por etiqueta" className={input} value={filters.tag} onChange={(e) => filter('tag', e.target.value)}>
+            <option value="">Todas las etiquetas</option>
+            {tags.map((tag) => (
+              <option key={tag}>{tag}</option>
+            ))}
+          </select>
           <select aria-label="Ordenar Biblioteca" className={input} value={filters.order} onChange={(e) => filter('order', e.target.value)}>
             <option value="recent">Más recientes</option>
             <option value="oldest">Más antiguos</option>
             <option value="title">Título</option>
           </select>
-        </div>
+            </div>
+          </details>
+        </aside>
+        <div className="min-w-0 flex-1 space-y-3">
         <div className="flex items-center justify-between text-[12px] text-muted">
           <span>
             {list.length} de {resources?.length ?? 0} recursos
           </span>
           <div className="flex gap-1">
             <Button
-              aria-pressed={!grid}
+              aria-pressed={!showGrid}
               onClick={() => {
                 setGrid(false);
                 save('et:library-grid', false);
@@ -141,7 +155,7 @@ export default function BibliotecaPanel() {
               <List size={13} /> Lista
             </Button>
             <Button
-              aria-pressed={grid}
+              aria-pressed={showGrid}
               onClick={() => {
                 setGrid(true);
                 save('et:library-grid', true);
@@ -176,18 +190,20 @@ export default function BibliotecaPanel() {
             </Button>
           </div>
         )}
-        <ul className={grid ? 'grid grid-cols-1 gap-3 @md:grid-cols-2 @3xl:grid-cols-3 @5xl:grid-cols-4' : 'space-y-2'}>
+        <div className="flex gap-4">
+        <ul className={cx(selected && 'hidden @5xl:block', 'min-w-0 flex-1', showGrid ? 'grid grid-cols-1 gap-3 @md:grid-cols-2 @3xl:grid-cols-3 @5xl:grid-cols-4' : 'space-y-2')}>
           {list.map((resource) => (
             <li key={resource.path}>
               <button
                 type="button"
                 className={cx(
                   'w-full overflow-hidden rounded-lg border border-line bg-bg text-left transition-colors hover:border-accent focus-visible:outline-2 focus-visible:outline-accent',
-                  !grid && 'flex items-center gap-3 p-3',
+                  !showGrid && 'flex items-center gap-3 p-3',
                 )}
-                {...openActions((side) => openResource(resource.path, { side }))}
+                {...openActions((side) => side ? openResource(resource.path, { side }) : setSelectedPath(resource.path))}
+                aria-pressed={selectedPath === resource.path}
               >
-                {grid && (
+                {showGrid && (
                   <div className="flex h-36 items-center justify-center bg-hover">
                     {resource.thumbnailPath ? (
                       <img
@@ -201,7 +217,7 @@ export default function BibliotecaPanel() {
                     )}
                   </div>
                 )}
-                {!grid && resource.thumbnailPath && (
+                {!showGrid && resource.thumbnailPath && (
                   <img
                     src={api.rawUrl('notes', resource.thumbnailPath)}
                     loading="lazy"
@@ -209,9 +225,10 @@ export default function BibliotecaPanel() {
                     className="h-12 w-16 shrink-0 rounded bg-hover object-contain"
                   />
                 )}
-                <div className={cx('min-w-0 flex-1', grid && 'p-3')}>
+                <div className={cx('min-w-0 flex-1', showGrid && 'p-3')}>
                   <span className="text-[10px] font-semibold uppercase tracking-wide text-muted">{KIND_LABEL[resourceKind(resource)]}</span>
                   <h2 className="truncate text-[14px] font-semibold">{resource.title}</h2>
+                  <p className="mt-1 line-clamp-2 text-[12px] text-muted">{resourceSummary(resource)}</p>
                   <p className="mt-1 truncate text-[11px] text-faint">
                     {formatDate(resource.captured)} · {(resource.attachments ?? (resource.attachment ? [resource.attachment] : [])).length}{' '}
                     adjunto(s){resource.status === 'inbox' ? ' · sin revisar' : ''}
@@ -225,6 +242,25 @@ export default function BibliotecaPanel() {
             </li>
           ))}
         </ul>
+        {selected && <section aria-label="Ficha de consulta" className="min-w-0 flex-1 rounded-lg border border-line bg-bg p-4 @5xl:max-w-sm">
+          <Button onClick={() => setSelectedPath(null)}>Volver a la lista</Button>
+          <details open className="mt-3">
+            <summary className="cursor-pointer text-[16px] font-semibold">{selected.title}</summary>
+            <p className="mt-2 text-[11px] text-muted">{KIND_LABEL[resourceKind(selected)]}</p>
+            {selected.thumbnailPath && <img src={api.rawUrl('notes', selected.thumbnailPath)} alt={selected.title} className="my-3 max-h-64 w-full object-contain" />}
+            <p className="my-3 whitespace-pre-wrap text-[13px]">{resourceSummary(selected)}</p>
+            {selected.presentation?.warning && <Banner kind="warn">{selected.presentation.warning}</Banner>}
+            <p className="my-3 whitespace-pre-wrap break-words text-[12px] text-muted">{selected.note}</p>
+            {!!selected.collections?.length && <p className="text-[12px]">Colecciones: {selected.collections.join(', ')}</p>}
+            {!!selected.tags.length && <p className="text-[12px]">Etiquetas: {selected.tags.join(', ')}</p>}
+            {selected.urls?.filter(safeUrl).map(url => <a key={url} href={url} target="_blank" rel="noreferrer" className="my-2 block break-all text-[12px] text-accent">{url}</a>)}
+            <p className="my-2 text-[12px] text-muted">{(selected.attachments ?? []).length} adjunto(s) · {selected.status === 'inbox' ? 'Sin revisar' : selected.status}</p>
+          </details>
+          <Button variant="primary" className="mt-3" {...openActions(side => openResource(selected.path, { side }))}>Abrir</Button>
+        </section>}
+        </div>
+        </div>
+        </div>
       </div>
       <LibraryMigrationDialog open={migration} onClose={() => setMigration(false)} />
       {importing&&<BibliographyImportDialog onClose={()=>setImporting(false)}/>}

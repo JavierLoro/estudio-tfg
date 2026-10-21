@@ -97,6 +97,9 @@ Agrupación prevista de 2–4 tareas relacionadas; una tarea autónoma o con una
 | `g-base` | Servidor empaquetable y app Electron funcional | G1, G2, G3 | #28, #29, #30 |
 | `g-entrega` | TeX privado, primer arranque e instaladores offline/online, licencia y guía | G4, G5, G7 | #31, #32, #34 |
 | `g-firma` | Firma y notarización de los instaladores (aplazado) | G6 | #33 |
+| `biblioteca-tipos` | Lista por tipos, proyección bibliográfica y ficha de consulta | B1 | #83 |
+| `contexto-diagramas` | Contexto por fuentes y generación revisable de diagramas | B2 | #84 |
+| `busqueda-revision` | Descubrimiento verificable y bandeja de revisión | B3 | #85 |
 | `nf1-asistente` | Cuenta personal, consulta de fuentes y propuestas multidocumento revisables | NF1.1, NF1.2, NF1.3 | #77, #78, #79 |
 
 **Replanificación del 09-10-2026:** A–D permanecen cerradas. Se añaden R y L antes de E; E1/E2 se actualizan con las nuevas puertas de entrega y seguridad. Crear estas issues no las reserva ni inicia su implementación. No se publica ninguna funcionalidad por este cambio de planificación.
@@ -985,12 +988,32 @@ Las propuestas posteriores se reúnen en [Propuestas del asistente y decisiones 
 - **Prioridad acordada el 20-10-2026**: siguiente bloque después de integrar las mejoras acumuladas. Propuesta registrada; todavía sin implementación, reserva ni issue propia.
 - **Entrada**: Biblioteca → Añadir → pestaña de búsqueda con el asistente. El usuario indica lo que necesita y ejecuta la consulta.
 - **Resultado**: lista de contenido propuesto por la búsqueda, con procedencia verificable y explicación, para seleccionar, revisar e incorporar mediante las operaciones existentes. Sin altas ni descargas automáticas; comprobar duplicados.
+- **Revisión obligatoria acordada el 21-10-2026**: candidatos separados de Biblioteca, con presentación por tipo y explicación de para qué sirven, qué aportan y sus limitaciones. El usuario puede guardar, descartar, abrir la fuente o dejar pendiente cada candidato y retomar la revisión. Terminar la búsqueda nunca incorpora recursos por sí solo.
 - **Por concretar antes de construir**: herramientas/proveedor de búsqueda real, disponibilidad con la cuenta conectada, permisos y contexto enviado, límites, cancelación y recuperación. La integración actual no navega por Internet ni autoriza esa capacidad al conectar una cuenta.
 - **Diferencia con NF2**: descubrir fuentes para incorporar a Biblioteca, frente a recomendar el contenido local ya existente según el apartado activo.
 - **Detalle**: [Propuestas del asistente — siguiente bloque](PROPUESTAS-ASISTENTE.md#buscar-contenido-para-biblioteca--siguiente-bloque). Crear las issues del bloque y actualizar el contrato cuando se concrete e implemente.
+
+### NF4 · Contexto compartido y actualizable del TFG
+
+- **Propuesta del 21-10-2026**: ficha de contexto por proyecto que oriente búsquedas de Biblioteca, diagramas, notas y memoria. Tema, objetivos, alcance, metodología, decisiones y dudas; reutilizar los datos existentes del proyecto.
+- **Selección solicitada**: checkbox «Incluir en el contexto del TFG» en cada nota, sincronizado con Ajustes → Asistente. Modos Desactivado (inicial), Todo el proyecto autorizado y Selección parcial por ámbito (Notas, Memoria, Biblioteca/bibliografía y Diagramas), carpetas y documentos. Afecta al contexto del asistente, no a la inserción de notas en LaTeX; mantener adjuntos y escritura como permisos independientes.
+- **Actualización**: base editable y confirmada por el usuario; sugerencias desde notas y capítulos autorizados con fuentes y revisión de cambios. Detectar desactualización localmente y regenerar bajo demanda, sin llamadas por cada edición ni confundir borradores con decisiones confirmadas.
+- **Permisos**: resumen visible, acotado y opcional en cada acción; autorización de elaboración y uso, aislamiento por proyecto/cuenta y exclusión de derivados cuando se retiren sus fuentes. No amplía el acceso a documentos. Los buscadores externos reciben solo los términos necesarios.
+- **Entrega por concretar**: empezar con ficha manual mínima utilizable por NF3; actualización asistida posterior con revisiones, historial y deshacer. No bloquea la búsqueda sin contexto ni requiere embeddings.
+- **Detalle**: [Contexto compartido del TFG](PROPUESTAS-ASISTENTE.md#contexto-compartido-del-tfg--propuesta-del-21-10-2026). Sin implementación ni issue propia todavía.
 
 ### Accesibilidad con VoiceOver · Feature futura — #81
 
 - **Issue**: [Completar y validar el uso con VoiceOver en macOS](https://github.com/JavierLoro/estudio-tfg/issues/81).
 - **Estado**: aplazada por decisión del usuario; no bloquea el desarrollo actual del menú contextual.
 - **Alcance**: validación manual de consultas, permisos, fuentes, anuncios, menús, foco y revisión/recuperación de propuestas con datos ficticios. Corregir las barreras encontradas y documentar el recorrido y la versión probada. Las comprobaciones automáticas de teclado no sustituyen esta validación.
+
+## Biblioteca, contexto y búsqueda asistida (B1–B3)
+
+Encargo del 21-10-2026: tres bloques autorizados, cada uno con rama desde `develop` y PR hacia `develop`; las fusiones corresponden al usuario. Se conserva la planificación previa de NF3/NF4 y se concreta mediante #83, #84 y #85.
+
+- **B1 (#83), `hoja/biblioteca-tipos`:** reutilizar los siete tipos y autoridades bibliográficas actuales. Lista por tipo, ficha plegable, Volver en Multivista estrecha, Abrir en el panel actual y cuadrícula opcional con miniaturas locales. Sin migración obligatoria.
+- **B2 (#84), `hoja/contexto-diagramas`:** contexto desactivado inicialmente, selección por ámbitos/carpetas/archivos con exclusiones, checkbox de notas sin tocar Obsidian. Ficha sin título duplicado, fragmentos con procedencia, actualización bajo demanda por lotes, revisión/corrección/rechazo/deshacer y avisos locales. Permisos separados por acción, cuenta y proyecto. Diagramas en dos pasos: generar propuesta y crear exclusivamente después de render válido, conservando los quince tipos.
+- **B3 (#85), `hoja/busqueda-revision`:** búsqueda Rápida/Ampliada con ChatGPT web y Crossref, modelo elegido y máximo dos agentes/cinco peticiones/veinte candidatos. Descubrimiento sin documentos privados; revisión posterior sin navegación con contexto autorizado. Bandeja durable, citas verificables, decisiones y guardado revisado/idempotente. Sin descargas automáticas, proveedores de pago alternativos, bases de datos ni embeddings.
+
+Cada bloque actualiza contrato, guías y respaldo; verifica tests sin consumo de cuenta, tipos, build y navegador aislado. La verificación real requiere perfil aislado y conexión autorizada. B3 depende de los contratos de contexto de B2; no se fusiona ninguna rama automáticamente para resolver esa dependencia.

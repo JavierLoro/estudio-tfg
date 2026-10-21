@@ -57,7 +57,7 @@ export function filterResources(resources: Resource[], filters: LibraryFilters) 
         (!filters.tag || r.tags.includes(filters.tag)) &&
         (!filters.collection || r.collections?.includes(filters.collection)) &&
         (!filters.status || r.status === filters.status) &&
-        (!q || fold([r.title, r.note ?? '', ...(r.urls ?? [r.url ?? '']), ...r.tags, ...(r.collections ?? [])].join(' ')).includes(q)),
+        (!q || fold([r.title, r.note ?? '', ...(r.urls ?? [r.url ?? '']), ...r.tags, ...(r.collections ?? []), ...Object.values(r.presentation ?? {}).filter(v => typeof v === 'string')].join(' ')).includes(q)),
     )
     .sort((a, b) =>
       filters.order === 'title'
@@ -66,4 +66,16 @@ export function filterResources(resources: Resource[], filters: LibraryFilters) 
           ? (Date.parse(a.captured) || 0) - (Date.parse(b.captured) || 0)
           : (Date.parse(b.captured) || 0) - (Date.parse(a.captured) || 0),
     );
+}
+
+export function resourceSummary(resource: Resource): string {
+  const p = resource.presentation;
+  if (!p) return resource.note?.trim().split('\n').find(Boolean)?.slice(0, 200) ?? '';
+  const kind = resourceKind(resource);
+  const parts = kind === 'article' ? [p.authors, p.year, p.publication, p.pdf ? 'PDF disponible' : undefined]
+    : kind === 'book' ? [p.authors, p.year, p.publisher, p.edition ? `Edición ${p.edition}` : undefined]
+    : kind === 'web' ? [p.domain, p.description, p.accessed ? `Consulta: ${p.accessed.slice(0, 10)}` : undefined]
+    : kind === 'image' ? [p.source, p.authors, p.license ? `Licencia: ${p.license}` : 'Licencia sin indicar']
+    : [p.formats.join(', '), p.description];
+  return parts.filter(Boolean).join(' · ');
 }
