@@ -6,6 +6,8 @@ import { isInside, resolveSafe } from './paths.ts';
 import { rev, walkFiles } from './fsutil.ts';
 import { resolveAttachment } from './attachments.ts';
 import { badRequest } from './errors.ts';
+import { parseBibDocument } from './bibliography.ts';
+import { cleanTex } from './refs.ts';
 import { inferKind, libraryFromContent, type Bibliography, type ResourceKind } from './libraryModel.ts';
 
 export interface ResourceItem {
@@ -28,6 +30,38 @@ export interface ResourceItem {
   note: string;
   libraryError?: string;
   thumbnailPath?: string;
+  presentation?: ResourcePresentation;
+}
+
+export interface ResourcePresentation {
+  authors?: string; year?: string; publication?: string; publisher?: string; edition?: string;
+  description?: string; domain?: string; accessed?: string; source?: string; license?: string;
+  formats: string[]; pdf: boolean; warning?: string;
+}
+
+/** Proyección de lectura; los datos editables conservan su autoridad. */
+export async function resourcePresentation(cfg: Config, item: ResourceItem): Promise<ResourcePresentation> {
+  let fields: Record<string, string> = {}, warning: string | undefined;
+  if (item.bibliography?.authority === 'library') fields = item.bibliography.fields;
+  else if (item.bibliography?.authority === 'manual') {
+    try {
+      const file = await resolveSafe(cfg, 'memoria', item.bibliography.path);
+      const st = await fs.stat(file.abs);
+      if (!st.isFile() || st.size > 1024 * 1024) throw new Error();
+      const entries = parseBibDocument(await fs.readFile(file.abs, 'utf8')).entries.filter(e => e.key === item.bibliography?.key);
+      if (entries.length !== 1 || entries[0].error) throw new Error();
+      fields = entries[0].fields;
+    } catch { warning = 'No se pudo consultar la referencia manual; revisa su archivo y clave.'; }
+  }
+  const text = (key: string) => fields[key] ? cleanTex(fields[key]) : undefined;
+  let domain: string | undefined;
+  try { domain = new URL(item.urls[0]).hostname; } catch { /* Ficha sin URL. */ }
+  const formats = [...new Set(item.attachments.map(a => path.posix.extname(a).slice(1).toUpperCase()).filter(Boolean))];
+  return { authors: text('author'), year: text('year') ?? text('date')?.slice(0, 4),
+    publication: text('journaltitle') ?? text('journal') ?? text('booktitle'), publisher: text('publisher'), edition: text('edition'),
+    description: text('abstract') ?? item.note.trim().split('\n').find(Boolean)?.slice(0, 300), domain,
+    accessed: text('urldate') ?? (item.kind === 'web' ? item.captured : undefined),
+    source: text('url') ?? item.urls[0], license: text('license') ?? text('rights'), formats, pdf: formats.includes('PDF'), warning };
 }
 
 function asString(v: unknown): string | undefined {
@@ -95,6 +129,7 @@ export async function listResources(cfg: Config): Promise<{ items: ResourceItem[
         const found = await resolveAttachment(cfg, f.rel, image, item.schemaVersion === 1);
         if (found.attachmentPath) item.thumbnailPath = found.attachmentPath;
       }
+      item.presentation = await resourcePresentation(cfg, item);
       const t = Date.parse(item.captured);
       items.push({ ...item, _t: Number.isNaN(t) ? st.mtimeMs : t });
     } catch {
@@ -117,6 +152,7 @@ export async function readResourceFile(cfg: Config, inputPath: unknown) {
   const [bytes, st] = await Promise.all([fs.readFile(r.abs), fs.stat(r.abs)]);
   const content = bytes.toString('utf8');
   const item = itemFromContent(r.rel, content, st.mtime);
+  item.presentation = await resourcePresentation(cfg, item);
   const attachments = await Promise.all(item.attachments.map(async (value) => {
     const result = await resolveAttachment(cfg, r.rel, value, item.schemaVersion === 1);
     return { name: path.posix.basename(value), value, path: result.attachmentPath, warning: result.attachmentWarning };

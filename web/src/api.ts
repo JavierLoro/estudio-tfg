@@ -124,6 +124,11 @@ export interface Resource {
   note?: string;
   libraryError?: string;
   thumbnailPath?: string;
+  presentation?: {
+    authors?: string; year?: string; publication?: string; publisher?: string; edition?: string;
+    description?: string; domain?: string; accessed?: string; source?: string; license?: string;
+    formats: string[]; pdf: boolean; warning?: string;
+  };
 }
 
 export type ResourceKind = 'article' | 'book' | 'document' | 'image' | 'web' | 'note' | 'other';
