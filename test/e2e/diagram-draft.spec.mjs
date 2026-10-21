@@ -7,7 +7,7 @@ async function open(page) {
   await page.keyboard.press('ControlOrMeta+k');
   const dialog = page.getByRole('dialog', { name: 'Abrir o buscar' });
   await dialog.getByLabel('Buscar', { exact: true }).fill('borrador.mmd');
-  await dialog.getByRole('option').filter({ hasText: 'borrador.mmd' }).first().click();
+  await dialog.getByRole('option').filter({ hasText: 'diagramas/borrador.mmd' }).first().click();
 }
 
 test('recupera campos sin aplicar al cerrar y recargar, sin guardarlos como fuente @smoke', async ({ studio, page }) => {
@@ -33,7 +33,7 @@ test('recupera campos sin aplicar al cerrar y recargar, sin guardarlos como fuen
   await expect(page.getByRole('button', { name: /1 sin guardar/ })).toBeVisible();
   page.on('dialog', dialog => dialog.accept());
   await page.reload();
-  if (!await page.getByRole('button', { name: 'Restaurar borrador', exact: true }).isVisible()) await open(page);
+  await open(page);
   await page.getByRole('button', { name: 'Restaurar borrador', exact: true }).click();
   await expect(label).toHaveValue('Borrador sin aplicar');
   expect(await fs.readFile(file, 'utf8')).toBe(source);

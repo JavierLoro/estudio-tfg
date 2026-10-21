@@ -85,7 +85,7 @@ test('los campos inválidos no modifican la fuente y ocultar el formulario conse
   await page.keyboard.press('ControlOrMeta+k');
   const open = page.getByRole('dialog', { name: 'Abrir o buscar' });
   await open.getByLabel('Buscar', { exact: true }).fill('prueba.mmd');
-  await open.getByRole('option').filter({ hasText: 'prueba.mmd' }).first().click();
+  await open.getByRole('option').filter({ hasText: 'diagramas/prueba.mmd' }).first().click();
   const form = page.getByRole('region', { name: 'Formulario de Sectores' });
   const first = form.getByLabel('Etiqueta', { exact: true }).first();
   await first.fill('Texto " inválido');
@@ -118,7 +118,7 @@ test('Sankey explica la limitación de Unicode sin modificar la fuente @smoke', 
   await page.keyboard.press('ControlOrMeta+k');
   const open = page.getByRole('dialog', { name: 'Abrir o buscar' });
   await open.getByLabel('Buscar', { exact: true }).fill('sankey.mmd');
-  await open.getByRole('option').filter({ hasText: 'sankey.mmd' }).first().click();
+  await open.getByRole('option').filter({ hasText: 'diagramas/sankey.mmd' }).first().click();
   const form = page.getByRole('region', { name: 'Formulario de Sankey' });
   await form.getByLabel('Origen', { exact: true }).first().fill('Investigación');
   await form.getByRole('button', { name: 'Aplicar cambios' }).click();

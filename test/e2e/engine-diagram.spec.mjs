@@ -93,7 +93,7 @@ test('el motor Docker exporta un diagrama desde el navegador @worker', async ({ 
   await page.keyboard.press('ControlOrMeta+k');
   const open = page.getByRole('dialog', { name: 'Abrir o buscar' });
   await open.getByLabel('Buscar', { exact: true }).fill('prueba.mmd');
-  await open.getByRole('option').filter({ hasText: 'prueba.mmd' }).first().click();
+  await open.getByRole('option').filter({ hasText: 'diagramas/prueba.mmd' }).first().click();
   await page.getByRole('button', { name: 'Exportar', exact: true }).click();
   await expect.poll(async () => (await studio.json('/api/diagramas/estado?path=diagramas%2Fprueba.mmd')).estado).toBe('exportado');
   const pdf = await fs.readFile(path.join(studio.root, 'memoria/figuras/diagramas/prueba.pdf'));

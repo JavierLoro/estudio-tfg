@@ -30,7 +30,8 @@ async function thread(t: TestEnv) {
 }
 async function finished(t: TestEnv, id: string) {
   let value: any;
-  await expect.poll(async () => { value = (await t.app.inject('/api/assistant/threads/' + id)).json(); return value.state; }).not.toBe('running');
+  // Ocho rondas con escrituras duraderas pueden superar el plazo breve de poll en CI.
+  await expect.poll(async () => { value = (await t.app.inject('/api/assistant/threads/' + id)).json(); return value.state; }, { timeout: 10_000 }).not.toBe('running');
   return value;
 }
 

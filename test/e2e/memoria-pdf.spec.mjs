@@ -45,12 +45,12 @@ test('Memoria fija el PDF sin pestaña y conserva ancho, documentos y Multivista
   await expect(preview).toHaveCount(0);
   await expect(splitter).toHaveCount(0);
   await expect(mem.getByRole('tab', { name: 'PDF', exact: true })).toBeVisible();
-  expect(await viewer.isVisible()).toBe(true);
+  await expect.poll(() => viewer.isVisible()).toBe(true);
   await expect(mem.getByLabel('Zoom', { exact: true })).toHaveValue('1');
   await expect(editor).toContainText('Pendiente de guardar al alternar vistas');
   await nav(page).getByRole('button', { name: 'Memoria', exact: true }).click();
   await expect(preview).toBeVisible();
-  expect(await viewer.isVisible()).toBe(true);
+  await expect.poll(() => viewer.isVisible()).toBe(true);
   await expect(preview.getByLabel('Zoom', { exact: true })).toHaveValue('1');
   await expect(splitter).toHaveAttribute('aria-valuenow', width);
   await expect(mem.getByRole('tab', { name: 'PDF', exact: true })).toHaveCount(0);
