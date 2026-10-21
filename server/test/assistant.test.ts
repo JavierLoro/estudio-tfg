@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import Fastify from 'fastify';
 import { setup, canSymlink, type TestEnv } from './helpers.ts';
 import { assistantRoutes, type AssistantProvider } from '../src/assistant.ts';
 import { findSources, readSource, sourceId, validateScope, type AssistantSource } from '../src/assistantFiles.ts';
@@ -10,7 +11,7 @@ import { rev } from '../src/fsutil.ts';
 
 let env: TestEnv | undefined;
 afterEach(async () => { await env?.close(); env = undefined; });
-const scope = { memoria: true, library: false, notes: ['Sistema'] };
+const scope = { memoria: true, library: false, notes: ['Sistema'], prepareChanges: true, attachments: true };
 const source = (root: 'memoria' | 'notes', rel: string): AssistantSource => ({ id: sourceId(root, rel), root, path: rel, title: rel });
 const answer = (text: string) => [{ type: 'message', content: [{ type: 'output_text', text }] }];
 const tool = (name: string, args: unknown) => [{ type: 'function_call', namespace: 'estudio_tfg', name, arguments: JSON.stringify(args), call_id: 'ficticio' }];
@@ -29,7 +30,8 @@ async function thread(t: TestEnv) {
 }
 async function finished(t: TestEnv, id: string) {
   let value: any;
-  await expect.poll(async () => { value = (await t.app.inject('/api/assistant/threads/' + id)).json(); return value.state; }).not.toBe('running');
+  // Ocho rondas con escrituras duraderas pueden superar el plazo breve de poll en CI.
+  await expect.poll(async () => { value = (await t.app.inject('/api/assistant/threads/' + id)).json(); return value.state; }, { timeout: 10_000 }).not.toBe('running');
   return value;
 }
 
@@ -68,8 +70,8 @@ describe('Asistente local', () => {
     const result = await finished(t, chat.id);
     expect(result.state, JSON.stringify(result)).toBe('idle'); expect(result.messages.at(-1).text).toBe('Fuente consultada'); expect(result.sources.some((s: any) => s.rev)).toBe(true);
     expect(inputs[2].some(item => item.type === 'function_call_output')).toBe(true);
-    const persisted = JSON.parse(await fs.readFile(path.join(t.cfg.dataDir, 'assistant', chat.id + '.json'), 'utf8'));
-    expect(persisted.history).toHaveLength(6); expect(result.history).toBeUndefined();
+    await expect.poll(async () => JSON.parse(await fs.readFile(path.join(t.cfg.dataDir, 'assistant', chat.id + '.json'), 'utf8')).history.length).toBe(6);
+    expect(result.history).toBeUndefined();
   });
 
   it('acepta PDF e imágenes válidos y nunca ejecuta herramientas desconocidas', async () => {
@@ -202,5 +204,154 @@ describe('Propuestas recuperables', () => {
     await expect(prepareChanges(t.ctx, scope, [candidate], { files: [{ id: candidate.id, after: 'No permitido' }] }, { thread: crypto.randomUUID(), account: 'ficticio', instance: instanceId(t.cfg) }, [])).rejects.toThrow('existentes');
     const tex = source('memoria', 'tfg.tex'); const text = await readSource(t.ctx, scope, tex); tex.rev = text.version;
     await expect(prepareChanges(t.ctx, scope, [tex], { files: [{ id: tex.id, after: text.text + '\n\\cite{referencia-inventada}' }] }, { thread: crypto.randomUUID(), account: 'ficticio', instance: instanceId(t.cfg) }, [])).rejects.toThrow('bibliográfica');
+  });
+});
+
+describe('Permisos explícitos del asistente', () => {
+  const none = { memoria: false, library: false, notes: [] };
+  it('no reenvía el contexto de chats antiguos al continuar con permisos incompletos', async () => {
+    let calls = 0;
+    const p = provider(async () => { calls++; return answer('No debería enviarse'); }), t = await fixture(p), chat = await thread(t);
+    const file = path.join(t.cfg.dataDir, 'assistant', chat.id + '.json'), stored = JSON.parse(await fs.readFile(file, 'utf8'));
+    stored.scope = { memoria: true, library: false, notes: ['Sistema'] };
+    stored.history = [{ role: 'user', content: [{ type: 'input_file', filename: 'ficticio.pdf', file_data: 'data:application/pdf;base64,ZmljdGljaW8=' }] }];
+    await privateJson(file, stored);
+    const reopened = Fastify();
+    try {
+      await assistantRoutes(reopened, t.ctx, p);
+      expect((await reopened.inject(`/api/assistant/threads/${chat.id}`)).json().permissionsOutdated).toBe(true);
+      expect((await reopened.inject({ method: 'POST', url: `/api/assistant/threads/${chat.id}/turns`, payload: { text: 'Continúa', dirty: [] } })).statusCode).toBe(403);
+      expect(calls).toBe(0);
+      expect(JSON.parse(await fs.readFile(file, 'utf8')).history).toEqual(stored.history);
+    } finally { await reopened.close(); }
+  });
+  it('separa diagramas, adjuntos y propuestas sin ampliar permisos antiguos', async () => {
+    const t = await fixture(), legacy = { memoria: true, library: false, notes: ['Sistema'] };
+    await fs.writeFile(path.join(t.cfg.memoriaDir, 'dibujo.mmd'), 'flowchart LR\n A-->B');
+    await fs.writeFile(path.join(t.cfg.memoriaDir, 'fuente.pdf'), '%PDF-1.7\nFicticio');
+    const normalized = await validateScope(t.ctx, legacy);
+    expect(normalized).toMatchObject({ diagrams: false, attachments: false, prepareChanges: false, documents: [] });
+    await expect(readSource(t.ctx, normalized, source('memoria', 'tfg.tex'))).resolves.toBeDefined();
+    await expect(readSource(t.ctx, legacy, source('memoria', 'dibujo.mmd'))).rejects.toThrow('alcance');
+    await expect(readSource(t.ctx, legacy, source('memoria', 'fuente.pdf'), true)).rejects.toThrow('por separado');
+    await expect(prepareChanges(t.ctx, legacy, [], {}, { thread: crypto.randomUUID(), account: 'ficticio', instance: instanceId(t.cfg) }, [])).rejects.toThrow('Autoriza preparar');
+    const diagrams = { ...none, diagrams: true };
+    await expect(readSource(t.ctx, diagrams, source('memoria', 'dibujo.mmd'))).resolves.toBeDefined();
+    await expect(readSource(t.ctx, diagrams, source('memoria', 'tfg.tex'))).rejects.toThrow('alcance');
+    expect((await findSources(t.ctx, diagrams, 'flowchart')).map(s => s.path)).toEqual(['dibujo.mmd']);
+    await expect(readSource(t.ctx, { ...none, attachments: true }, source('memoria', 'fuente.pdf'), true)).rejects.toThrow('alcance');
+    await expect(readSource(t.ctx, { ...legacy, attachments: true }, source('memoria', 'fuente.pdf'), true)).resolves.toBeDefined();
+  });
+
+  it('limita archivos concretos y rechaza rutas, enlaces y capacidades no implementadas', async () => {
+    const t = await fixture();
+    await fs.writeFile(path.join(t.cfg.notesDir, 'Sistema/Uno.md'), 'Texto ficticio exacto');
+    const exact = await validateScope(t.ctx, { ...none, documents: [{ root: 'notes', path: 'Sistema/Uno.md' }] });
+    await expect(readSource(t.ctx, exact, source('notes', 'Sistema/Uno.md'))).resolves.toBeDefined();
+    await expect(readSource(t.ctx, exact, source('memoria', 'tfg.tex'))).rejects.toThrow('alcance');
+    expect((await findSources(t.ctx, exact, 'ficticio')).map(s => s.path)).toEqual(['Sistema/Uno.md']);
+    for (const patch of [{ attachments: 'sí' }, { prepareChanges: 1 }, { create: true }, { documents: [{ root: 'notes', path: '../oculto' }] }, { documents: [{ root: 'notes', path: '.env' }] }, { documents: [{ root: 'fuera', path: 'Uno.md' }] }]) {
+      await expect(validateScope(t.ctx, { ...none, ...patch })).rejects.toThrow();
+    }
+    if (await canSymlink('file')) {
+      await fs.symlink(path.join(t.cfg.notesDir, 'Sistema/Uno.md'), path.join(t.cfg.notesDir, 'alias.md'));
+      await expect(validateScope(t.ctx, { ...none, documents: [{ root: 'notes', path: 'alias.md' }] })).rejects.toThrow('enlaces');
+    }
+  });
+
+  it('no ofrece herramientas de escritura ni adjuntos sin permiso y deniega llamadas forzadas', async () => {
+    const candidate = source('notes', 'Sistema/Uno.md'); let calls = 0;
+    const t = await fixture(provider(async (_m, input, tools) => {
+      expect(tools[0].tools.map((t: any) => t.name)).not.toContain('proponer_cambios');
+      expect(tools[0].tools.map((t: any) => t.name)).not.toContain('consultar_adjunto');
+      if (++calls === 1) return tool('proponer_cambios', { files: [{ id: candidate.id, after: 'No permitido' }] });
+      expect(JSON.parse(input.at(-1).output).error).toContain('Autoriza preparar');
+      return answer('Solo consulta');
+    }));
+    await fs.writeFile(path.join(t.cfg.notesDir, candidate.path), 'Texto original ficticio');
+    const chat = (await t.app.inject({ method: 'POST', url: '/api/assistant/threads', payload: { scope: { ...none, documents: [candidate] } } })).json();
+    await t.app.inject({ method: 'POST', url: `/api/assistant/threads/${chat.id}/turns`, payload: { text: 'Revisa', dirty: [], context: [candidate] } });
+    const result = await finished(t, chat.id);
+    expect(result.proposals).toHaveLength(0); expect(result.state).toBe('idle');
+    expect(await fs.readFile(path.join(t.cfg.notesDir, candidate.path), 'utf8')).toBe('Texto original ficticio');
+  });
+
+  it('rechaza adjuntos iniciales y texto de fuentes ajenas antes de enviar nada al modelo', async () => {
+    let calls = 0;
+    const t = await fixture(provider(async () => { calls++; return answer('No debería enviarse'); }));
+    await fs.writeFile(path.join(t.cfg.memoriaDir, 'fuente.pdf'), '%PDF-1.7\nDocumento ficticio');
+    for (const context of [[{ root: 'memoria', path: 'fuente.pdf' }], [{ root: 'notes', path: 'Privado.md', text: 'Texto ajeno ficticio' }]]) {
+      const chat = (await t.app.inject({ method: 'POST', url: '/api/assistant/threads', payload: { scope: { ...none, memoria: true } } })).json();
+      await t.app.inject({ method: 'POST', url: `/api/assistant/threads/${chat.id}/turns`, payload: { text: 'Consulta', context, dirty: [] } });
+      expect((await finished(t, chat.id)).state).toBe('error');
+    }
+    expect(calls).toBe(0);
+  });
+
+  it('retira acceso durante la respuesta y descarta herramientas y deltas tardíos', async () => {
+    let began!: () => void, release!: () => void;
+    const started = new Promise<void>(r => { began = r; }), wait = new Promise<void>(r => { release = r; });
+    let rounds = 0;
+    const t = await fixture(provider(async (_m, _i, _t, _signal, onEvent) => {
+      rounds++; began(); await wait;
+      onEvent({ type: 'response.output_text.delta', delta: 'Respuesta tardía ficticia' });
+      return tool('buscar_fuentes', { query: 'arquitectura' });
+    })), chat = await thread(t);
+    await t.app.inject({ method: 'POST', url: `/api/assistant/threads/${chat.id}/turns`, payload: { text: 'Consulta', dirty: [] } }); await started;
+    const revoked = await t.app.inject({ method: 'POST', url: `/api/assistant/threads/${chat.id}/revoke`, payload: {} });
+    expect(revoked.json().revoked).toBe(true); release();
+    const result = await finished(t, chat.id);
+    expect(result.state).toBe('cancelled'); expect(result.revoked).toBe(true); expect(rounds).toBe(1); expect(result.sources).toEqual([]);
+    expect(JSON.stringify(result.messages)).not.toContain('Respuesta tardía');
+    expect((await t.app.inject({ method: 'POST', url: `/api/assistant/threads/${chat.id}/turns`, payload: { text: 'Otra', dirty: [] } })).statusCode).toBe(403);
+    await expect.poll(async () => JSON.parse(await fs.readFile(path.join(t.cfg.dataDir, 'assistant', chat.id + '.json'), 'utf8')).revoked).toBe(true);
+  });
+
+  it('retirar acceso invalida una aplicación ya iniciada que esperaba el bloqueo de archivos', async () => {
+    const candidate = source('notes', 'Sistema/Uno.md'); let calls = 0;
+    const t = await fixture(provider(async () => ++calls === 1 ? tool('proponer_cambios', { files: [{ id: candidate.id, after: 'Nuevo ficticio' }] }) : answer('Propuesta preparada')));
+    await fs.writeFile(path.join(t.cfg.notesDir, candidate.path), 'Original ficticio');
+    const chat = await thread(t);
+    await t.app.inject({ method: 'POST', url: `/api/assistant/threads/${chat.id}/turns`, payload: { text: 'Prepara', context: [candidate], dirty: [] } });
+    const result = await finished(t, chat.id), op = result.proposals[0];
+    let locked!: () => void, release!: () => void;
+    const began = new Promise<void>(r => { locked = r; }), wait = new Promise<void>(r => { release = r; });
+    const lock = t.ctx.locks.run('notes:' + candidate.path, async () => { locked(); await wait; }); await began;
+    let reached!: () => void;
+    const queued = new Promise<void>(r => { reached = r; }), originalRun = t.ctx.locks.run.bind(t.ctx.locks);
+    t.ctx.locks.run = <T>(key: string, fn: () => Promise<T>) => { if (key === 'notes:' + candidate.path) reached(); return originalRun(key, fn); };
+    const applying = t.app.inject({ method: 'POST', url: `/api/assistant/threads/${chat.id}/proposals/${op.id}/apply`, payload: { selected: [candidate.id], dirty: [] } });
+    const pending = applying.then(r => r);
+    await queued;
+    await t.app.inject({ method: 'POST', url: `/api/assistant/threads/${chat.id}/revoke`, payload: {} });
+    release(); await lock;
+    expect((await pending).statusCode).toBe(403);
+    expect(await fs.readFile(path.join(t.cfg.notesDir, candidate.path), 'utf8')).toBe('Original ficticio');
+    expect((await t.app.inject({ method: 'POST', url: `/api/assistant/threads/${chat.id}/proposals/${op.id}/undo`, payload: { dirty: [] } })).statusCode).toBe(409);
+  });
+
+  it('una conversación antigua puede deshacer lo ya aplicado sin preparar nuevos cambios', async () => {
+    const t = await fixture(), candidate = source('notes', 'Sistema/Uno.md');
+    await fs.writeFile(path.join(t.cfg.notesDir, candidate.path), 'Original ficticio');
+    const op = await prepareChanges(t.ctx, scope, [{ ...candidate, rev: rev('Original ficticio') }], { files: [{ id: candidate.id, after: 'Nuevo ficticio' }] }, { thread: crypto.randomUUID(), account: 'ficticio', instance: instanceId(t.cfg) }, []);
+    await applyChanges(t.ctx, scope, op, async () => {}, [candidate.id]);
+    await applyChanges(t.ctx, { ...scope, prepareChanges: undefined }, op, async () => {}, [], true);
+    expect(await fs.readFile(path.join(t.cfg.notesDir, candidate.path), 'utf8')).toBe('Original ficticio');
+  });
+
+  it('conserva la recuperación local tras revocar sin permitir aplicar más propuestas', async () => {
+    const candidate = source('notes', 'Sistema/Uno.md'); let calls = 0;
+    const t = await fixture(provider(async () => ++calls === 1 ? tool('proponer_cambios', { files: [{ id: candidate.id, after: 'Nuevo ficticio' }] }) : answer('Lista para revisar')));
+    await fs.writeFile(path.join(t.cfg.notesDir, candidate.path), 'Original ficticio');
+    const chat = await thread(t);
+    await t.app.inject({ method: 'POST', url: `/api/assistant/threads/${chat.id}/turns`, payload: { text: 'Prepara', context: [candidate], dirty: [] } });
+    const op = (await finished(t, chat.id)).proposals[0];
+    const operate = (action: string) => t.app.inject({ method: 'POST', url: `/api/assistant/threads/${chat.id}/proposals/${op.id}/${action}`, payload: { selected: [candidate.id], dirty: [] } });
+    expect((await operate('apply')).statusCode).toBe(200);
+    await t.app.inject({ method: 'POST', url: `/api/assistant/threads/${chat.id}/revoke`, payload: {} });
+    expect((await operate('apply')).statusCode).toBe(403);
+    expect((await operate('undo')).statusCode).toBe(200);
+    expect(await fs.readFile(path.join(t.cfg.notesDir, candidate.path), 'utf8')).toBe('Original ficticio');
+    expect(calls).toBe(2);
   });
 });

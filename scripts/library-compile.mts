@@ -152,7 +152,7 @@ try {
       assert.equal(result.statusCode, 200, result.body);
       assert.equal(value.ok, true, result.body);
       assert.deepEqual(value.diagnostics, [], result.body);
-      console.log(`✓ ${profile.id} (${label}): cita y figura${diagrams ? ' y seis diagramas PDF' : ''} compiladas, 0 avisos LaTeX/biber`);
+      console.log(`✓ ${profile.id} (${label}): cita y figura${diagrams ? ` y ${DIAGRAM_TEMPLATES.length} diagramas PDF` : ''} compiladas, 0 avisos LaTeX/biber`);
     }
     await compile('original');
     assert.deepEqual(await fs.readFile(path.join(memoria, 'bibliografia.bib')), manual);

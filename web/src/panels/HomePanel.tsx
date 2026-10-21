@@ -85,7 +85,7 @@ export function HomePanel() {
               <Button onClick={() => openPdf()}>Ver PDF</Button>
             </div>
             {(status?.motor?.estado ?? status?.worker) === 'down' && (
-              <p className="text-danger">{status?.motor?.tipo === 'local' ? 'TeX del sistema no está disponible: revisa las herramientas detectadas en Ajustes.' : 'El worker de LaTeX no responde: no se podrá compilar hasta que arranque.'}</p>
+              <p className="text-danger">{status?.motor?.mensaje ?? (status?.motor?.tipo === 'local' ? 'TeX del sistema no está disponible: revisa las herramientas detectadas en Ajustes.' : 'El worker de LaTeX no responde: no se podrá compilar hasta que arranque.')}</p>
             )}
           </div>
         </Card>
@@ -182,7 +182,7 @@ export function HomePanel() {
             useUI.getState().setSidebarWidth(SIDEBAR_DEFAULT);
           }}
         >
-          Restablecer distribución de paneles
+          Restablecer distribución de Memoria
         </button>
       </div>
     </div>

@@ -6,7 +6,7 @@
 >
 > Fuentes: [PLATAFORMAS.md](PLATAFORMAS.md) (50 hallazgos de portabilidad; los IDs como `S1`, `P2`, `F4` se refieren a él), [CONTRACT.md](CONTRACT.md) y la auditoría del 09-10-2026, cuyas evidencias y acciones se describen en R1–R8 y L1–L5.
 >
-> **Estado actualizado:** A–D, R, L1–L9, E1–E4, F1 y G1–G5/G7 completadas y fusionadas; `v0.2.0` publicada como estable sin firma. **G6 (firma/notarización) está aplazada** por decisión del usuario. **NF1 en implementación y verificación**, con las issues #77–#79 reservadas; NF2 sigue pendiente de evaluación y planificación.
+> **Estado actualizado:** A–D, R, L1–L9, E1–E4, F1 y G1–G5/G7 completadas y fusionadas; `v0.2.0` publicada como estable sin firma. **G6 (firma/notarización) está aplazada** por decisión del usuario. **NF1 fusionado en `develop` mediante el PR #80**; las mejoras posteriores de edición, espacios y permisos se agrupan en una nueva entrega. NF2 sigue pendiente. El siguiente bloque solicitado es la búsqueda de contenido desde Biblioteca → Añadir (NF3), aún sin implementar.
 
 ## Índice
 
@@ -941,10 +941,12 @@ Resultado: app con **TeX Live reducido privado**, instaladores y versión portab
 
 Ideas añadidas el 12-10-2026. NF1 se concreta y autoriza el 15-10-2026; las restantes requieren concretar alcance, crear issues y añadir su bloque antes de implementarlas. G6 permanece aplazado.
 
+Las propuestas posteriores se reúnen en [Propuestas del asistente y decisiones de permisos](PROPUESTAS-ASISTENTE.md): acciones por apartado, menú contextual e importación/adaptación de proyectos LaTeX. **Acordado el catálogo de capacidades:** creación con revisión y destino elegido; mover/renombrar con revisión; envío a papelera con doble confirmación; adaptación de plantillas por importación y sobre una copia. El primer bloque **PA1** está implementado localmente: lectura/propuestas separadas, documentos concretos, diagramas y adjuntos independientes y retirada de acceso durante un chat. No concede permisos efectivos por defecto ni amplía conversaciones antiguas. **PA2 está en implementación local:** el menú contextual por contenido ya prepara consultas de texto, notas y elementos de diagramas; quedan el permiso mínimo de selección, propuestas sobre borradores y explicación de diagnósticos. PA3–PA5 recogen Mermaid/metadatos, creación/organización/NF2 e importación LaTeX; véase el orden y los límites en el documento de propuestas. Estas entregas locales siguen pendientes de integración por Git. El prototipo de editor visual ya está corregido e integrado localmente en la rama de trabajo; su entrega no implementa estas funciones de IA.
+
 <a id="nf1"></a>
 ### NF1 · Agentes asistentes con la suscripción personal de ChatGPT
 
-- **Estado**: implementado y verificado localmente; pendiente de revisión e integración en `develop`. Issues #77–#79 con `en-curso` hasta confirmar la fusión. Rama `hoja/nf1-asistente`, un PR conjunto y un commit por tarea.
+- **Estado**: implementado, verificado e integrado en `develop` mediante [PR #80](https://github.com/JavierLoro/estudio-tfg/pull/80), fusionado el 15-10-2026. Las mejoras posteriores de permisos, consultas y edición se entregan aparte; PA2–PA5 mantienen sus pendientes.
 - **Decisión**: Electron primero; OAuth público de [Sign in with ChatGPT](https://developers.openai.com/siwc/quickstart) y Responses directo, sin clave de API ni proceso Codex. La app funciona sin cuenta. La suscripción no habilita embeddings ni NF2 automáticamente.
 - **Alcance aprobado**: búsqueda autónoma en fuentes autorizadas por conversación, texto/PDF/imágenes, actividad visible, historial local separado por cuenta/proyecto y propuestas sobre varios documentos con revisión previa. Sin terminal, navegación web, creación ni borrado de documentos.
 - **Guía y contrato**: [ASISTENTE.md](ASISTENTE.md) y [CONTRACT.md, v0.40](CONTRACT.md#asistente-de-escritorio-con-chatgpt-v040).
@@ -977,3 +979,18 @@ Ideas añadidas el 12-10-2026. NF1 se concreta y autoriza el 15-10-2026; las res
 - **Datos y privacidad**: índice regenerable por biblioteca/vault; los archivos siguen siendo la fuente de verdad. Reflejar altas, cambios, movimientos y borrados. No enviar el vault completo ni cada pulsación a un servicio externo; el usuario controla qué contexto comparte.
 - **Criterios de aceptación futuros**: sugerencias útiles para apartados ficticios distintos, resultados actualizados al editar o borrar fuentes, ausencia de referencias inexistentes y funcionamiento local sin cuenta. Pruebas deterministas sin llamadas de pago en CI y evaluación manual de relevancia.
 - **Dependencias**: L5; NF1 solo para la variante que utiliza ChatGPT. Actualizar el contrato al introducir la funcionalidad.
+
+### NF3 · Búsqueda de contenido al añadir recursos a Biblioteca
+
+- **Prioridad acordada el 20-10-2026**: siguiente bloque después de integrar las mejoras acumuladas. Propuesta registrada; todavía sin implementación, reserva ni issue propia.
+- **Entrada**: Biblioteca → Añadir → pestaña de búsqueda con el asistente. El usuario indica lo que necesita y ejecuta la consulta.
+- **Resultado**: lista de contenido propuesto por la búsqueda, con procedencia verificable y explicación, para seleccionar, revisar e incorporar mediante las operaciones existentes. Sin altas ni descargas automáticas; comprobar duplicados.
+- **Por concretar antes de construir**: herramientas/proveedor de búsqueda real, disponibilidad con la cuenta conectada, permisos y contexto enviado, límites, cancelación y recuperación. La integración actual no navega por Internet ni autoriza esa capacidad al conectar una cuenta.
+- **Diferencia con NF2**: descubrir fuentes para incorporar a Biblioteca, frente a recomendar el contenido local ya existente según el apartado activo.
+- **Detalle**: [Propuestas del asistente — siguiente bloque](PROPUESTAS-ASISTENTE.md#buscar-contenido-para-biblioteca--siguiente-bloque). Crear las issues del bloque y actualizar el contrato cuando se concrete e implemente.
+
+### Accesibilidad con VoiceOver · Feature futura — #81
+
+- **Issue**: [Completar y validar el uso con VoiceOver en macOS](https://github.com/JavierLoro/estudio-tfg/issues/81).
+- **Estado**: aplazada por decisión del usuario; no bloquea el desarrollo actual del menú contextual.
+- **Alcance**: validación manual de consultas, permisos, fuentes, anuncios, menús, foco y revisión/recuperación de propuestas con datos ficticios. Corregir las barreras encontradas y documentar el recorrido y la versión probada. Las comprobaciones automáticas de teclado no sustituyen esta validación.

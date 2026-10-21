@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { IDockviewPanelProps } from 'dockview-react';
-import { BookOpen, Link2, Pencil, Save } from 'lucide-react';
+import { Eye, Link2, Pencil, Save } from 'lucide-react';
 import { api, type Backlink } from '../api';
 import { CodeEditor } from '../components/CodeEditor';
 import { DocBanners, SaveIndicator } from '../components/DocBanners';
 import { MarkdownView } from '../components/Markdown';
-import { IconButton, Spinner } from '../components/ui';
+import { Button, IconButton, Spinner } from '../components/ui';
 import { kbd } from '../lib/kbd';
 import { openActions } from '../components/OpenActions';
 import { matchesShortcut } from '../lib/shortcuts';
@@ -14,7 +14,8 @@ import { docKey, ext, stripExt, basename } from '../lib/paths';
 import { ensureDoc, saveDoc, useDocs } from '../state/docs';
 import { onFileChange } from '../state/events';
 import { openFile, type FileParams } from '../state/workspace';
-import { AskAssistant } from '../components/AskAssistant';
+import { useUI } from '../state/ui';
+import { textContextMenu } from '../components/TextContextMenu';
 
 type Mode = 'read' | 'edit';
 
@@ -40,7 +41,7 @@ export function NotePanel({ params, api: panelApi }: IDockviewPanelProps<FilePar
   // Mod-E alterna lectura/edición; Mod-S guarda también en modo lectura.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!panelApi.isActive) return;
+      if (!panelApi.isActive || useUI.getState().section !== 'notes' || useUI.getState().homeView) return;
       if (!e.defaultPrevented && matchesShortcut(e, 'noteMode') && isMd) {
         e.preventDefault();
         setMode(mode === 'read' ? 'edit' : 'read');
@@ -52,23 +53,22 @@ export function NotePanel({ params, api: panelApi }: IDockviewPanelProps<FilePar
 
   return (
     <div className="flex h-full flex-col bg-bg">
-      <div className="flex h-7 shrink-0 items-center gap-2 border-b border-line px-2 text-[11.5px] text-muted">
+      <div className="flex min-h-9 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-line px-2 py-1 text-[11.5px] text-muted">
         <span className="min-w-0 flex-1 truncate" title={path}>
           {path}
         </span>
         <SaveIndicator docKey={key} />
-        <AskAssistant root={root} path={path} />
         <IconButton label={`Guardar (${kbd('Mod-S')})`} onClick={() => saveDoc(key)} disabled={status !== 'ready'}>
           <Save size={14} />
         </IconButton>
         {isMd && (
-          <div className="flex rounded-md border border-line p-px" role="group" aria-label="Modo">
-            <IconButton label={`Leer (${kbd('Mod-E')})`} active={mode === 'read'} onClick={() => setMode('read')} aria-pressed={mode === 'read'}>
-              <BookOpen size={13} />
-            </IconButton>
-            <IconButton label={`Editar (${kbd('Mod-E')})`} active={mode === 'edit'} onClick={() => setMode('edit')} aria-pressed={mode === 'edit'}>
-              <Pencil size={13} />
-            </IconButton>
+          <div className="flex shrink-0 gap-1 rounded-md border border-line p-px" role="group" aria-label="Modo de la nota">
+            <Button variant={mode === 'read' ? 'primary' : 'ghost'} aria-label={`Vista previa (${kbd('Mod-E')})`} title={`Vista previa (${kbd('Mod-E')})`} onClick={() => setMode('read')} aria-pressed={mode === 'read'}>
+              <Eye size={13} /> Vista previa
+            </Button>
+            <Button variant={mode === 'edit' ? 'primary' : 'ghost'} aria-label={`Editar (${kbd('Mod-E')})`} title={`Editar (${kbd('Mod-E')})`} onClick={() => setMode('edit')} aria-pressed={mode === 'edit'}>
+              <Pencil size={13} /> Editar
+            </Button>
           </div>
         )}
       </div>
@@ -85,7 +85,7 @@ export function NotePanel({ params, api: panelApi }: IDockviewPanelProps<FilePar
       )}
       {status === 'ready' && mode === 'read' && (
         <div className="min-h-0 flex-1 overflow-auto px-6 py-5">
-          <MarkdownView content={content} path={path} root={root} />
+          <div tabIndex={0} aria-label="Contenido de la nota" {...textContextMenu({ root, path, content, onEdit: () => setMode('edit') })}><MarkdownView content={content} path={path} root={root} /></div>
           {root === 'notes' && <Backlinks path={path} />}
         </div>
       )}

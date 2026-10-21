@@ -8,6 +8,7 @@ export interface EngineHealth {
   ok: boolean;
   version: string | null;
   capabilities: { compile: boolean; svg2pdf: boolean };
+  message?: string;
 }
 
 export interface EngineResult {

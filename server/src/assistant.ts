@@ -27,7 +27,7 @@ interface Thread {
   version: 1; id: string; account: string; instance: string; library: string; title: string; scope: AssistantScope; model: string;
   history: any[]; messages: Message[]; sources: AssistantSource[]; proposals: AssistantProposal[];
   state: 'idle' | 'running' | 'error' | 'cancelled'; error?: string; errorCode?: string; contextChars: number; binaryBytes: number;
-  archived?: boolean; updatedAt?: number;
+  archived?: boolean; revoked?: boolean; updatedAt?: number;
 }
 const functionTool = (name: string, description: string, properties: any, required = Object.keys(properties)) => ({ type: 'function', name, description,
   strict: true, parameters: { type: 'object', properties, required, additionalProperties: false } });
@@ -38,8 +38,9 @@ export const ASSISTANT_TOOLS = [{ type: 'namespace', name: 'estudio_tfg', descri
   functionTool('proponer_cambios', 'Prepara modificaciones de archivos consultados. Nunca escribe: el usuario revisa y aplica. Devuelve el ID de propuesta.', { files: { type: 'array', minItems: 1, maxItems: 20, items: { type: 'object', properties: { id: { type: 'string' }, after: { type: 'string' } }, required: ['id', 'after'], additionalProperties: false } } }),
 ] }];
 
-const visible = (thread: Thread) => ({ id: thread.id, title: thread.title, account: thread.account, instance: thread.instance, scope: thread.scope, model: thread.model,
-  messages: thread.messages, sources: thread.sources, proposals: thread.proposals, state: thread.state, error: thread.error, errorCode: thread.errorCode, archived: thread.archived });
+const permissionsOutdated = ({ scope }: Thread) => scope.diagrams === undefined || scope.attachments === undefined || scope.prepareChanges === undefined;
+const visible = (thread: Thread) => ({ id: thread.id, title: thread.title, account: thread.account, instance: thread.instance, scope: thread.scope, model: thread.model, permissionsOutdated: permissionsOutdated(thread),
+  messages: thread.messages, sources: thread.sources, proposals: thread.proposals, state: thread.state, error: thread.error, errorCode: thread.errorCode, archived: thread.archived, revoked: thread.revoked });
 
 export async function assistantRoutes(app: FastifyInstance, ctx: Ctx, provider: AssistantProvider) {
   const dir = path.join(ctx.cfg.dataDir, 'assistant');
@@ -47,9 +48,14 @@ export async function assistantRoutes(app: FastifyInstance, ctx: Ctx, provider: 
   const cache = new Map<string, Thread>(), jobs = new Map<string, AbortController>(), mutations = new Set<string>();
   const account = () => { const view = provider.view(); if (!view.active) throw new HttpError(401, 'Conecta tu cuenta de ChatGPT'); return view.active; };
   const file = (id: string) => { if (!UUID.test(id)) throw badRequest('Conversación no válida'); return path.join(dir, id + '.json'); };
-  const save = async (thread: Thread) => { thread.updatedAt = Date.now(); await privateJson(file(thread.id), thread); };
+  const save = async (thread: Thread) => ctx.locks.run('assistant:' + thread.id, async () => { thread.updatedAt = Date.now(); await privateJson(file(thread.id), thread); });
   const check = (thread: Thread) => {
     if (thread.version !== 1 || thread.account !== account() || thread.instance !== instanceId(ctx.cfg) || thread.library !== libraryId(ctx.cfg)) throw new HttpError(409, 'La conversación pertenece a otra cuenta o proyecto');
+  };
+  const authorize = (thread: Thread) => {
+    check(thread);
+    if (thread.revoked) throw new HttpError(403, 'Se retiró el acceso de esta conversación. Inicia una nueva con los permisos que elijas.');
+    if (permissionsOutdated(thread)) throw new HttpError(403, 'Los permisos de esta conversación son anteriores al catálogo actual. Inicia una nueva para elegirlos; puedes consultar el historial y deshacer cambios guardados.');
   };
   const read = async (id: string): Promise<Thread> => {
     let thread = cache.get(id);
@@ -99,6 +105,12 @@ export async function assistantRoutes(app: FastifyInstance, ctx: Ctx, provider: 
     await save(thread); cache.set(thread.id, thread); return visible(thread);
   });
   route('GET', '/threads/:id', async req => visible(await read(req.params.id)));
+  route('POST', '/threads/:id/revoke', async req => {
+    const thread = await read(req.params.id);
+    thread.revoked = true;
+    jobs.get(thread.id)?.abort();
+    await save(thread); return visible(thread);
+  });
   route('DELETE', '/threads/:id', async req => {
     const thread = await read(req.params.id);
     if (jobs.has(thread.id) || mutations.has(thread.id) || thread.proposals.some(p => ['applying', 'undoing'].includes(p.state))) throw new HttpError(409, 'Detén la consulta y recupera la operación pendiente antes de borrar esta conversación');
@@ -122,10 +134,12 @@ export async function assistantRoutes(app: FastifyInstance, ctx: Ctx, provider: 
       if (!Array.isArray(attachments) || attachments.length > 20) throw badRequest('Contexto no válido');
       const content: any[] = [{ type: 'input_text', text: input.text }];
       for (const selected of attachments) {
+        authorize(thread); controller.signal.throwIfAborted();
         if (!['notes', 'memoria'].includes(selected?.root) || typeof selected.path !== 'string') throw badRequest('Fuente seleccionada no válida');
         const source = { id: sourceId(selected.root, selected.path), root: selected.root as RootName, path: selected.path, title: path.posix.basename(selected.path) };
         const binary = /\.(pdf|png|jpe?g|webp)$/i.test(source.path);
         const data = await readSource(snapshots, thread.scope, source, binary);
+        authorize(thread); controller.signal.throwIfAborted();
         addSource({ ...source, rev: data.version });
         content.push({ type: 'input_text', text: `[fuente:${source.id}] ${source.path}` });
         if (binary) { thread.binaryBytes += data.bytes.length; content.push(data.mime === 'application/pdf' ? { type: 'input_file', filename: path.posix.basename(source.path), file_data: `data:${data.mime};base64,${data.bytes.toString('base64')}` } : { type: 'input_image', image_url: `data:${data.mime};base64,${data.bytes.toString('base64')}` }); }
@@ -134,21 +148,25 @@ export async function assistantRoutes(app: FastifyInstance, ctx: Ctx, provider: 
       thread.contextChars += input.text.length;
       const budget = () => { if (thread.contextChars > 100_000 || thread.binaryBytes > 20 * 1024 * 1024) throw badRequest('Se alcanzó el límite de contexto. Inicia una conversación nueva o reduce los adjuntos.'); };
       budget();
+      authorize(thread); controller.signal.throwIfAborted();
       thread.history.push({ role: 'user', content });
       let calls = 0;
       for (let round = 0; round < 8; round++) {
-        check(thread); controller.signal.throwIfAborted(); budget();
+        authorize(thread); controller.signal.throwIfAborted(); budget();
         const message: Message = { role: 'assistant', text: '' }; thread.messages.push(message);
-        const output = await provider.respond(thread.model, thread.history, ASSISTANT_TOOLS, controller.signal, event => {
+        const toolsAllowed = ASSISTANT_TOOLS.map(namespace => ({ ...namespace, tools: namespace.tools.filter(tool =>
+          (tool.name !== 'proponer_cambios' || thread.scope.prepareChanges === true) && (tool.name !== 'consultar_adjunto' || thread.scope.attachments === true)) }));
+        const output = await provider.respond(thread.model, thread.history, toolsAllowed, controller.signal, event => {
+          if (controller.signal.aborted || thread.revoked) return;
           if (event.type === 'response.output_text.delta' && typeof event.delta === 'string') { message.text += event.delta; if (message.text.length > 100_000) controller.abort(); }
         });
-        check(thread); controller.signal.throwIfAborted();
+        authorize(thread); controller.signal.throwIfAborted();
         if (!message.text) message.text = output.filter(o => o.type === 'message').flatMap(o => o.content || []).filter(c => c.type === 'output_text').map(c => c.text).join('');
         thread.contextChars += message.text.length + output.filter(o => o.type === 'function_call' && typeof o.arguments === 'string').reduce((n, o) => n + o.arguments.length, 0); budget(); thread.history.push(...output);
         const tools = output.filter(o => o.type === 'function_call');
         if (!tools.length) { thread.state = 'idle'; return; }
         for (const tool of tools) {
-          controller.signal.throwIfAborted(); check(thread);
+          controller.signal.throwIfAborted(); authorize(thread);
           if (++calls > 24) throw badRequest('Se alcanzó el límite de herramientas. Continúa en una conversación nueva.');
           let result: any;
           try {
@@ -173,10 +191,12 @@ export async function assistantRoutes(app: FastifyInstance, ctx: Ctx, provider: 
               }
             } else if (tool.name === 'proponer_cambios') {
               const op = await prepareChanges(snapshots, thread.scope, thread.sources, args, { thread: thread.id, account: thread.account, instance: thread.instance }, input.dirty);
+              authorize(thread); controller.signal.throwIfAborted();
               thread.proposals.push(op); await save(thread); result = { proposal: op.id, message: 'Propuesta preparada. El usuario debe revisar y aplicar.' };
               thread.messages.push({ role: 'tool', text: `Propuesta: ${op.files.length} archivos · ${op.id}` });
             } else throw badRequest('Herramienta no permitida');
           } catch (e: any) { result = { error: e instanceof HttpError ? e.message : 'No se pudo consultar la fuente o preparar los cambios' }; }
+          authorize(thread); controller.signal.throwIfAborted();
           if (!Array.isArray(result) || !result.length || !result.every(item => ['input_text', 'input_file', 'input_image'].includes(item.type))) { result = JSON.stringify(result); thread.contextChars += result.length; }
           budget(); thread.history.push({ type: 'function_call_output', call_id: tool.call_id, output: result });
         }
@@ -191,6 +211,7 @@ export async function assistantRoutes(app: FastifyInstance, ctx: Ctx, provider: 
   };
   route('POST', '/threads/:id/turns', async req => {
     const thread = await read(req.params.id), body = req.body;
+    authorize(thread);
     if (thread.archived) throw new HttpError(409, 'Este registro conserva cambios recuperables. Abre una conversación nueva para consultar al asistente.');
     if (jobs.size || mutations.has(thread.id)) throw new HttpError(409, 'Ya hay una operación en curso');
     if (typeof body?.text !== 'string' || !body.text.trim() || body.text.length > 10_000 || !Array.isArray(body.dirty) || body.dirty.some((v: unknown) => typeof v !== 'string')) throw badRequest('Mensaje o estado de borradores no válido');
@@ -205,12 +226,14 @@ export async function assistantRoutes(app: FastifyInstance, ctx: Ctx, provider: 
   route('POST', '/threads/:id/cancel', async req => { const thread = await read(req.params.id); jobs.get(thread.id)?.abort(); return visible(thread); });
   for (const action of ['apply', 'undo'] as const) route('POST', '/threads/:id/proposals/:proposal/' + action, async req => {
     const thread = await read(req.params.id);
+    const guard = () => action === 'undo' ? check(thread) : authorize(thread);
+    guard();
     if (jobs.has(thread.id) || mutations.has(thread.id)) throw new HttpError(409, 'Espera a que termine la operación antes de modificar archivos');
     const op = thread.proposals.find(p => p.id === req.params.proposal);
     if (!op || op.account !== thread.account || op.instance !== thread.instance) throw badRequest('Propuesta no válida');
     if (!Array.isArray(req.body?.dirty) || op.files.some(f => req.body.dirty.includes(`${f.source.root}:${f.source.path}`))) throw new HttpError(409, 'Guarda los borradores afectados antes de aplicar o deshacer');
     mutations.add(thread.id);
-    try { await applyChanges({ ...ctx, cfg: { ...ctx.cfg } }, thread.scope, op, () => save(thread), req.body?.selected, action === 'undo', () => check(thread)); return visible(thread); }
+    try { await applyChanges({ ...ctx, cfg: { ...ctx.cfg } }, thread.scope, op, () => save(thread), req.body?.selected, action === 'undo', guard); return visible(thread); }
     finally { mutations.delete(thread.id); }
   });
 }

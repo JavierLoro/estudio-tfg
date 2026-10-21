@@ -23,7 +23,7 @@ test('añadir, buscar, consultar adjuntos y contener el teclado @smoke', async (
   await created.getByRole('button', { name: 'Listo', exact: true }).click();
   await page.getByLabel('Buscar en Biblioteca').fill('Imagen de prueba');
   await expect(page.getByText('1 de 1 recursos')).toBeVisible();
-  await page.getByRole('button', { name: /Imagen de prueba/ }).click();
+  await page.getByRole('main', { name: 'Biblioteca', exact: true }).getByRole('button', { name: /Imagen de prueba/ }).click();
   await expect(page.getByRole('heading', { name: 'Imagen de prueba', exact: true })).toBeVisible();
   await expect(page.getByRole('img').filter({ visible: true }).last()).toBeVisible();
   const [resource] = (await studio.json('/api/resources')).items;
@@ -35,7 +35,7 @@ test('añadir, buscar, consultar adjuntos y contener el teclado @smoke', async (
   const web = await add(page, '', [], 'https://ejemplo.invalid/articulo');
   await web.getByRole('button', { name: 'Listo', exact: true }).click();
   await page.getByLabel('Buscar en Biblioteca').fill('Web ficticia E2E');
-  await expect(page.getByRole('button', { name: /Web ficticia E2E/ })).toBeVisible();
+  await expect(page.getByRole('main', { name: 'Biblioteca', exact: true }).getByRole('button', { name: /Web ficticia E2E/ })).toBeVisible();
 });
 
 test('lote parcial, respuesta perdida, recarga y reintento sin duplicados', async ({ studio, page }) => {
@@ -121,7 +121,7 @@ test('conflicto externo exige revisión y conserva ambos cambios @smoke', async 
   await studio.biblioteca();
   const dialog = await add(page, 'Ficha concurrente');
   await dialog.getByRole('button', { name: 'Listo', exact: true }).click();
-  await page.getByRole('button', { name: /Ficha concurrente/ }).click();
+  await page.getByRole('main', { name: 'Biblioteca', exact: true }).getByRole('button', { name: /Ficha concurrente/ }).click();
   await page.getByRole('button', { name: 'Editar datos y notas' }).click();
   const editor = page.getByRole('dialog', { name: 'Editar ficha' });
   await editor.getByLabel('Título', { exact: true }).fill('Mi título conservado');
@@ -150,7 +150,7 @@ test('mover una ficha anidada conserva identidad y adjunto consultable', async (
   await fs.mkdir(path.join(studio.root, 'notes/Recursos/archivados'));
   await studio.json('/api/move', { method: 'POST', data: { root: 'notes', from: original.path, to: target } });
   await page.reload();
-  await page.getByRole('button', { name: /Ficha trasladable/ }).click();
+  await page.getByRole('main', { name: 'Biblioteca', exact: true }).getByRole('button', { name: /Ficha trasladable/ }).click();
   await expect(page.getByRole('heading', { name: 'Ficha trasladable' })).toBeVisible();
   await expect(page.getByRole('img').filter({ visible: true }).last()).toBeVisible();
   const file = await studio.json('/api/resources/file?path=' + encodeURIComponent(target));
@@ -221,7 +221,7 @@ test('migrar, deshacer y restaurar en otra ubicación conserva identidad y adjun
   const status = await (await page.request.get(next.url + '/api/status')).json();
   expect(status.libraryId).toBe(identity);
   expect(status.notesDir).toBe(path.join(restored, 'notes'));
-  await page.getByRole('button', { name: /Ficha antigua ficticia/ }).click();
+  await page.getByRole('main', { name: 'Biblioteca', exact: true }).getByRole('button', { name: /Ficha antigua ficticia/ }).click();
   await expect(page.getByText('Nota original ficticia.', { exact: true })).toBeVisible();
   await expect(page.getByRole('img').filter({ visible: true }).last()).toBeVisible();
   expect(await fs.readFile(path.join(restored, 'notes/Recursos/figura.png'))).toEqual(png);
@@ -242,7 +242,7 @@ test('bibliografía revisada, cita y figura hasta PDF portable @worker', async (
   await importing.getByRole('button', { name: 'Aplicar decisiones / Reintentar fallidos' }).click();
   await expect(importing.getByText('Referencia 1 · Guardada', { exact: true })).toBeVisible();
   await importing.getByRole('button', { name: 'Cerrar', exact: true }).last().click();
-  await page.getByRole('button', { name: /Libro de prueba/ }).click();
+  await page.getByRole('main', { name: 'Biblioteca', exact: true }).getByRole('button', { name: /Libro de prueba/ }).click();
   await page.getByRole('button', { name: 'Insertar cita', exact: true }).click();
   const cite = page.getByRole('dialog', { name: 'Insertar cita en la memoria' });
   await cite.getByLabel('Archivo de destino').selectOption('capitulo.tex');
@@ -260,7 +260,7 @@ test('bibliografía revisada, cita y figura hasta PDF portable @worker', async (
   await page.getByRole('navigation', { name: 'Secciones' }).getByRole('button', { name: 'Biblioteca', exact: true }).click();
   const created = await add(page, 'Figura E2E', [{ name: 'figura.png', mimeType: 'image/png', buffer: png }]);
   await created.getByRole('button', { name: 'Listo', exact: true }).click();
-  await page.getByRole('button', { name: /Figura E2E/ }).click();
+  await page.getByRole('main', { name: 'Biblioteca', exact: true }).getByRole('button', { name: /Figura E2E/ }).click();
   await page.getByRole('button', { name: 'Insertar figura', exact: true }).click();
   const figure = page.getByRole('dialog', { name: 'Insertar figura en la memoria' });
   await figure.getByLabel('Archivo de destino').selectOption('capitulo.tex');

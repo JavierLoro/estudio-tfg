@@ -10,10 +10,11 @@ import type { EstadoDiagrama } from '../api';
 import { kbd } from '../lib/kbd';
 import type { RenderError, RenderOk } from '../lib/diagram';
 import { EDITABLE_KINDS, diagramKind } from '../lib/diagramEdit';
+import { diagramFormKind } from '../lib/diagramForm';
 import { basename, docKey, formatDate } from '../lib/paths';
 import { load, save as saveLocal } from '../lib/storage';
 import { diagramName, exportDiagram, openInsertFigure, refreshDiagramasSoon, useDiagramaItem, useDiagramas } from '../state/diagramas';
-import { editContent, ensureDoc, isDirty, requestReveal, saveDoc, useDocs } from '../state/docs';
+import { editContent, ensureDoc, isDirty, requestReveal, saveDoc, setFormDraft, setPendingVisual, useDocs, type DiagramFormDraft } from '../state/docs';
 import { toast } from '../state/ui';
 import type { FileParams } from '../state/workspace';
 
@@ -21,6 +22,7 @@ import type { FileParams } from '../state/workspace';
 const DiagramCanvas = lazy(() => import('./DiagramCanvas'));
 
 const CODE_KEY = 'et:diagram:code';
+const CODE_RATIO_KEY = 'et:diagram:code-ratio';
 
 const ESTADO_LABEL: Record<EstadoDiagrama, string> = {
   'sin-exportar': 'Sin exportar',
@@ -94,10 +96,23 @@ export function DiagramPanel({ params, api }: IDockviewPanelProps<FileParams>) {
   const item = useDiagramaItem(path);
   const { result, good, rendering } = usePreview(content, name ?? 'diagrama');
   const [busy, setBusy] = useState<null | 'export' | 'png'>(null);
-  // El código está oculto por defecto; si el tipo de diagrama no se puede editar visualmente, se muestra siempre.
+  // Los tipos sin lienzo editable ni formulario muestran siempre el código.
   const [codeOn, setCodeOn] = useState<boolean>(() => load<boolean>(CODE_KEY, false));
+  const [codeRatio, setCodeRatio] = useState(() => {
+    const saved = load<unknown>(CODE_RATIO_KEY, 50);
+    return typeof saved === 'number' && Number.isFinite(saved) ? Math.max(20, Math.min(80, saved)) : 50;
+  });
+  const codeDrag = useRef<{ x: number; width: number; ratio: number } | null>(null);
+  const resizeCode = (ratio: number) => {
+    const next = Math.max(20, Math.min(80, Math.round(ratio)));
+    setCodeRatio(next);
+    saveLocal(CODE_RATIO_KEY, next);
+  };
+  const formDraft = useDocs(s => s.docs[key]?.formDraft ?? null);
+  const formPending = !!formDraft;
   const kind = diagramKind(content ?? '');
-  const showCode = codeOn || (content !== undefined && !EDITABLE_KINDS.has(kind));
+  const editable = EDITABLE_KINDS.has(kind) || !!diagramFormKind(content ?? '');
+  const showCode = codeOn || (content !== undefined && !editable);
   const toggleCode = () => {
     setCodeOn(!showCode);
     saveLocal(CODE_KEY, !showCode);
@@ -108,9 +123,16 @@ export function DiagramPanel({ params, api }: IDockviewPanelProps<FileParams>) {
     cm.current = v;
   }, []);
   const onCanvasCode = useCallback((next: string) => void editContent(key, next), [key]);
-  const doUndo = useCallback(() => void (cm.current && undo(cm.current)), []);
-  const doRedo = useCallback(() => void (cm.current && redo(cm.current)), []);
-  const doSave = useCallback(() => void saveDoc(key), [key]);
+  const onFormDraft = useCallback((draft: DiagramFormDraft | null) => setFormDraft(key, draft), [key]);
+  const onValidationChange = useCallback((next: string | null) => setPendingVisual(key, next), [key]);
+  const readyToSave = () => {
+    if (!formPending) return true;
+    toast({ kind: 'info', text: 'Aplica o descarta los campos pendientes del formulario antes de guardar o exportar.' });
+    return false;
+  };
+  const doUndo = () => { if (!formPending && cm.current) undo(cm.current); };
+  const doRedo = () => { if (!formPending && cm.current) redo(cm.current); };
+  const doSave = () => { if (readyToSave()) void saveDoc(key); };
 
   const error = result && !result.ok ? result : null;
   const diags: LineDiagnostic[] = error ? [{ line: error.line, severity: 'error', message: error.message }] : [];
@@ -118,6 +140,7 @@ export function DiagramPanel({ params, api }: IDockviewPanelProps<FileParams>) {
   const estado: EstadoDiagrama | null = item ? (item.estado === 'exportado' && dirty ? 'desactualizado' : item.estado) : null;
 
   const doExport = async () => {
+    if (!readyToSave()) return;
     setBusy('export');
     try {
       await exportDiagram(path);
@@ -173,25 +196,25 @@ export function DiagramPanel({ params, api }: IDockviewPanelProps<FileParams>) {
         <Button
           variant={showCode ? 'primary' : 'default'}
           onClick={toggleCode}
-          disabled={content !== undefined && !EDITABLE_KINDS.has(kind)}
+          disabled={content !== undefined && !editable}
           title={showCode ? 'Ocultar el código del diagrama' : 'Mostrar el código del diagrama (Mermaid)'}
           aria-pressed={showCode}
         >
           <Code2 size={12} />
           Código
         </Button>
-        <IconButton label={`Deshacer (${kbd('Mod-Z')})`} onClick={doUndo} disabled={status !== 'ready'}>
+        <IconButton label={`Deshacer (${kbd('Mod-Z')})`} onClick={doUndo} disabled={status !== 'ready' || formPending}>
           <Undo2 size={14} />
         </IconButton>
-        <IconButton label={`Guardar (${kbd('Mod-S')})`} onClick={() => saveDoc(key)} disabled={status !== 'ready'}>
+        <IconButton label={`Guardar (${kbd('Mod-S')})`} onClick={doSave} disabled={status !== 'ready'}>
           <Save size={14} />
         </IconButton>
-        <IconButton label="Descargar PNG (2×)" onClick={doPng} disabled={!good || !!busy}>
+        <IconButton label="Descargar PNG (2×)" onClick={doPng} disabled={!good || !!busy || formPending}>
           {busy === 'png' ? <Spinner size={11} /> : <ImageDown size={14} />}
         </IconButton>
         <Button
           onClick={doExport}
-          disabled={!name || !!busy || status !== 'ready' || !!error}
+          disabled={!name || !!busy || status !== 'ready' || !!error || formPending}
           title={name ? `Guardar y exportar a figuras/diagramas/${name}.pdf (y .svg)` : 'Solo se exportan los diagramas de la carpeta diagramas/'}
         >
           {busy === 'export' ? <Spinner size={11} /> : <FileOutput size={12} />}
@@ -200,7 +223,7 @@ export function DiagramPanel({ params, api }: IDockviewPanelProps<FileParams>) {
         <Button
           variant="primary"
           onClick={() => name && openInsertFigure(path)}
-          disabled={!name || !!busy || status !== 'ready' || !!error}
+          disabled={!name || !!busy || status !== 'ready' || !!error || formPending}
           title="Insertar la figura en un capítulo de la memoria"
         >
           <SquarePlus size={12} />
@@ -208,20 +231,44 @@ export function DiagramPanel({ params, api }: IDockviewPanelProps<FileParams>) {
         </Button>
       </div>
       <DocBanners docKey={key} lang="mermaid" />
+      {formPending && <Banner kind="info" actions={!diagramFormKind(content ?? '')
+        ? <Button onClick={() => setFormDraft(key, null)}>Descartar campos</Button> : undefined}>
+        Aplica o descarta los campos del formulario para editar código, guardar o exportar.
+      </Banner>}
       {!name && status === 'ready' && (
         <Banner kind="info">Este .mmd no está en la carpeta diagramas/: se puede editar, pero no exportar ni insertar.</Banner>
       )}
-      <div className="flex min-h-0 flex-1">
+      <div className="grid min-h-0 min-w-0 flex-1" style={{ gridTemplateColumns: showCode ? `minmax(0, ${codeRatio}fr) 6px minmax(0, ${100 - codeRatio}fr)` : 'minmax(0, 1fr)' }}>
         {/* El editor de código no se desmonta al ocultarlo: conserva su historial de deshacer. */}
-        <div className={cx('relative min-w-0 flex-1 border-r border-line', !showCode && 'hidden')}>
+        <div inert={formPending} className={cx('relative min-h-0 min-w-0', !showCode && 'hidden', formPending && 'opacity-60')} style={{ gridColumn: 1, gridRow: 1 }}>
           {status === 'loading' && (
             <div className="absolute inset-0 flex items-center justify-center text-muted">
               <Spinner />
             </div>
           )}
-          <CodeEditor docKey={key} lang="mermaid" onSave={() => saveDoc(key)} onSaveCompile={doExport} diagnostics={diags} onView={onView} />
+          <CodeEditor docKey={key} lang="mermaid" onSave={doSave} onSaveCompile={doExport} diagnostics={diags} onView={onView} />
         </div>
-        <div className="flex min-w-0 flex-1 flex-col">
+        {showCode && <div role="separator" aria-label="Ancho del código del diagrama" aria-orientation="vertical" aria-valuemin={20} aria-valuemax={80} aria-valuenow={codeRatio} aria-valuetext={`${codeRatio} % código, ${100 - codeRatio} % editor visual`} tabIndex={0}
+          title="Arrastra para ajustar código y editor · doble clic: mitad y mitad"
+          className="z-20 col-start-2 row-start-1 cursor-col-resize touch-none bg-line hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+          onDoubleClick={() => resizeCode(50)}
+          onKeyDown={e => {
+            if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+            e.preventDefault();
+            resizeCode(e.key === 'Home' ? 20 : e.key === 'End' ? 80 : codeRatio + (e.key === 'ArrowRight' ? 5 : -5));
+          }}
+          onPointerDown={e => {
+            if (e.button !== 0) return;
+            e.preventDefault();
+            e.currentTarget.focus();
+            codeDrag.current = { x: e.clientX, width: Math.max(1, e.currentTarget.parentElement!.clientWidth - 6), ratio: codeRatio };
+            e.currentTarget.setPointerCapture(e.pointerId);
+          }}
+          onPointerMove={e => { if (codeDrag.current) resizeCode(codeDrag.current.ratio + (e.clientX - codeDrag.current.x) / codeDrag.current.width * 100); }}
+          onPointerUp={e => { codeDrag.current = null; e.currentTarget.releasePointerCapture(e.pointerId); }}
+          onLostPointerCapture={() => { codeDrag.current = null; }}
+        />}
+        <div className="flex min-h-0 min-w-0 flex-col" style={{ gridColumn: showCode ? 3 : 1, gridRow: 1 }}>
           {error && (
             <button
               type="button"
@@ -253,11 +300,15 @@ export function DiagramPanel({ params, api }: IDockviewPanelProps<FileParams>) {
                 }
               >
                 <DiagramCanvas
+                  docKey={key}
                   code={content}
                   seed={name ?? 'diagrama'}
                   broken={!!error}
                   dirty={dirty}
                   onCodeChange={onCanvasCode}
+                  formDraft={formDraft}
+                  onDraftChange={onFormDraft}
+                  onValidationChange={onValidationChange}
                   onUndo={doUndo}
                   onRedo={doRedo}
                   onSave={doSave}

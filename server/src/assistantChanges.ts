@@ -26,6 +26,7 @@ export async function readPrivate(file: string, max = 40 * 1024 * 1024): Promise
 }
 
 export async function prepareChanges(ctx: Ctx, scope: AssistantScope, sources: AssistantSource[], input: any, owner: { thread: string; account: string; instance: string }, dirty: string[]) {
+  if (scope.prepareChanges !== true) throw new HttpError(403, 'Autoriza preparar cambios antes de solicitar una propuesta');
   if (!Array.isArray(input?.files) || !input.files.length || input.files.length > 20) throw badRequest('Una propuesta necesita entre 1 y 20 archivos');
   const files: AssistantChange[] = [];
   const needsRefs = input.files.some((item: any) => sources.some(s => s.id === item.id && s.root === 'memoria' && s.path.endsWith('.tex')));
@@ -57,6 +58,7 @@ export async function prepareChanges(ctx: Ctx, scope: AssistantScope, sources: A
 
 export async function applyChanges(ctx: Ctx, scope: AssistantScope, op: AssistantProposal, save: () => Promise<void>, selected: unknown, undo = false, guard = () => {}) {
   guard();
+  if (!undo && scope.prepareChanges !== true) throw new HttpError(403, 'Esta conversación no tiene permiso para preparar cambios');
   if (op.instance !== instanceId(ctx.cfg)) throw new HttpError(409, 'El proyecto de la propuesta cambió');
   if (op.state === (undo ? 'undone' : 'done')) return op;
   if (undo ? !['done', 'applying', 'undoing'].includes(op.state) : !['prepared', 'applying'].includes(op.state)) throw new HttpError(409, 'La operación no admite esta acción');
@@ -70,7 +72,8 @@ export async function applyChanges(ctx: Ctx, scope: AssistantScope, op: Assistan
     guard();
     if (op.state === (undo ? 'undone' : 'done')) return op;
     for (const f of files) {
-      if (!canEdit(ctx, scope, f.source) || rev(f.before) !== f.baseRev || rev(f.after) !== f.afterRev) throw badRequest('Propuesta no válida');
+      // Deshacer conserva la recuperación de cambios aplicados antes de separar los permisos.
+      if (!canEdit(ctx, undo ? { ...scope, prepareChanges: true } : scope, f.source) || rev(f.before) !== f.baseRev || rev(f.after) !== f.afterRev) throw badRequest('Propuesta no válida');
       const current = await readSource(ctx, scope, f.source);
       if (current.actual !== f.source.path) throw badRequest('El destino de la propuesta cambió a un enlace simbólico');
       if (![f.baseRev, f.afterRev].includes(current.version) || (op.state === 'prepared' && current.version !== f.baseRev)) throw new HttpError(409, `Cambió ${f.source.path}; no se sobrescribió`);
@@ -86,6 +89,7 @@ export async function applyChanges(ctx: Ctx, scope: AssistantScope, op: Assistan
           if (current.version !== (undo ? f.afterRev : f.baseRev)) throw new HttpError(409, `Cambió ${f.source.path} durante la operación`);
           const resolved = await resolveSafe(ctx.cfg, f.source.root, f.source.path);
           await backup(ctx.cfg, f.source.root, f.source.path, current.bytes);
+          guard();
           await atomicWrite(resolved.abs, target);
           ctx.bus.change({ root: f.source.root, path: f.source.path, kind: 'change' });
         }

@@ -56,8 +56,12 @@ test('el asistente flotante conserva posición y borrador, revisa cambios y recu
     await editor.locator('.cm-content').click({ position: { x: 8, y: 8 } }); await expect(editor.locator('.cm-content')).toBeFocused();
     await page.getByRole('button', { name: 'Inicio', exact: true }).click(); await expect(floating).toBeVisible();
     await page.getByRole('button', { name: 'Memoria', exact: true }).click(); await expect(floating).toBeVisible();
-    await page.getByText('Permisos y modelo', { exact: true }).click();
+    await floating.getByRole('button', { name: 'Ajustes del asistente', exact: true }).click();
+    const settings = page.getByRole('dialog', { name: 'Ajustes', exact: true });
+    await expect(settings.getByRole('tab', { name: 'Asistente', exact: true })).toHaveAttribute('aria-selected', 'true');
     await page.getByRole('checkbox', { name: 'Todas las notas (la Biblioteca se autoriza aparte)', exact: true }).check();
+    await page.getByRole('checkbox', { name: 'Preparar cambios en textos existentes autorizados', exact: true }).check();
+    await settings.getByRole('button', { name: 'Cerrar ajustes', exact: true }).click();
     await page.getByRole('textbox', { name: 'Mensaje al asistente' }).fill('Revisa las notas nf1-prueba y prepara cambios coordinados.');
     await page.getByRole('button', { name: 'Enviar', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Revisar cambios', exact: true })).toBeVisible();

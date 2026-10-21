@@ -9,6 +9,7 @@ async function ajustes(page, url) {
 }
 
 async function memoria(page) {
+  await page.getByRole('dialog', { name: 'Ajustes', exact: true }).getByRole('button', { name: 'Cerrar ajustes' }).click();
   const rail = page.getByRole('navigation', { name: 'Secciones' });
   await rail.getByRole('button', { name: 'Inicio', exact: true }).click();
   await rail.getByRole('button', { name: 'Memoria', exact: true }).click();
@@ -34,10 +35,87 @@ test('Ajustes espera al espacio de trabajo durante el arranque @smoke', async ({
   } finally { release(); }
 });
 
+test('Ajustes abre una ventana, conserva los campos y no cambia las pestañas @smoke', async ({ studio, page }) => {
+  await page.goto(studio.server.url);
+  const editor = page.locator('.cm-editor');
+  await expect(editor).toBeVisible();
+  const width = (await editor.boundingBox()).width;
+  const settings = page.getByRole('navigation', { name: 'Secciones' }).getByRole('button', { name: 'Ajustes', exact: true });
+  const dialog = page.getByRole('dialog', { name: 'Ajustes', exact: true });
+  await settings.click();
+  await expect(dialog).toBeVisible();
+  await expect(page.locator('.dv-tab')).toHaveCount(2);
+  expect((await editor.boundingBox()).width).toBe(width);
+  const field = dialog.getByLabel('Subcarpeta de recursos', { exact: true });
+  await field.fill('Lecturas pendientes');
+  await field.press('Escape');
+  await expect(dialog).not.toBeVisible();
+  await expect(settings).toBeFocused();
+  await settings.click();
+  await expect(field).toHaveValue('Lecturas pendientes');
+  expect((await studio.json('/api/settings')).values.resourcesSubdir).toBe('Recursos');
+  await dialog.getByRole('button', { name: 'Descartar', exact: true }).click();
+  await expect(field).toHaveValue('Recursos');
+  await dialog.getByRole('button', { name: 'Elegir…', exact: true }).first().click();
+  const picker = page.getByRole('dialog', { name: 'Carpeta de notas (vault)', exact: true });
+  await expect(picker).toBeVisible();
+  await picker.press('Escape');
+  await expect(picker).not.toBeVisible();
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Cerrar ajustes' }).click();
+  await expect(page.getByRole('region', { name: 'PDF de Memoria', exact: true })).toBeVisible();
+  await page.getByRole('navigation', { name: 'Secciones' }).getByRole('button', { name: 'Biblioteca', exact: true }).click();
+  await settings.click();
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Cerrar ajustes' }).click();
+  await expect(page.getByRole('main', { name: 'Biblioteca', exact: true })).toBeVisible();
+});
+
+test('el primer arranque sin carpetas abre Ajustes sin crear una pestaña', async ({ studio, page }) => {
+  await page.route('**/api/status', async route => {
+    const response = await route.fetch();
+    await route.fulfill({ response, json: { ...await response.json(), configured: false } });
+  });
+  await page.goto(studio.server.url);
+  const dialog = page.getByRole('dialog', { name: 'Ajustes', exact: true });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText('Falta configurar Estudio TFG.', { exact: true })).toBeVisible();
+  await expect(page.locator('.dv-tab')).toHaveCount(0);
+});
+
+test('la pestaña antigua de Ajustes migra a ventana sin perder el layout', async ({ studio, page }) => {
+  const { instanceId } = await studio.json('/api/status');
+  await page.addInitScript(({ key }) => {
+    if (sessionStorage.getItem('layout-ficticio-preparado')) return;
+    sessionStorage.setItem('layout-ficticio-preparado', '1');
+    localStorage.setItem(key, JSON.stringify({
+      grid: { width: 1440, height: 900, orientation: 'HORIZONTAL', root: { type: 'branch', data: [
+        { type: 'leaf', size: 720, data: { id: 'izquierda', views: ['latex:tfg.tex', 'settings'], activeView: 'settings' } },
+        { type: 'leaf', size: 720, data: { id: 'derecha', views: ['pdf'], activeView: 'pdf' } },
+      ] } },
+      panels: {
+        'latex:tfg.tex': { id: 'latex:tfg.tex', contentComponent: 'latex', title: 'tfg.tex', params: { root: 'memoria', path: 'tfg.tex' } },
+        settings: { id: 'settings', contentComponent: 'settings', title: 'Ajustes' },
+        pdf: { id: 'pdf', contentComponent: 'pdf', title: 'PDF', renderer: 'always' },
+      }, activeGroup: 'izquierda',
+    }));
+  }, { key: `et:layout:v1:${instanceId}` });
+  await page.goto(studio.server.url);
+  const dialog = page.getByRole('dialog', { name: 'Ajustes', exact: true });
+  await expect(dialog).toBeVisible();
+  await expect(page.locator('.dv-tab')).toHaveCount(2);
+  await expect(page.locator('.dv-groupview')).toHaveCount(2);
+  await dialog.getByRole('button', { name: 'Cerrar ajustes' }).click();
+  await expect(page.getByRole('tab', { name: 'tfg.tex', exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('region', { name: 'PDF de Memoria', exact: true })).toBeVisible();
+  await expect(dialog).not.toBeVisible();
+});
+
 test('seleccionar motor, detectar herramientas y conservar ajustes al recargar @smoke', async ({ studio, page }) => {
   const detection = await studio.json('/api/engines');
   await ajustes(page, studio.server.url);
-  const globalWarning = page.getByRole('status').filter({ hasText: 'permisos del usuario' });
+  const globalWarning = page.locator('#root [role="status"]').filter({ hasText: 'permisos del usuario' });
   await expect(globalWarning).not.toBeVisible();
   const selector = page.getByLabel('Motor de compilación', { exact: true });
   await expect(selector).toHaveValue('docker');
@@ -55,7 +133,10 @@ test('seleccionar motor, detectar herramientas y conservar ajustes al recargar @
   await expect(globalWarning).toBeVisible();
   await memoria(page);
   await expect(globalWarning).toBeVisible();
+  await page.getByRole('button', { name: 'Cerrar aviso de TeX', exact: true }).click();
+  await expect(globalWarning).not.toBeVisible();
   await page.reload();
+  await expect(globalWarning).not.toBeVisible();
   await page.getByRole('navigation', { name: 'Secciones' }).getByRole('button', { name: 'Ajustes', exact: true }).click();
   await expect(selector).toHaveValue('local');
   await expect(engines.getByText(/no es un sandbox/)).toBeVisible();

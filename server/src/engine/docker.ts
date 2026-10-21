@@ -22,10 +22,17 @@ export function dockerEngine(url: string): Engine {
       try {
         const res = await fetch(`${url}/health`, { signal: AbortSignal.timeout(1500) });
         const body: any = res.ok ? await res.json().catch(() => null) : null;
-        return { ok: !!body?.ok, version: typeof body?.version === 'string' ? body.version : null,
-          capabilities: { compile: !!body?.ok, svg2pdf: !!body?.ok && body?.capacidades?.svg2pdf !== false } };
-      } catch {
-        return { ok: false, version: null, capabilities: { compile: false, svg2pdf: false } };
+        const ok = body?.ok === true;
+        return { ok, version: typeof body?.version === 'string' ? body.version : null,
+          capabilities: { compile: ok, svg2pdf: ok && body?.capacidades?.svg2pdf !== false },
+          ...(!ok ? { message: !res.ok ? `El servicio de compilación de Docker respondió con un error HTTP ${res.status}.`
+            : !body || typeof body.ok !== 'boolean' ? 'El servicio de compilación de Docker devolvió una respuesta no válida.'
+              : 'El servicio de compilación de Docker respondió, pero no está listo para compilar.' } : {}) };
+      } catch (error) {
+        return { ok: false, version: null, capabilities: { compile: false, svg2pdf: false },
+          message: error instanceof Error && error.name === 'TimeoutError'
+            ? 'El servicio de compilación de Docker no respondió en el tiempo de espera (1,5 segundos).'
+            : 'El servidor no pudo conectar con el servicio de compilación de Docker.' };
       }
     },
     async compile(sources, main, signal) {

@@ -64,7 +64,7 @@ export const test = base.extend({
         async biblioteca(url = server.url) {
           await page.goto(url);
           await page.getByRole('navigation', { name: 'Secciones' }).getByRole('button', { name: 'Biblioteca', exact: true }).click();
-          await expect(page.getByRole('heading', { name: 'Biblioteca', exact: true })).toBeVisible();
+          await expect(page.getByRole('main', { name: 'Biblioteca', exact: true }).getByRole('heading', { name: 'Biblioteca', level: 1, exact: true })).toBeVisible();
           await expect(page.getByText(/\d+ de \d+ recursos/)).toBeVisible();
         },
       });

@@ -73,6 +73,7 @@ export function Modal({
   width = 520,
   footer,
   labelledBy,
+  keepMounted = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -81,6 +82,7 @@ export function Modal({
   width?: number | string;
   footer?: ReactNode;
   labelledBy?: string;
+  keepMounted?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const generatedId = useId();
@@ -114,15 +116,15 @@ export function Modal({
       .find((el) => el.tabIndex >= 0 && !el.matches(':disabled') && el.getClientRects().length > 0);
     (target ?? dialog).focus();
   });
-  if (!open) return null;
+  if (!open && !keepMounted) return null;
   return createPortal(
     <dialog
       ref={ref}
       aria-modal="true"
-      aria-labelledby={title != null ? titleId : undefined}
-      aria-label={title == null ? 'Diálogo' : undefined}
+      aria-labelledby={title != null || labelledBy ? titleId : undefined}
+      aria-label={title == null && !labelledBy ? 'Diálogo' : undefined}
       className="et-modal fixed inset-0 m-0 h-full max-h-none w-full max-w-none border-0 bg-transparent p-0 text-fg"
-      onCancel={(e) => { e.preventDefault(); onClose(); }}
+      onCancel={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }}
       onKeyDown={(e) => {
         // Los atajos globales no deben operar sobre el fondo mientras se edita un diálogo.
         e.stopPropagation();

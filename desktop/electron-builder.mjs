@@ -1,8 +1,10 @@
 import { RELEASES_URL, UPDATE_TAG } from './distribution.mjs';
+import { fileURLToPath } from 'node:url';
 
 export function buildConfig(runtime, output, variant, version) {
   return {
     appId: 'io.github.javierloro.estudio-tfg', productName: 'Estudio TFG',
+    icon: fileURLToPath(new URL('./icons/windows.png', import.meta.url)),
     directories: { app: runtime, output },
     files: ['**/*', '!**/*.test.mjs'],
     asar: false, npmRebuild: false,
@@ -10,7 +12,7 @@ export function buildConfig(runtime, output, variant, version) {
     extraMetadata: { version },
     artifactName: `estudio-tfg-\${version}-\${os}-\${arch}-${variant}.\${ext}`,
     publish: [{ provider: 'generic', url: `${RELEASES_URL}/download/${UPDATE_TAG}/`, channel: variant }],
-    mac: { target: ['dmg', 'zip'], category: 'public.app-category.productivity', identity: null,
+    mac: { target: ['dmg', 'zip'], icon: fileURLToPath(new URL('./icons/macos.png', import.meta.url)), category: 'public.app-category.productivity', identity: null,
       minimumSystemVersion: process.arch === 'arm64' ? '26.0' : '13.0' },
     win: { target: ['nsis', 'portable'], verifyUpdateCodeSignature: false },
     nsis: { oneClick: false, perMachine: false, allowToChangeInstallationDirectory: true, deleteAppDataOnUninstall: false },

@@ -39,7 +39,7 @@ if (worker) {
   assert(insideTemporary(builds), 'La salida del worker E2E debe ser temporal');
 }
 const cfg = loadConfig({ NOTES_DIR: notes, MEMORIA_DIR: memoria, BUILD_DIR: builds,
-  WORKER_URL: worker ?? 'http://127.0.0.1:1', ALLOWED_ROOTS: root, AUTH_TOKEN: 'e2e-solo-ficticio',
+  WORKER_URL: worker || 'http://127.0.0.1:1', ALLOWED_ROOTS: root, AUTH_TOKEN: 'e2e-solo-ficticio',
   RESOURCES_SUBDIR: 'Recursos', MEMORIA_MAIN: 'tfg.tex', WATCH_POLLING: 'off' }, REPO_ROOT);
 // Ajustes e historial propios; los recibos compartidos del worker se separan por ID de biblioteca.
 cfg.settingsFile = path.join(root, 'data/settings.json');

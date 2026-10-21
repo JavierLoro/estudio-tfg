@@ -7,7 +7,7 @@ import { setup, type TestEnv } from './helpers.ts';
 
 let t: TestEnv;
 beforeEach(async () => { t = await setup(); });
-afterEach(async () => { vi.unstubAllGlobals(); await t.close(); });
+afterEach(async () => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); await t.close(); });
 
 it('la detección exige administración y no acepta loopback falsificado por cabecera', async () => {
   const fetcher = vi.fn(async () => Response.json({ ok: true }));
@@ -22,6 +22,32 @@ it('el estado describe el motor y conserva worker para clientes anteriores', asy
   const status = (await t.app.inject('/api/status')).json();
   expect(status.worker).toBe('up');
   expect(status.motor).toEqual({ seleccion: 'docker', tipo: 'docker', estado: 'up', version: 'TeX ficticio', capacidades: { compile: true, svg2pdf: false } });
+});
+
+it.each([
+  ['conexión', () => { throw new Error('http://usuario:secreto@worker-interno'); }, 'El servidor no pudo conectar con el servicio de compilación de Docker.'],
+  ['tiempo de espera', () => { throw new DOMException('Timeout', 'TimeoutError'); }, 'El servicio de compilación de Docker no respondió en el tiempo de espera (1,5 segundos).'],
+  ['error HTTP', () => new Response('Detalle privado', { status: 503 }), 'El servicio de compilación de Docker respondió con un error HTTP 503.'],
+  ['JSON no válido', () => new Response('Sin JSON'), 'El servicio de compilación de Docker devolvió una respuesta no válida.'],
+  ['estado no válido', () => Response.json({ ok: 'true' }), 'El servicio de compilación de Docker devolvió una respuesta no válida.'],
+  ['servicio no listo', () => Response.json({ ok: false }), 'El servicio de compilación de Docker respondió, pero no está listo para compilar.'],
+] as const)('el estado explica el fallo de Docker: %s', async (_name, response, message) => {
+  vi.stubGlobal('fetch', vi.fn(async () => response()));
+  const status = (await t.app.inject('/api/status')).json();
+  expect(status.worker).toBe('down');
+  expect(status.motor).toMatchObject({ estado: 'down', mensaje: message, capacidades: { compile: false, svg2pdf: false } });
+  expect((await t.app.inject('/api/engines')).json().docker.message).toBe(message);
+});
+
+it.each(['local', 'auto'] as const)('el estado explica las herramientas ausentes con selección %s', async (selection) => {
+  vi.stubEnv('PATH', '');
+  vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('Sin conexión'); }));
+  t.cfg.compileEngine = selection;
+  const status = (await t.app.inject('/api/status')).json();
+  expect(status.motor).toMatchObject({ seleccion: selection, tipo: 'local', estado: 'down' });
+  expect(status.motor.mensaje).toContain('No están disponibles latexmk, biber, pdflatex en PATH');
+  if (selection === 'auto') expect(status.motor.mensaje).toContain('El servidor no pudo conectar con el servicio de compilación de Docker.');
+  else expect(status.motor.mensaje).not.toContain('El servidor no pudo conectar');
 });
 
 it('la interfaz Docker transporta las fuentes y normaliza el resultado sin alterar diagnósticos válidos', async () => {

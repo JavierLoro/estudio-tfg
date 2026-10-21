@@ -7,11 +7,75 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { _electron, test, expect } from '@playwright/test';
 import { copyTemplate } from '../../scripts/memoria-template.mjs';
+import { developmentEnv } from '../../scripts/desktop-dev.mjs';
 
 const repo = fileURLToPath(new URL('../../', import.meta.url));
 const require = createRequire(new URL('../../desktop/package.json', import.meta.url));
 test.skip(!process.env.E2E_DESKTOP, 'Activa E2E_DESKTOP=1 y prepara Electron, bundle y web');
 test.setTimeout(180_000);
+
+test('desarrollo recarga con el renderer protegido y permite cancelar un reinicio con borradores @desktop', async ({}, info) => {
+  const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'estudio-tfg-desktop-dev-')));
+  const env = { ...developmentEnv(root), TEMPLATES_DIR: path.join(repo, 'templates'), WEB_DIST: path.join(repo, 'web/dist') };
+  await fs.mkdir(env.DATA_DIR, { recursive: true });
+  await fs.mkdir(env.NOTES_DIR);
+  await fs.writeFile(path.join(env.NOTES_DIR, 'Nota.md'), '# Nota ficticia\n');
+  copyTemplate(env.MEMORIA_DIR, { perfil: 'generico' });
+  const source = path.join(env.MEMORIA_DIR, '1-capitulos/01-introduccion.tex');
+  const original = await fs.readFile(source, 'utf8');
+  const draft = original + '\nBorrador ficticio de desarrollo conservado.\n';
+  let electron;
+  try {
+    electron = await _electron.launch({ executablePath: require('electron'), args: ['--use-mock-keychain', path.join(repo, 'desktop')], env });
+    const page = await electron.firstWindow();
+    await page.waitForURL('http://estudio-tfg.localhost/');
+    await expect(page.getByRole('navigation', { name: 'Secciones' })).toBeVisible();
+    expect(await electron.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getTitle())).toContain('(desarrollo)');
+    const icons = await electron.evaluate(({ nativeImage }, files) => files.map(file => {
+      const image = nativeImage.createFromPath(file);
+      const { width, height } = image.getSize();
+      const pixels = image.toBitmap();
+      return { width, height, cornerAlpha: pixels[3], topAlpha: pixels[(Math.floor(height * 0.2) * width + Math.floor(width * 0.5)) * 4 + 3] };
+    }), ['macos.png', 'windows.png'].map(file => path.join(repo, 'desktop/icons', file)));
+    for (const icon of icons) { expect(icon.width).toBeGreaterThanOrEqual(512); expect(icon.height).toBe(icon.width); expect(icon.cornerAlpha).toBe(0); }
+    expect(icons[0].topAlpha).toBeGreaterThanOrEqual(250);
+    expect(icons[1].topAlpha).toBe(0);
+    await page.evaluate(() => localStorage.setItem('et:dev-fixture', 'Perfil ficticio persistente'));
+    const navigation = page.waitForEvent('framenavigated', frame => frame === page.mainFrame());
+    await electron.evaluate(() => process.emit('message', 'desktop-dev:reload'));
+    await navigation;
+    await expect(page.getByRole('navigation', { name: 'Secciones' })).toBeVisible();
+    expect(await page.evaluate(() => ({ node: typeof window.require, marker: localStorage.getItem('et:dev-fixture') })))
+      .toEqual({ node: 'undefined', marker: 'Perfil ficticio persistente' });
+    // Tras recargar, el clic espera al control y devuelve el foco al renderer.
+    await page.getByRole('button', { name: 'Buscar', exact: true }).click();
+    const open = page.getByRole('dialog', { name: 'Abrir o buscar' });
+    await open.getByLabel('Buscar', { exact: true }).fill('01-introduccion.tex');
+    await open.getByRole('option').filter({ hasText: '1-capitulos/01-introduccion.tex' }).first().click();
+    const editor = page.locator('.cm-content:visible').last();
+    await editor.fill(draft);
+    await expect.poll(() => page.evaluate(() => Object.values(localStorage).some(value => value.includes('Borrador ficticio de desarrollo conservado.')))).toBe(true);
+    await electron.evaluate(({ dialog }) => {
+      globalThis.__devMessages = [];
+      process.send = message => { globalThis.__devMessages.push(message); return true; };
+      dialog.showMessageBoxSync = () => 0;
+      process.emit('message', 'desktop-dev:close');
+    });
+    await expect.poll(() => electron.evaluate(() => globalThis.__devMessages.includes('desktop-dev:cancelled'))).toBe(true);
+    await expect(editor).toContainText('Borrador ficticio de desarrollo conservado.');
+    expect(await fs.readFile(source, 'utf8')).toBe(original);
+    await info.attach('desarrollo-ficticio.png', { body: await page.screenshot(), contentType: 'image/png' });
+    const closed = electron.waitForEvent('close');
+    await electron.evaluate(({ dialog }) => { dialog.showMessageBoxSync = () => 1; process.emit('message', 'desktop-dev:close'); });
+    await closed; electron = undefined;
+  } finally {
+    if (electron) {
+      await electron.evaluate(({ dialog }) => { dialog.showMessageBoxSync = () => 1; }).catch(() => {});
+      await electron.close();
+    }
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
 
 test('Electron conserva edición y borradores, protege el renderer y restaura la única instancia @desktop', async ({}, info) => {
   const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'estudio-tfg-desktop-')));
@@ -53,7 +117,7 @@ test('Electron conserva edición y borradores, protege el renderer y restaura la
     await page.keyboard.press('ControlOrMeta+k');
     const open = page.getByRole('dialog', { name: 'Abrir o buscar' });
     await open.getByLabel('Buscar', { exact: true }).fill('01-introduccion.tex');
-    await open.getByRole('option').filter({ hasText: '01-introduccion.tex' }).first().click();
+    await open.getByRole('option').filter({ hasText: '1-capitulos/01-introduccion.tex' }).first().click();
     const editor = page.locator('.cm-content:visible').last();
     await editor.fill(saved);
     await editor.press('ControlOrMeta+s');
@@ -147,7 +211,7 @@ test('Electron conserva edición y borradores, protege el renderer y restaura la
     await restored.keyboard.press('ControlOrMeta+k');
     const reopen = restored.getByRole('dialog', { name: 'Abrir o buscar' });
     await reopen.getByLabel('Buscar', { exact: true }).fill('01-introduccion.tex');
-    await reopen.getByRole('option').filter({ hasText: '01-introduccion.tex' }).first().click();
+    await reopen.getByRole('option').filter({ hasText: '1-capitulos/01-introduccion.tex' }).first().click();
     await restored.getByRole('button', { name: 'Restaurar borrador', exact: true }).click();
     const restoredEditor = restored.locator('.cm-content:visible').last();
     await restoredEditor.focus();

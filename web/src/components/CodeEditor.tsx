@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { shortcutFor } from '../lib/shortcuts';
 import { Annotation, Compartment, EditorSelection, EditorState, Prec, Text } from '@codemirror/state';
 import { Decoration, EditorView, keymap } from '@codemirror/view';
+import { isolateHistory } from '@codemirror/commands';
 import { setDiagnostics, type Diagnostic as CmDiagnostic } from '@codemirror/lint';
 import { StateEffect, StateField } from '@codemirror/state';
 import { latexCompletion, wantsLatexCompletion } from '../lib/latexComplete';
@@ -10,6 +11,9 @@ import { baseExtensions, languageExtension, type EditorLang } from '../lib/edito
 import { setContent, useDocs } from '../state/docs';
 import { setCursorLine, useCursor } from '../state/cursor';
 import { editorViews } from '../lib/editorInsert';
+import { visualCaret } from '../lib/latexVisual';
+import { latexVisualEditor } from '../lib/latexVisualEditor';
+import { editorContextMenu } from './EditorContextMenu';
 
 export interface LineDiagnostic {
   line: number | null;
@@ -21,6 +25,7 @@ interface Props {
   docKey: string;
   lang: EditorLang;
   lineNumbers?: boolean;
+  visualLatex?: boolean;
   className?: string;
   onSave?: () => void;
   onSaveCompile?: () => void;
@@ -64,10 +69,12 @@ function toCmDiagnostics(state: EditorState, diags: LineDiagnostic[] | undefined
   return out;
 }
 
-export function CodeEditor({ docKey, lang, lineNumbers = true, className, onSave, onSaveCompile, onShowInPdf, diagnostics, onView }: Props) {
+export function CodeEditor({ docKey, lang, lineNumbers = true, className, onSave, onSaveCompile, onShowInPdf, diagnostics, onView, visualLatex = false }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const separator = useRef(new Compartment());
+  const presentation = useRef(new Compartment());
+  const previousVisual = useRef(visualLatex);
   const cb = useRef({ onSave, onSaveCompile, onShowInPdf, onView });
   cb.current = { onSave, onSaveCompile, onShowInPdf, onView };
   const diagRef = useRef(diagnostics);
@@ -104,6 +111,18 @@ export function CodeEditor({ docKey, lang, lineNumbers = true, className, onSave
             ]),
           ),
           baseExtensions({ lineNumbers }),
+          EditorView.domEventHandlers({
+            contextmenu: (event, view) => {
+              if (!view.contentDOM.contains(event.target as Node)) return false;
+              editorContextMenu(view, docKey, event, cb.current); return true;
+            },
+            keydown: (event, view) => {
+              if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return false;
+              const rect = view.coordsAtPos(view.state.selection.main.head) ?? view.dom.getBoundingClientRect();
+              editorContextMenu(view, docKey, { clientX: rect.left, clientY: rect.bottom, preventDefault: () => event.preventDefault() }, cb.current); return true;
+            },
+          }),
+          presentation.current.of(visualLatex ? latexVisualEditor() : EditorView.contentAttributes.of({ 'aria-label': 'Editor de código' })),
           languageExtension(lang),
           wantsLatexCompletion(docKey) ? latexCompletion() : [],
           flashField,
@@ -135,6 +154,18 @@ export function CodeEditor({ docKey, lang, lineNumbers = true, className, onSave
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, docKey, lang, lineNumbers]);
 
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    const cursor = view.state.selection.main;
+    view.dispatch({
+      effects: presentation.current.reconfigure(visualLatex ? latexVisualEditor() : EditorView.contentAttributes.of({ 'aria-label': 'Editor de código' })),
+      ...(visualLatex && cursor.empty ? { selection: EditorSelection.cursor(visualCaret(view.state.doc.toString(), cursor.head)) } : {}),
+    });
+    if (visualLatex || previousVisual.current !== visualLatex) view.focus();
+    previousVisual.current = visualLatex;
+  }, [visualLatex, ready]);
+
   // Sincronizar cuando el contenido cambia desde fuera (recarga, borrador, conflicto).
   useEffect(() => {
     const view = viewRef.current;
@@ -149,7 +180,7 @@ export function CodeEditor({ docKey, lang, lineNumbers = true, className, onSave
       changes: { from: 0, to: view.state.doc.length, insert: text },
       effects: separator.current.reconfigure(EditorState.lineSeparator.of(nl)),
       selection: EditorSelection.cursor(head),
-      annotations: External.of(true),
+      annotations: [External.of(true), isolateHistory.of('full')],
     });
   }, [extVersion, docKey]);
 
