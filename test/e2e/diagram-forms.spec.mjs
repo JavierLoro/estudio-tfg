@@ -53,7 +53,8 @@ test('crea y edita los nueve tipos por formulario, teclado y código @smoke', as
     const codeButton = page.getByRole('button', { name: 'Código', exact: true });
     if (await codeButton.getAttribute('aria-pressed') !== 'true') await codeButton.click();
     const editor = page.locator('.cm-content:visible').last();
-    await editor.fill(edited);
+    await editor.press('ControlOrMeta+a');
+    await page.keyboard.insertText(edited);
     await editor.press('ControlOrMeta+s');
     await expect.poll(() => fs.readFile(file, 'utf8')).toBe(edited);
     await expect.poll(() => form.getByLabel(label, { exact: true }).evaluateAll(nodes => nodes.map(node => node.value))).toContain(after);

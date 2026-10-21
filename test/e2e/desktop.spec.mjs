@@ -47,10 +47,11 @@ test('desarrollo recarga con el renderer protegido y permite cancelar un reinici
     await expect(page.getByRole('navigation', { name: 'Secciones' })).toBeVisible();
     expect(await page.evaluate(() => ({ node: typeof window.require, marker: localStorage.getItem('et:dev-fixture') })))
       .toEqual({ node: 'undefined', marker: 'Perfil ficticio persistente' });
-    await page.keyboard.press('ControlOrMeta+k');
+    // Tras recargar, el clic espera al control y devuelve el foco al renderer.
+    await page.getByRole('button', { name: 'Buscar', exact: true }).click();
     const open = page.getByRole('dialog', { name: 'Abrir o buscar' });
     await open.getByLabel('Buscar', { exact: true }).fill('01-introduccion.tex');
-    await open.getByRole('option').filter({ hasText: '01-introduccion.tex' }).first().click();
+    await open.getByRole('option').filter({ hasText: '1-capitulos/01-introduccion.tex' }).first().click();
     const editor = page.locator('.cm-content:visible').last();
     await editor.fill(draft);
     await expect.poll(() => page.evaluate(() => Object.values(localStorage).some(value => value.includes('Borrador ficticio de desarrollo conservado.')))).toBe(true);
@@ -116,7 +117,7 @@ test('Electron conserva edición y borradores, protege el renderer y restaura la
     await page.keyboard.press('ControlOrMeta+k');
     const open = page.getByRole('dialog', { name: 'Abrir o buscar' });
     await open.getByLabel('Buscar', { exact: true }).fill('01-introduccion.tex');
-    await open.getByRole('option').filter({ hasText: '01-introduccion.tex' }).first().click();
+    await open.getByRole('option').filter({ hasText: '1-capitulos/01-introduccion.tex' }).first().click();
     const editor = page.locator('.cm-content:visible').last();
     await editor.fill(saved);
     await editor.press('ControlOrMeta+s');
@@ -210,7 +211,7 @@ test('Electron conserva edición y borradores, protege el renderer y restaura la
     await restored.keyboard.press('ControlOrMeta+k');
     const reopen = restored.getByRole('dialog', { name: 'Abrir o buscar' });
     await reopen.getByLabel('Buscar', { exact: true }).fill('01-introduccion.tex');
-    await reopen.getByRole('option').filter({ hasText: '01-introduccion.tex' }).first().click();
+    await reopen.getByRole('option').filter({ hasText: '1-capitulos/01-introduccion.tex' }).first().click();
     await restored.getByRole('button', { name: 'Restaurar borrador', exact: true }).click();
     const restoredEditor = restored.locator('.cm-content:visible').last();
     await restoredEditor.focus();
