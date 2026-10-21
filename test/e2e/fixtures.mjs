@@ -10,10 +10,10 @@ export { expect };
 const repo = fileURLToPath(new URL('../../', import.meta.url));
 export const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAKklEQVR4nGPwd3tKU8QwasGoBaMWjFowasGoBaMWjFowasGoBaMWDBULAE0y6EwonOyyAAAAAElFTkSuQmCC', 'base64');
 
-async function start(root, restored, logs, withWorker, noTools) {
+async function start(root, restored, logs, withWorker, noTools, withContext) {
   const child = spawn(process.execPath, ['--import', 'tsx', path.join(repo, 'test/e2e/server.mts'), root, restored ? 'restored' : 'new'], {
     cwd: path.join(repo, 'server'), stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
-    env: { ...process.env, ...(noTools ? { PATH: '' } : {}), E2E_WORKER_URL: withWorker ? process.env.E2E_WORKER_URL : '' },
+    env: { ...process.env, ...(noTools ? { PATH: '' } : {}), E2E_WORKER_URL: withWorker ? process.env.E2E_WORKER_URL : '', E2E_CONTEXT: withContext ? '1' : '' },
   });
   child.stdout.on('data', (chunk) => logs.push(chunk.toString()));
   child.stderr.on('data', (chunk) => logs.push(chunk.toString()));
@@ -44,7 +44,7 @@ export const test = base.extend({
     const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'estudio-tfg-e2e-')));
     const servers = [], logs = [];
     async function launch(dir = root, restored = false) {
-      const server = await start(dir, restored, logs, info.title.includes('@worker'), info.title.includes('@sin-herramientas'));
+      const server = await start(dir, restored, logs, info.title.includes('@worker'), info.title.includes('@sin-herramientas'), info.title.includes('@contexto'));
       servers.push(server);
       await context.addCookies([{ name: 'et_token', value: 'e2e-solo-ficticio', url: server.url }]);
       return server;
@@ -64,7 +64,7 @@ export const test = base.extend({
         async biblioteca(url = server.url) {
           await page.goto(url);
           await page.getByRole('navigation', { name: 'Secciones' }).getByRole('button', { name: 'Biblioteca', exact: true }).click();
-          await expect(page.getByRole('heading', { name: 'Biblioteca', exact: true })).toBeVisible();
+          await expect(page.getByRole('main', { name: 'Biblioteca', exact: true }).getByRole('heading', { name: 'Biblioteca', level: 1, exact: true })).toBeVisible();
           await expect(page.getByText(/\d+ de \d+ recursos/)).toBeVisible();
         },
       });

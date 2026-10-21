@@ -3,6 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { buildApp } from '../../server/src/app.ts';
+import { assistantRoutes, type AssistantProvider } from '../../server/src/assistant.ts';
+import { DIAGRAM_TEMPLATES } from '../../web/src/lib/diagramTemplates.ts';
 import { loadConfig, REPO_ROOT } from '../../server/src/config.ts';
 
 const root = await fs.realpath(process.argv[2]);
@@ -39,13 +41,32 @@ if (worker) {
   assert(insideTemporary(builds), 'La salida del worker E2E debe ser temporal');
 }
 const cfg = loadConfig({ NOTES_DIR: notes, MEMORIA_DIR: memoria, BUILD_DIR: builds,
-  WORKER_URL: worker ?? 'http://127.0.0.1:1', ALLOWED_ROOTS: root, AUTH_TOKEN: 'e2e-solo-ficticio',
+  WORKER_URL: worker || 'http://127.0.0.1:1', ALLOWED_ROOTS: root, AUTH_TOKEN: 'e2e-solo-ficticio',
   RESOURCES_SUBDIR: 'Recursos', MEMORIA_MAIN: 'tfg.tex', WATCH_POLLING: 'off' }, REPO_ROOT);
 // Ajustes e historial propios; los recibos compartidos del worker se separan por ID de biblioteca.
 cfg.settingsFile = path.join(root, 'data/settings.json');
 cfg.historyDir = path.join(root, 'data/history');
 await fs.access(path.join(cfg.webDist, 'index.html'));
-const { app } = await buildApp(cfg, { logger: true, watch: true, fetchMetadata: async (url) => {
+const response = (value: unknown) => [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(value) }] }];
+const fakeProvider: AssistantProvider = {
+  view: () => ({ accounts: [{ id: 'cuenta-contexto-ficticia', label: 'Ficticia', connected: true, enabled: true }], active: 'cuenta-contexto-ficticia', pending: false, persistent: false, error: '' }),
+  connect: async () => fakeProvider.view(), select: async () => fakeProvider.view(), disconnect: async () => fakeProvider.view(), cancelSignIn: async () => {},
+  models: async () => [{ id: 'modelo-contexto-ficticio', name: 'Modelo de pruebas' }], subscribe: () => () => {}, close: async () => {},
+  respond: async (_m, input, tools, signal, _event, options) => {
+    signal.throwIfAborted(); if (options?.purpose !== 'search') assert(tools.length === 0, 'No hay herramientas fuera del descubrimiento');
+    const text = input[0].content[0].text;
+    if (options?.purpose === 'search') return [...response({ candidates: [{ url: 'https://example.org/fuente', title: 'Web de búsqueda ficticia', kind: 'web', description: 'Página ficticia devuelta por la herramienta' }] }), { type: 'web_search_call', action: { type: 'search', sources: [{ url: 'https://example.org/fuente', title: 'Fuente ficticia' }] } }];
+    if (options?.purpose === 'review') { const candidates = JSON.parse(text.split('\nCandidatos: ')[1].split('\nContexto autorizado')[0]); return response({ candidates: candidates.map((c: any) => ({ id: c.id, purpose: 'Introducir el tema', contribution: 'Aportación inferida ficticia', usage: 'Marco teórico', limitations: 'Texto completo y calidad sin comprobar' })) }); }
+    if (options?.purpose === 'diagram') {
+      const type = /del tipo ([^.]+)/.exec(text)?.[1];
+      return response({ code: DIAGRAM_TEMPLATES.find(t => t.id === type)!.source, explanation: 'Explicación ficticia', assumptions: 'Supuestos ficticios' });
+    }
+    if (options?.purpose === 'context') { const chunks = JSON.parse(text.slice(text.indexOf('\n') + 1)); return response({ fragments: chunks.map((f: any) => ({ id: f.id, text: 'Resumen ficticio de ' + f.source.path })) }); }
+    return response({ text: 'Respuesta ficticia' });
+  },
+};
+const { app } = await buildApp(cfg, { logger: true, watch: true, configure: process.env.E2E_CONTEXT ? (app, ctx) => assistantRoutes(app, ctx, fakeProvider) : undefined, fetchMetadata: async (url) => {
+  if (process.env.E2E_CONTEXT && new URL(url).hostname === 'api.crossref.org') return { status: 200, headers: { 'content-type': 'application/json' }, body: Buffer.from(JSON.stringify({ message: { items: [{ DOI: '10.1234/busqueda', title: ['Artículo de búsqueda ficticio'], type: 'journal-article', author: [{ family: 'Ejemplo', given: 'Ana' }], issued: { 'date-parts': [[2026]] } }] } })) };
   assert(new URL(url).hostname === 'ejemplo.invalid', 'Los metadatos E2E deben ser ficticios');
   return { status: 200, headers: { 'content-type': 'text/html' }, body: Buffer.from('<title>Web ficticia E2E</title>') };
 } });

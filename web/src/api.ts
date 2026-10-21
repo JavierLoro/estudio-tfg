@@ -12,7 +12,7 @@ export interface Status {
   resourcesSubdir: string;
   syncConflicts: string[];
   worker: 'up' | 'down';
-  motor?: { seleccion?: 'auto' | 'docker' | 'local'; tipo: 'docker' | 'local'; estado: 'up' | 'down'; version: string | null; capacidades: { compile: boolean; svg2pdf: boolean } };
+  motor?: { seleccion?: 'auto' | 'docker' | 'local'; tipo: 'docker' | 'local'; estado: 'up' | 'down'; version: string | null; capacidades: { compile: boolean; svg2pdf: boolean }; mensaje?: string };
   watcher: 'ok' | 'error';
   watcherMessage?: string;
   /** v0.2: false si `notesDir` o `memoriaDir` no existen. */
@@ -46,6 +46,7 @@ export interface EngineHealth {
   ok: boolean;
   version: string | null;
   capabilities: { compile: boolean; svg2pdf: boolean };
+  message?: string;
 }
 
 export interface EnginesResponse {
@@ -53,7 +54,6 @@ export interface EnginesResponse {
   local: EngineHealth & {
     tools: Record<'latexmk' | 'biber' | 'pdflatex' | 'rsvg', { path: string | null; version: string | null }>;
     warnings: string[];
-    message?: string;
   };
 }
 
@@ -124,6 +124,11 @@ export interface Resource {
   note?: string;
   libraryError?: string;
   thumbnailPath?: string;
+  presentation?: {
+    authors?: string; year?: string; publication?: string; publisher?: string; edition?: string;
+    description?: string; domain?: string; accessed?: string; source?: string; license?: string;
+    formats: string[]; pdf: boolean; warning?: string;
+  };
 }
 
 export type ResourceKind = 'article' | 'book' | 'document' | 'image' | 'web' | 'note' | 'other';
@@ -152,6 +157,7 @@ export interface MigrationPreview {
 }
 export interface BibliographySource { format:'bibtex'|'ris'|'doi'; text:string }
 export interface ImportChoice {
+  note?: string; tags?: string[]; collections?: string[]; kind?: ResourceKind;
   index:number; action:'create'|'associate'|'merge'|'skip'; title:string; key:string; entryType:string; fields:Record<string,string>; targetId?:string; baseRev?:string;
 }
 export interface ImportCandidate { id:string; path:string; title:string; baseRev:string; reason:string; exact:boolean; manual:boolean }
@@ -504,7 +510,7 @@ async function request(path: string, init: RequestInit = {}, retried = false): P
   return res;
 }
 
-async function json<T>(path: string, init?: RequestInit): Promise<T> {
+export async function json<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await request(path, init);
   return (await res.json()) as T;
 }

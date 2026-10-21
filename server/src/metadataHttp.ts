@@ -34,7 +34,7 @@ export interface MetadataDependencies {
   lookup: (hostname: string) => Promise<{ address: string; family: number }[]>;
   request: (url: URL, address: { address: string; family: number }, signal: AbortSignal) => Promise<MetadataResponse>;
 }
-export type MetadataFetcher = (input: string) => Promise<MetadataResponse>;
+export type MetadataFetcher = (input: string, signal?: AbortSignal) => Promise<MetadataResponse>;
 
 /** Conexión nueva a la IP validada, conservando Host y la validación TLS del nombre original. */
 export const requestMetadata: MetadataDependencies['request'] = (url, address, signal) => new Promise((resolve, reject) => {
@@ -76,10 +76,13 @@ export function createMetadataFetcher(dependencies: MetadataDependencies = {
   lookup: (hostname) => dns.lookup(hostname, { all: true, verbatim: true }), request: requestMetadata,
 }): MetadataFetcher {
   let active = 0;
-  return async (input) => {
+  return async (input, signal) => {
+    signal?.throwIfAborted();
     if (active >= 4) throw new MetadataError('Hay demasiadas consultas de metadatos; puedes completar el recurso manualmente');
     active++;
     const controller = new AbortController();
+    const onExternalAbort = () => controller.abort(signal?.reason);
+    signal?.addEventListener('abort', onExternalAbort, { once: true });
     const expired = new MetadataError('La consulta de metadatos superó 4 segundos');
     const timer = setTimeout(() => controller.abort(expired), TIMEOUT);
     const run = (async () => {
@@ -108,13 +111,14 @@ export function createMetadataFetcher(dependencies: MetadataDependencies = {
     })().finally(() => { active--; clearTimeout(timer); });
     // El límite incluye DNS; una resolución no cancelable retiene su plaza hasta terminar.
     let onAbort: () => void = () => {};
-    const abort = new Promise<never>((_resolve, reject) => { onAbort = () => reject(expired); controller.signal.addEventListener('abort', onAbort, { once: true }); });
+    const abort = new Promise<never>((_resolve, reject) => { onAbort = () => reject(controller.signal.reason ?? expired); controller.signal.addEventListener('abort', onAbort, { once: true }); });
     try { return await Promise.race([run, abort]); }
     catch (e) {
+      if (signal?.aborted) signal.throwIfAborted();
       if (e instanceof MetadataError) throw e;
       throw new MetadataError('No se pudo conectar o resolver el servidor de metadatos');
     }
-    finally { controller.signal.removeEventListener('abort', onAbort); }
+    finally { controller.signal.removeEventListener('abort', onAbort); signal?.removeEventListener('abort', onExternalAbort); }
   };
 }
 export const fetchPublicMetadata = createMetadataFetcher();

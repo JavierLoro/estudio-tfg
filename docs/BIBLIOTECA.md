@@ -74,3 +74,21 @@ Insertar conserva el borrador y el texto seleccionado, con deshacer aislado en C
 Los usos se reconstruyen de los `.tex` guardados y los registros/copias del proyecto actual; llevan a archivo/línea y se muestran antes de borrar. El escáner no expande macros TeX ni observa borradores de otro cliente: estos aparecen al guardar. Las operaciones se recuperan desde `data/library/<id>/integrations/`; una memoria cambiada o una revisión obsoleta detiene la aplicación sin borrar su staging. Respalda tanto estos registros como el proyecto completo.
 
 La CI verifica citas/figuras en ambos perfiles y otra compilación después de copiar cada memoria y retirar su biblioteca original. El comando reproducible está en contrato v0.25; siempre utiliza fixtures y un worker/output temporales propios.
+
+## Explorar por tipos
+
+El lateral reúne tipos, colecciones y revisión; Más filtros contiene etiquetas y orden. La búsqueda incluye autores, año y publicación cuando estén disponibles. Elige un recurso para consultar su ficha plegable y pulsa **Abrir** para editar o usar los visores, citas y figuras existentes. En un panel estrecho, **Volver a la lista** recupera la exploración. Las imágenes se muestran inicialmente en cuadrícula; puedes elegir Lista.
+
+Los metadatos proceden de la referencia actual, también si está en un .bib manual de Memoria. Los ausentes quedan vacíos; un vínculo manual no disponible muestra un aviso y no se modifica. El formato PDF/EPUB/PNG pertenece al adjunto, no al tipo. No se requiere convertir las fichas antiguas.
+
+El contexto del TFG puede seleccionar fichas de Biblioteca y bibliografía mediante su ámbito propio en Ajustes → Asistente. Esto no concede al chat acceso directo a sus originales, PDF o imágenes. El bloque de búsqueda y su bandeja se sigue por separado en #85.
+
+## Buscar con asistente y decidir qué guardar
+
+En escritorio abre **Añadir → Buscar con asistente**. Autoriza la búsqueda para la cuenta/proyecto, escribe necesidad y filtros y elige un modelo disponible. Rápida usa un agente y Ampliada dos especialistas; ambos combinan descubrimiento web con metadatos Crossref. Los buscadores solo reciben la consulta y filtros visibles. Puedes revisar y activar el contexto del TFG para la valoración posterior, sin navegación.
+
+La **bandeja de búsqueda** conserva consultas recientes y candidatos pendientes, guardados y descartados tras recargar o reiniciar. Cada candidato muestra sus fuentes pulsables y distingue metadatos comprobados, contenido abierto e inferencias del asistente. Un DOI no acredita calidad científica. Los datos ausentes siguen pendientes de comprobar. No se descarga ningún adjunto; las imágenes mantienen su referencia a la página de origen.
+
+**Guardar** abre una revisión de datos, destino, etiquetas, colecciones y duplicados. Puedes usar una ficha existente sin modificarla o crear otra expresamente. Las fichas nuevas separan el resumen original de la **Aportación del asistente**, una nota editable. Solo **Guardar recurso elegido** incorpora el candidato. Cerrar o terminar nunca añade recursos.
+
+**Detener búsqueda** conserva parciales. **Reintentar partes fallidas** no repite el descubrimiento que terminó correctamente. Hay límites de dos agentes, cinco peticiones y veinte candidatos; ampliar inicia otra ejecución. Si la web no está disponible, **Continuar solo con Crossref** requiere pulsarlo y crea otra búsqueda explícita. Un error de modelo/cuota no selecciona otro modelo ni un proveedor de pago. Los formularios y guardados interrumpidos se recuperan desde la misma bandeja, con revisión de conflictos y recibos idempotentes.

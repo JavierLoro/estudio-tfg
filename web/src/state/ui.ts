@@ -1,9 +1,9 @@
+import { getInstance } from '../lib/instance';
 import { create } from 'zustand';
 import { api, errorMessage, type Entry, type Resource, type Root, type Status } from '../api';
 import { load, save } from '../lib/storage';
-
-/** Secciones del panel lateral. Inicio no es una sección: es una vista propia (homeView). */
-export type Section = 'memoria' | 'diagramas' | 'notes' | 'resources' | 'search';
+import { SECTIONS, clampRatio, isSection, spacesKey, type Section, type Sidebars, type ViewPair } from '../lib/spaces';
+export type { Section } from '../lib/spaces';
 
 export const SIDEBAR_MIN = 180;
 export const SIDEBAR_MAX = 600;
@@ -39,6 +39,17 @@ interface PromptRequest {
 
 interface UIState {
   section: Section;
+  multiview: boolean;
+  viewPair: ViewPair;
+  viewRatio: number;
+  sidebars: Sidebars;
+  initSpaces: () => void;
+  showMultiview: () => void;
+  focusSection: (s: Section) => void;
+  revealSection: (s: Section) => void;
+  setViewSide: (side: 0 | 1, s: Section) => void;
+  setViewRatio: (ratio: number) => void;
+  setSidebarOpen: (s: Section, open: boolean) => void;
   sidebarOpen: boolean;
   setSection: (s: Section) => void;
   toggleSidebar: () => void;
@@ -52,14 +63,15 @@ interface UIState {
   showHome: () => void;
   hideHome: () => void;
 
+  settingsOpen: boolean;
+  settingsOpened: boolean;
+  settingsTab: 'general' | 'assistant';
+
   captureOpen: boolean;
   setCaptureOpen: (v: boolean) => void;
   quickOpen: boolean;
   quickOpenQuery: string;
   setQuickOpen: (v: boolean, q?: string) => void;
-
-  sidebarSearch: string;
-  setSidebarSearch: (q: string) => void;
 
   toasts: Toast[];
   toast: (t: Omit<Toast, 'id'>) => number;
@@ -100,60 +112,102 @@ const HOME_KEY = 'et:home-view';
 let toastSeq = 1;
 
 const sidebarRaw = load<{ section: string; open: boolean }>(SIDEBAR_KEY, { section: 'memoria', open: true });
-// 'home' era antes una sección del panel lateral.
+// Inicio y Buscar ya no son secciones del panel lateral.
 const sidebarSaved: { section: Section; open: boolean } = {
-  section: (['memoria', 'diagramas', 'notes', 'resources', 'search'].includes(sidebarRaw.section) ? sidebarRaw.section : 'memoria') as Section,
+  section: (['memoria', 'diagramas', 'notes', 'resources'].includes(sidebarRaw.section) ? sidebarRaw.section : 'memoria') as Section,
   open: sidebarRaw.open !== false,
 };
 
 export const useUI = create<UIState>((set, get) => ({
   section: sidebarSaved.section,
-  sidebarOpen: sidebarSaved.open,
-  setSection: (s) => {
-    if (s === 'resources') { get().showLibrary(); return; }
-    const { section, sidebarOpen, homeView, libraryView } = get();
-    // Clic en la sección activa: pliega/despliega (salvo si se vuelve desde Inicio).
-    const open = s === section && !homeView && !libraryView ? !sidebarOpen : true;
-    set({ section: s, sidebarOpen: open, homeView: false, libraryView: false });
-    save(SIDEBAR_KEY, { section: s, open });
-    save(HOME_KEY, false);
-    save('et:library-view', false);
+  multiview: false,
+  viewPair: ['memoria', 'resources'],
+  viewRatio: 50,
+  sidebars: Object.fromEntries(SECTIONS.map(s => [s, { open: sidebarSaved.open, width: clampWidth(load<number>(SIDEBAR_WIDTH_KEY, SIDEBAR_DEFAULT)) }])) as Sidebars,
+  initSpaces: () => {
+    const raw = load<Partial<Pick<UIState, 'viewPair' | 'viewRatio' | 'sidebars' | 'multiview' | 'libraryView'>> | null>(spacesKey('current', getInstance()), {});
+    const stored = raw && typeof raw === 'object' ? raw : {};
+    const candidate = stored.viewPair;
+    const pair: ViewPair = Array.isArray(candidate) && candidate.length === 2 && candidate.every(isSection) && candidate[0] !== candidate[1] ? candidate : ['memoria', 'resources'];
+    const sidebars = { ...get().sidebars };
+    for (const s of SECTIONS) {
+      const entry = stored.sidebars?.[s];
+      if (entry && typeof entry.open === 'boolean' && Number.isFinite(entry.width)) sidebars[s] = { open: entry.open, width: clampWidth(entry.width) };
+    }
+    const section = stored.multiview === true && !pair.includes(get().section) ? pair[0] : get().section;
+    set({ section, sidebars, multiview: stored.multiview === true, viewPair: pair, libraryView: stored.libraryView !== false,
+      viewRatio: clampRatio(stored.viewRatio ?? 50), sidebarOpen: sidebars[section].open, sidebarWidth: sidebars[section].width });
   },
+  focusSection: s => {
+    const pref = get().sidebars[s];
+    set({ section: s, sidebarOpen: pref.open, sidebarWidth: pref.width });
+  },
+  setSection: s => {
+    get().focusSection(s);
+    set({ multiview: false, homeView: false, ...(s === 'resources' ? { libraryView: true } : {}) });
+    save(SIDEBAR_KEY, { section: s, open: get().sidebars[s].open });
+    save(HOME_KEY, false);
+    persistSpaces();
+  },
+  revealSection: s => {
+    if (get().multiview && !get().viewPair.includes(s)) {
+      const pair: ViewPair = [...get().viewPair];
+      pair[get().section === pair[1] ? 1 : 0] = s;
+      set({ viewPair: pair });
+    }
+    get().focusSection(s);
+    set({ homeView: false });
+    save(SIDEBAR_KEY, { section: s, open: get().sidebars[s].open });
+    save(HOME_KEY, false);
+    persistSpaces();
+  },
+  showMultiview: () => {
+    set({ multiview: true, homeView: false });
+    get().focusSection(get().viewPair[0]);
+    save(HOME_KEY, false);
+    persistSpaces();
+  },
+  setViewSide: (side, s) => {
+    const pair: ViewPair = [...get().viewPair];
+    if (pair[1 - side] === s) pair[1 - side] = pair[side];
+    pair[side] = s;
+    set({ viewPair: pair });
+    get().focusSection(s);
+    persistSpaces();
+  },
+  setViewRatio: ratio => { set({ viewRatio: clampRatio(ratio) }); persistSpaces(); },
+  sidebarOpen: sidebarSaved.open,
   sidebarWidth: clampWidth(load<number>(SIDEBAR_WIDTH_KEY, SIDEBAR_DEFAULT)),
   setSidebarWidth: (w, persist = true) => {
     const width = clampWidth(w);
-    set({ sidebarWidth: width });
-    if (persist) save(SIDEBAR_WIDTH_KEY, width);
+    const section = get().section;
+    set({ sidebarWidth: width, sidebars: { ...get().sidebars, [section]: { ...get().sidebars[section], width } } });
+    if (persist) { save(SIDEBAR_WIDTH_KEY, width); persistSpaces(); }
+  },
+  setSidebarOpen: (s, open) => {
+    set({ sidebars: { ...get().sidebars, [s]: { ...get().sidebars[s], open } }, ...(get().section === s ? { sidebarOpen: open } : {}) });
+    persistSpaces();
+  },
+  toggleSidebar: () => {
+    const s = get().section;
+    get().setSidebarOpen(s, !get().sidebars[s].open);
   },
 
   homeView: load<boolean>(HOME_KEY, false),
-  libraryView: !load<boolean>(HOME_KEY, false) && load<boolean>('et:library-view', sidebarSaved.section === 'resources'),
-  showLibrary: () => { set({ libraryView: true, homeView: false }); save('et:library-view',true); save(HOME_KEY,false); },
-  showHome: () => {
-    set({ homeView: true, libraryView: false });
-    save('et:library-view',false);
-    save(HOME_KEY, true);
-  },
-  hideHome: () => {
-    if (!get().homeView && !get().libraryView) return;
-    set({ homeView: false, libraryView: false });
-    save('et:library-view',false);
-    save(HOME_KEY, false);
-  },
-  toggleSidebar: () => {
-    const open = !get().sidebarOpen;
-    set({ sidebarOpen: open });
-    save(SIDEBAR_KEY, { section: get().section, open });
-  },
+  libraryView: true,
+  showLibrary: () => { get().revealSection('resources'); set({ libraryView: true }); persistSpaces(); },
+  showHome: () => { set({ homeView: true }); save(HOME_KEY, true); },
+  hideHome: () => { set({ homeView: false }); save(HOME_KEY, false); },
+
+  settingsOpen: false,
+  settingsOpened: false,
+  settingsTab: 'general',
 
   captureOpen: false,
   setCaptureOpen: (v) => set({ captureOpen: v }),
   quickOpen: false,
   quickOpenQuery: '',
   setQuickOpen: (v, q) => set({ quickOpen: v, quickOpenQuery: q ?? '' }),
-
-  sidebarSearch: '',
-  setSidebarSearch: (q) => set({ sidebarSearch: q }),
 
   toasts: [],
   toast: (t) => {
@@ -241,6 +295,11 @@ export const useUI = create<UIState>((set, get) => ({
     save(RECENTS_KEY, recents);
   },
 }));
+
+export function persistSpaces() {
+  const { viewPair, viewRatio, sidebars, multiview, libraryView } = useUI.getState();
+  save(spacesKey('current', getInstance()), { viewPair, viewRatio, sidebars, multiview, libraryView });
+}
 
 export const toast = (t: Omit<Toast, 'id'>) => useUI.getState().toast(t);
 

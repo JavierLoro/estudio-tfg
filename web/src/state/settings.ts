@@ -44,6 +44,7 @@ export function initInstance(status: Status) {
   const id = status.instanceId ?? null;
   if (id) migrateLegacyKeys(id);
   setInstance(id);
+  useUI.getState().initSpaces();
   useSettings.setState({ ready: true });
 }
 
@@ -70,6 +71,7 @@ function applyTransition(prev: Status, next: Status) {
   if (oldId !== newId) {
     for (const key of Object.keys(useDocs.getState().docs)) moveDraft(key, oldId, newId);
     setInstance(newId);
+    useUI.getState().initSpaces();
     scheduleLayoutSave();
   }
 

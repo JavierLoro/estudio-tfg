@@ -26,7 +26,8 @@ test('las vistas previas antiguas de actualización no se recuperan como inserci
   await page.evaluate(({ key, preview }) => localStorage.setItem(key, JSON.stringify({ preview, target: 'capitulo.tex' })), {
     key: `et:library-use:${status.instanceId}:${resource.id}:figure`, preview: legacy,
   });
-  await page.getByRole('button', { name: /Figura con vista antigua/ }).click();
+  await page.getByRole('main', { name: 'Biblioteca', exact: true }).getByRole('button', { name: /Figura con vista antigua/ }).click();
+  await page.getByRole('region', { name: 'Ficha de consulta' }).getByRole('button', { name: 'Abrir', exact: true }).click();
   await page.getByRole('button', { name: 'Insertar figura', exact: true }).click();
   const insert = page.getByRole('dialog', { name: 'Insertar figura en la memoria' });
   await expect(insert.getByRole('button', { name: 'Revisar antes de aplicar' })).toBeEnabled();
@@ -67,7 +68,8 @@ test('actualizar una copia de imagen conserva el texto y la atribución de la fi
   const original = JSON.parse(await fs.readFile(manifestPath, 'utf8')).figures[0];
   const changed = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
   await fs.writeFile(path.join(studio.root, 'notes', file.attachments[0].path), changed);
-  await page.getByRole('button', { name: /Figura actualizable/ }).click();
+  await page.getByRole('main', { name: 'Biblioteca', exact: true }).getByRole('button', { name: /Figura actualizable/ }).click();
+  await page.getByRole('region', { name: 'Ficha de consulta' }).getByRole('button', { name: 'Abrir', exact: true }).click();
   await page.getByRole('button', { name: 'Actualizar esta copia de imagen' }).click();
   const dialog = page.getByRole('dialog', { name: 'Actualizar copia en la memoria' });
   for (const label of ['Archivo de destino', 'Pie de figura', 'Procedencia / atribución', 'Etiqueta', 'Ancho (% del texto)'])

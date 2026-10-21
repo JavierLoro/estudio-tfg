@@ -288,7 +288,7 @@ export interface InsertRequest {
 /** ¿Está ese archivo abierto en un editor? (entonces se inserta en el cursor, sin guardar) */
 export function openInEditor(file: string): boolean {
   const doc = useDocs.getState().docs[docKey('memoria', file)];
-  return !!doc && doc.status === 'ready' && !!getDock()?.getPanel(panelIdFor('latex', file));
+  return !!doc && doc.status === 'ready' && !!getDock('memoria')?.getPanel(panelIdFor('latex', file));
 }
 
 export async function insertFigure(req: InsertRequest): Promise<boolean> {

@@ -14,6 +14,8 @@ import { STATUS_LABEL, useResourceEdit } from '../state/resources';
 import { useUI } from '../state/ui';
 import { openFile, type FileParams } from '../state/workspace';
 import LibraryUseDialog from '../components/LibraryUseDialog';
+import { AskAssistant } from '../components/AskAssistant';
+import { textContextMenu } from '../components/TextContextMenu';
 
 const PdfViewer = lazy(() => import('../components/PdfViewer'));
 
@@ -104,6 +106,7 @@ export function ResourcePanel({ params }: IDockviewPanelProps<FileParams>) {
             <ArrowLeft size={12} /> Biblioteca
           </Button>
           <div className="mb-1 flex flex-wrap items-center gap-2 text-[11px] text-muted">
+            <AskAssistant root="notes" path={path} resource />
             <span>{KIND_LABEL[resourceKind(item)]}</span>
             <StatusPill status={item.status} />
             <span>Añadido {formatDate(item.captured)}</span>
@@ -205,7 +208,7 @@ export function ResourcePanel({ params }: IDockviewPanelProps<FileParams>) {
           <section className="mt-6">
             <h2 className="mb-2 text-[14px] font-semibold">Notas</h2>
             {item.note?.trim() ? (
-              <MarkdownView content={item.note} path={path} showFrontmatter={false} />
+              <div tabIndex={0} aria-label="Notas de la ficha" {...textContextMenu({ root: 'notes', path, content: file.content, resource: true, onEdit: libraryError ? undefined : () => setEditing(file) })}><MarkdownView content={item.note} path={path} showFrontmatter={false} /></div>
             ) : (
               <p className="text-[12px] text-faint">Sin notas. Puedes añadirlas al editar la ficha.</p>
             )}

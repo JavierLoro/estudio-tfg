@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Workflow } from 'lucide-react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import type { OutlineItem } from '../api';
 import { DIAGRAM_TEMPLATES } from '../lib/diagramTemplates';
 import { basename, docKey } from '../lib/paths';
@@ -17,18 +16,24 @@ import {
 import { outlineLabel, useOutline, walkOutline } from '../state/outline';
 import { ensureDoc, useDocs } from '../state/docs';
 import { Button, Modal, cx } from './ui';
+import { DiagramTemplatePicker } from './DiagramTemplatePicker';
+import { useDesktop } from '../state/desktop';
+const DiagramAssistant = lazy(() => import('./DiagramAssistant'));
 
 const input = 'h-8 w-full rounded-md border border-line-strong bg-bg px-2 text-[13px] outline-none focus:border-accent';
 
 /** «Nuevo diagrama»: nombre y plantilla (o solo el nombre si viene de una nota). */
 export function NewDiagramDialog() {
   const req = useNewDiagram((s) => s.req);
+  const desktop = useDesktop(s => !!s.info);
+  const [mode, setMode] = useState<'template' | 'assistant'>('template');
+  const [assistantSource, setAssistantSource] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [tpl, setTpl] = useState(DIAGRAM_TEMPLATES[0].id);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (req) {
-      setName(req.name ?? '');
+      setName(req.name ?? ''); setMode('template'); setAssistantSource(null);
       setTpl(DIAGRAM_TEMPLATES[0].id);
       setBusy(false);
     }
@@ -38,7 +43,8 @@ export function NewDiagramDialog() {
   const submit = async () => {
     if (!req || !full || busy) return;
     setBusy(true);
-    const source = req.source ?? DIAGRAM_TEMPLATES.find((t) => t.id === tpl)!.source;
+    if (mode === 'assistant' && !assistantSource) { setBusy(false); return; }
+    const source = (mode === 'assistant' ? assistantSource! : req.source) ?? DIAGRAM_TEMPLATES.find((t) => t.id === tpl)!.source;
     const path = await createDiagram(full, source);
     setBusy(false);
     if (path) close();
@@ -55,8 +61,8 @@ export function NewDiagramDialog() {
           <Button variant="ghost" onClick={close}>
             Cancelar
           </Button>
-          <Button variant="primary" onClick={submit} disabled={!full || busy}>
-            {req?.source ? 'Copiar a la memoria' : 'Crear'}
+          <Button variant="primary" onClick={submit} disabled={!full || busy || (mode === 'assistant' && !assistantSource)}>
+            {req?.source ? 'Copiar a la memoria' : mode === 'assistant' ? 'Crear diagrama' : 'Crear'}
           </Button>
         </>
       }
@@ -70,11 +76,11 @@ export function NewDiagramDialog() {
       >
         <label className="flex flex-col gap-1 text-[12px] text-muted">
           Nombre
-          <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="arquitectura-general" className={input} />
-          <span className="text-[11px] text-faint">
+          <input autoFocus aria-label="Nombre" aria-describedby="et-diagram-name-help" value={name} onChange={(e) => setName(e.target.value)} placeholder="arquitectura-general" className={input} />
+          <span id="et-diagram-name-help" className="text-[11px] text-faint">
             {full ? (
               <>
-                Se crea <span className="font-mono">{`${DIAGRAMAS_DIR}/${full}.mmd`}</span> y se exporta a{' '}
+                Se crea <span className="font-mono">{`${DIAGRAMAS_DIR}/${full}.mmd`}</span>. La exportación posterior se guarda en{' '}
                 <span className="font-mono">{`figuras/diagramas/${full}.pdf`}</span>
               </>
             ) : (
@@ -82,39 +88,13 @@ export function NewDiagramDialog() {
             )}
           </span>
         </label>
+        {!req?.source && desktop && <div role="group" aria-label="Origen del diagrama"><Button aria-pressed={mode === 'template'} onClick={() => setMode('template')}>Plantilla</Button><Button aria-pressed={mode === 'assistant'} onClick={() => setMode('assistant')}>Con asistente</Button></div>}
         {req?.source ? (
           <p className="text-[12px] text-muted">
             Se copia el bloque de la nota: la nota y el diagrama quedan independientes.
           </p>
         ) : (
-          <fieldset className="flex flex-col gap-1">
-            <legend className="mb-1 text-[12px] text-muted">Plantilla</legend>
-            <div className="grid grid-cols-2 gap-1.5" role="radiogroup" aria-label="Plantilla">
-              {DIAGRAM_TEMPLATES.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={tpl === t.id}
-                  onClick={() => setTpl(t.id)}
-                  onDoubleClick={() => {
-                    setTpl(t.id);
-                    void submit();
-                  }}
-                  className={cx(
-                    'flex items-start gap-2 rounded-md border px-2 py-1.5 text-left',
-                    tpl === t.id ? 'border-accent bg-active' : 'border-line hover:bg-hover',
-                  )}
-                >
-                  <Workflow size={14} className={cx('mt-0.5 shrink-0', tpl === t.id ? 'text-accent' : 'text-muted')} />
-                  <span className="min-w-0">
-                    <span className="block text-[12.5px] font-medium">{t.label}</span>
-                    <span className="block text-[11px] text-faint">{t.description}</span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          </fieldset>
+          <><DiagramTemplatePicker value={tpl} onChange={setTpl} />{mode === 'assistant' && <Suspense fallback={<p>Cargando asistente…</p>}><DiagramAssistant name={full} type={tpl} onSource={setAssistantSource} /></Suspense>}</>
         )}
       </form>
     </Modal>

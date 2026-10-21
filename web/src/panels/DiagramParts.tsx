@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowDown, ArrowRight, ArrowRightLeft, BoxSelect, ChevronDown, Database, ListPlus, Plus, Search, StickyNote, Table2, User, X } from 'lucide-react';
 import { cx } from '../components/ui';
-import { isBlockId, shapeOptions, type Block, type DiagramKind, type Glyph, type Link, type Model, type PaletteItem } from '../lib/diagramEdit';
+import { attributeParts, attributeText, memberParts, memberText, CLASS_RELATIONS, MESSAGE_TYPES, ER_CARDS, erCard, type VisimerOp, isBlockId, shapeOptions, type Block, type DiagramKind, type Glyph, type Link, type Model, type PaletteItem } from '../lib/diagramEdit';
 
 /** Dibujo pequeño de cada bloque de la paleta (como en la maqueta). */
 export function ShapeGlyph({ glyph }: { glyph: Glyph }) {
@@ -120,9 +120,13 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 /** Campo de texto que aplica el cambio con Intro o al salir (Esc lo descarta). */
 function CommitInput({ value, onCommit, className, ...rest }: { value: string; onCommit: (v: string) => void } & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'>) {
   const [v, setV] = useState(value);
+  const skipBlur = useRef(false);
   useEffect(() => setV(value), [value]);
   const done = () => {
-    if (v !== value) onCommit(v);
+    if (v !== value) {
+      onCommit(v);
+      setV(value);
+    }
   };
   return (
     <input
@@ -130,14 +134,17 @@ function CommitInput({ value, onCommit, className, ...rest }: { value: string; o
       value={v}
       className={className}
       onChange={(e) => setV(e.target.value)}
-      onBlur={done}
+      onBlur={() => { if (!skipBlur.current) done(); skipBlur.current = false; }}
       onKeyDown={(e) => {
-        e.stopPropagation();
         if (e.key === 'Enter') {
+          e.stopPropagation();
           done();
+          skipBlur.current = true;
           (e.target as HTMLInputElement).blur();
         } else if (e.key === 'Escape') {
+          e.stopPropagation();
           setV(value);
+          skipBlur.current = true;
           (e.target as HTMLInputElement).blur();
         }
       }}
@@ -170,6 +177,8 @@ export function DirectionToggle({ value, onChange, disabled }: { value: string |
 }
 
 export interface PropsHandlers {
+  onOperation: (op: VisimerOp) => void;
+  onSelect: (id: string) => void;
   onRename: (blockId: string, text: string) => void;
   onShape: (blockId: string, shape: string) => void;
   onConnect: (fromBlock: string, toBlock: string) => void;
@@ -179,6 +188,8 @@ export interface PropsHandlers {
   onDeleteBlock: (blockId: string) => void;
 }
 
+interface Colors { fill: string | null; stroke: string | null; color: string | null }
+
 /** Propiedades del bloque seleccionado (o datos del diagrama si no hay selección). */
 export function PropsPanel({
   kind,
@@ -186,6 +197,7 @@ export function PropsPanel({
   model,
   selection,
   canEdit,
+  colors,
   h,
 }: {
   kind: DiagramKind;
@@ -193,6 +205,7 @@ export function PropsPanel({
   model: Model;
   selection: string[];
   canEdit: boolean;
+  colors: Colors | null;
   h: PropsHandlers;
 }) {
   const sel = selection.length === 1 ? selection[0] : null;
@@ -200,10 +213,17 @@ export function PropsPanel({
   const link = sel && !block ? model.links.find((l) => l.id === sel) ?? null : null;
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto text-[12px]">
+      <Section title="Seleccionar elemento">
+        <select aria-label="Elemento del diagrama" className={fieldCls} value={sel ?? ''} onChange={(e) => h.onSelect(e.target.value)}>
+          <option value="">Diagrama completo</option>
+          <optgroup label="Bloques">{model.blocks.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}</optgroup>
+          <optgroup label="Conexiones">{model.links.map((l) => <option key={l.id} value={l.id}>{l.fromLabel} → {l.toLabel}{l.label ? `: ${l.label}` : ''}</option>)}</optgroup>
+        </select>
+      </Section>
       {block ? (
-        <BlockProps kind={kind} model={model} block={block} canEdit={canEdit} h={h} />
+        <BlockProps kind={kind} model={model} block={block} canEdit={canEdit} colors={colors} h={h} />
       ) : link ? (
-        <LinkProps link={link} canEdit={canEdit} h={h} />
+        <LinkProps kind={kind} model={model} link={link} canEdit={canEdit} colors={colors} h={h} />
       ) : (
         <>
           <div className="text-faint">Diagrama</div>
@@ -215,6 +235,8 @@ export function PropsPanel({
               <DirectionToggle value={model.direction} onChange={h.onDirection} disabled={!canEdit} />
             </Section>
           )}
+          {kind === 'sequence' && <label className="flex gap-2"><input type="checkbox" checked={model.autonumber ?? false} disabled={!canEdit} onChange={() => h.onOperation({ type: 'seq.toggleAutonumber' })} />Numerar mensajes</label>}
+          {kind === 'flowchart' && model.groups?.map((g) => <Section key={g.id} title="Título del grupo"><CommitInput aria-label={`Título del grupo ${g.label}`} value={g.label} className={fieldCls} disabled={!canEdit} onCommit={(title) => h.onOperation({ type: 'renameSubgraph', id: g.id, title })} /></Section>)}
           <p className="text-muted">{selection.length > 1 ? 'Hay varios elementos seleccionados.' : 'Selecciona un bloque para editarlo.'}</p>
         </>
       )}
@@ -222,7 +244,7 @@ export function PropsPanel({
   );
 }
 
-function BlockProps({ kind, model, block, canEdit, h }: { kind: DiagramKind; model: Model; block: Block; canEdit: boolean; h: PropsHandlers }) {
+function BlockProps({ kind, model, block, canEdit, colors, h }: { kind: DiagramKind; model: Model; block: Block; canEdit: boolean; colors: Colors | null; h: PropsHandlers }) {
   const [picking, setPicking] = useState(false);
   const [q, setQ] = useState('');
   const search = useRef<HTMLInputElement>(null);
@@ -264,6 +286,19 @@ function BlockProps({ kind, model, block, canEdit, h }: { kind: DiagramKind; mod
           </div>
         </Section>
       )}
+      {(kind === 'class' || kind === 'er') && <Members kind={kind} block={block} canEdit={canEdit} h={h} />}
+      {(kind === 'flowchart' || kind === 'state') && <>
+        <Section title={kind === 'state' ? 'Estado compuesto' : 'Grupo'}>
+          <select aria-label="Grupo del bloque" className={fieldCls} value={block.parent ?? ''} disabled={!canEdit || !!block.composite} onChange={(e) => h.onOperation({ type: 'et.moveGroup', id: block.raw, group: e.target.value })}>
+            <option value="">Fuera de grupos</option>
+            {model.groups?.filter((g) => g.id !== block.raw).map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}
+          </select>
+          {kind === 'state' && !block.parent && !block.composite && <button type="button" disabled={!canEdit} className="mt-1 text-accent hover:underline" onClick={() => h.onOperation({ type: 'st.moveToComposite', id: block.raw })}>Crear estado compuesto</button>}
+        </Section>
+        {kind === 'flowchart' && <Section title="Colores del bloque">
+          {(['fill', 'stroke', 'color'] as const).map((prop) => <label className="mb-1 flex items-center justify-between gap-1" key={prop}>{({ fill: 'Relleno', stroke: 'Borde', color: 'Texto' })[prop]}<input aria-label={`Color de ${prop === 'fill' ? 'relleno' : prop === 'stroke' ? 'borde' : 'texto'}`} type="color" value={colors?.[prop] ?? '#000000'} disabled={!canEdit || !colors?.[prop]} onChange={(e) => h.onOperation({ type: 'setNodeColor', id: block.raw, prop, value: e.target.value })} /><button type="button" disabled={!canEdit} aria-label={`Restablecer color de ${{ fill: 'relleno', stroke: 'borde', color: 'texto' }[prop]}`} onClick={() => h.onOperation({ type: 'setNodeColor', id: block.raw, prop, value: null })}>↺</button></label>)}
+        </Section>}
+      </>}
       <Section title="Conexiones">
         <div className="flex flex-col">
           {incoming.map((l) => (
@@ -319,6 +354,7 @@ function BlockProps({ kind, model, block, canEdit, h }: { kind: DiagramKind; mod
           </div>
         )}
       </Section>
+      <button type="button" disabled={!canEdit} onClick={() => h.onDeleteBlock(block.id)} className="self-start rounded-md border border-danger/40 px-2 py-0.5 text-danger hover:bg-danger-bg disabled:opacity-50">Borrar bloque</button>
       {model.hasDirection && (
         <Section title="Dirección">
           <DirectionToggle value={model.direction} onChange={h.onDirection} disabled={!canEdit} />
@@ -335,10 +371,10 @@ function LinkRow({ dir, link, canEdit, h }: { dir: 'in' | 'out'; link: Link; can
       <span className="shrink-0 text-muted" aria-hidden>
         {dir === 'in' ? '←' : '→'}
       </span>
-      <span className="min-w-0 max-w-[45%] shrink-0 truncate text-fg" title={name}>
+      <button type="button" onClick={() => h.onSelect(link.id)} className="min-w-0 max-w-[45%] shrink-0 truncate text-left text-fg hover:underline" title={`Editar conexión con ${name}`}>
         <span className="sr-only">{dir === 'in' ? 'Desde ' : 'Hacia '}</span>
         {name}
-      </span>
+      </button>
       <CommitInput
         aria-label={`Etiqueta de la conexión ${dir === 'in' ? 'desde' : 'hacia'} ${name}`}
         placeholder="etiqueta"
@@ -354,7 +390,7 @@ function LinkRow({ dir, link, canEdit, h }: { dir: 'in' | 'out'; link: Link; can
   );
 }
 
-function LinkProps({ link, canEdit, h }: { link: Link; canEdit: boolean; h: PropsHandlers }) {
+function LinkProps({ kind, model, link, canEdit, colors, h }: { kind: DiagramKind; model: Model; link: Link; canEdit: boolean; colors: Colors | null; h: PropsHandlers }) {
   return (
     <>
       <div className="text-faint">Conexión seleccionada</div>
@@ -366,11 +402,77 @@ function LinkProps({ link, canEdit, h }: { link: Link; canEdit: boolean; h: Prop
       <Section title="Etiqueta">
         <CommitInput aria-label="Etiqueta de la conexión" className={fieldCls} value={link.label} disabled={!canEdit} onCommit={(t) => h.onLinkLabel(link.id, t)} />
       </Section>
+      <LinkControls kind={kind} model={model} link={link} canEdit={canEdit} colors={colors} h={h} />
       <button type="button" disabled={!canEdit} onClick={() => h.onDeleteLink(link.id)} className="self-start rounded-md border border-danger/40 px-2 py-0.5 text-danger hover:bg-danger-bg disabled:opacity-50">
         Quitar conexión
       </button>
     </>
   );
+}
+
+function Members({ kind, block, canEdit, h }: { kind: DiagramKind; block: Block; canEdit: boolean; h: PropsHandlers }) {
+  const er = kind === 'er';
+  const set = (line: number, text: string) => h.onOperation(er ? { type: 'er.setAttributeText', id: block.raw, attrLine: line, text } : { type: 'cl.setMemberText', id: block.raw, memberLine: line, text });
+  return <Section title={er ? 'Atributos' : 'Atributos y métodos'}>
+    <div className="space-y-2">
+      {block.members?.map((member, i) => {
+        const attr = er ? attributeParts(member.text) : null;
+        const part = memberParts(member.text);
+        const change = (next: Partial<typeof part>) => set(member.line, memberText({ ...part, ...next }));
+        return <fieldset key={`${block.id}:${member.line}`} className="rounded border border-line p-1.5">
+          <legend className="px-1 text-muted">{er ? 'Atributo' : part.method ? 'Método' : 'Atributo'} {i + 1}</legend>
+          {attr ? <>
+            <label className="block">Nombre<CommitInput aria-label={`Nombre del atributo ${i + 1}`} className={fieldCls} value={attr.name} disabled={!canEdit} onCommit={(name) => set(member.line, attributeText({ ...attr, name }))} /></label>
+            <label className="block">Tipo<CommitInput aria-label={`Tipo del atributo ${i + 1}`} className={fieldCls} value={attr.type} disabled={!canEdit} onCommit={(type) => set(member.line, attributeText({ ...attr, type }))} /></label>
+            <div className="mt-1 flex flex-wrap gap-2">{['PK', 'FK', 'UK'].map((key) => <label className="flex items-center gap-1" key={key}><input type="checkbox" aria-label={`${key} del atributo ${i + 1}`} checked={attr.keys.split(',').includes(key)} disabled={!canEdit} onChange={(e) => set(member.line, attributeText({ ...attr, keys: [...attr.keys.split(',').filter((k) => k && k !== key), ...(e.target.checked ? [key] : [])].join(',') }))} />{key}</label>)}</div>
+            <label className="block">Comentario<CommitInput aria-label={`Comentario del atributo ${i + 1}`} className={fieldCls} value={attr.comment} disabled={!canEdit} onCommit={(comment) => set(member.line, attributeText({ ...attr, comment }))} /></label>
+          </> : !er ? <>
+            <label className="block">Nombre<CommitInput aria-label={`Nombre del miembro ${i + 1}`} className={fieldCls} value={part.name} disabled={!canEdit} onCommit={(name) => change({ name })} /></label>
+            <label className="block">Tipo{part.method && ' de retorno'}<CommitInput aria-label={`Tipo del miembro ${i + 1}`} className={fieldCls} value={part.type} disabled={!canEdit} onCommit={(type) => change({ type })} /></label>
+            <label className="block">Visibilidad<select aria-label={`Visibilidad del miembro ${i + 1}`} className={fieldCls} value={part.visibility} disabled={!canEdit} onChange={(e) => change({ visibility: e.target.value })}>{[['', 'Sin especificar'], ['+', 'Público'], ['-', 'Privado'], ['#', 'Protegido'], ['~', 'Paquete']].map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+            <label className="mt-1 flex gap-1"><input type="checkbox" aria-label={`Método del miembro ${i + 1}`} checked={part.method} disabled={!canEdit} onChange={(e) => change({ method: e.target.checked })} />Es un método</label>
+            {part.method && <label className="block">Parámetros<CommitInput aria-label={`Parámetros del miembro ${i + 1}`} className={fieldCls} value={part.parameters} disabled={!canEdit} onCommit={(parameters) => change({ parameters })} /></label>}
+            <label className="block">Modificador<select aria-label={`Modificador del miembro ${i + 1}`} className={fieldCls} value={part.modifier} disabled={!canEdit} onChange={(e) => change({ modifier: e.target.value })}>{[['', 'Normal'], ['$', 'Estático'], ['*', 'Abstracto']].map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+          </> : <CommitInput aria-label={`Texto del atributo ${i + 1}`} className={fieldCls} value={member.text} disabled={!canEdit} onCommit={(text) => set(member.line, text)} />}
+          <button type="button" className="mt-1 text-danger hover:underline" disabled={!canEdit} aria-label={`Borrar ${er ? 'atributo' : 'miembro'} ${i + 1}`} onClick={() => er ? set(member.line, '') : h.onOperation({ type: 'cl.deleteMember', id: block.raw, memberLine: member.line })}>Borrar {er ? 'atributo' : 'miembro'}</button>
+        </fieldset>;
+      })}
+      <button type="button" className="text-accent hover:underline" disabled={!canEdit} onClick={() => h.onOperation(er ? { type: 'er.addAttribute', id: block.raw, text: 'string atributo' } : { type: 'cl.addMember', id: block.raw, text: '+atributo' })}>Añadir {er ? 'atributo' : 'miembro'}</button>
+    </div>
+  </Section>;
+}
+
+function LinkControls({ kind, model, link, canEdit, colors, h }: { kind: DiagramKind; model: Model; link: Link; canEdit: boolean; colors: Colors | null; h: PropsHandlers }) {
+  const select = (label: string, value: string, options: string[][], onChange: (value: string) => void) => <Section title={label}><select aria-label={label} className={fieldCls} value={value} disabled={!canEdit} onChange={(e) => onChange(e.target.value)}>{options.map(([id, text]) => <option key={id} value={id}>{text}</option>)}</select></Section>;
+  const op = (type: string, props = {}) => h.onOperation({ type, ...props });
+  return <>
+    {kind === 'flowchart' && <>
+      {select('Trazo de la conexión', link.style?.line ?? 'solid', [['solid', 'Continuo'], ['dotted', 'Punteado'], ['thick', 'Grueso'], ['invisible', 'Invisible']], (line) => op('setEdgeStyle', { edgeId: link.id, line }))}
+      {(['arrowStart', 'arrowEnd'] as const).map((side) => <div key={side}>{select(side === 'arrowStart' ? 'Flecha de origen' : 'Flecha de destino', link.style?.[side] ?? 'open', [['open', 'Sin punta'], ['arrow', 'Flecha'], ['circle', 'Círculo'], ['cross', 'Cruz']], (value) => op('setEdgeStyle', { edgeId: link.id, [side]: value }))}</div>)}
+      <label className="flex items-center justify-between">Color de la conexión<input type="color" aria-label="Color de la conexión" value={colors?.stroke ?? '#000000'} disabled={!canEdit || !colors?.stroke} onChange={(e) => op('setEdgeColor', { edgeId: link.id, value: e.target.value })} /><button type="button" disabled={!canEdit} aria-label="Restablecer color de la conexión" onClick={() => op('setEdgeColor', { edgeId: link.id, value: null })}>↺</button></label>
+    </>}
+    {kind === 'class' && <>
+      {select('Tipo de relación', link.style?.op ?? '-->', CLASS_RELATIONS, (value) => op('cl.setRelationType', { relId: link.id, op: value }))}
+      {(['source', 'target'] as const).map((side) => <Section key={side} title={side === 'source' ? 'Cardinalidad de origen' : 'Cardinalidad de destino'}><CommitInput aria-label={side === 'source' ? 'Cardinalidad de origen' : 'Cardinalidad de destino'} className={fieldCls} value={link.style?.[side === 'source' ? 'sourceCard' : 'targetCard'] ?? ''} disabled={!canEdit} onCommit={(value) => op('cl.setCardinality', { relId: link.id, side, value: value || null })} /></Section>)}
+    </>}
+    {kind === 'er' && <>
+      {(['left', 'right'] as const).map((side) => <div key={side}>{select(side === 'left' ? 'Cardinalidad de origen' : 'Cardinalidad de destino', erCard(link.style?.[side === 'left' ? 'leftCard' : 'rightCard'] ?? '||'), ER_CARDS, (card) => op('er.setCardinality', { relId: link.id, side, card }))}</div>)}
+      {select('Tipo de relación', link.style?.line ?? '--', [['--', 'Identificadora'], ['..', 'No identificadora']], (line) => op('er.setIdentifying', { relId: link.id, identifying: line === '--' }))}
+    </>}
+    {kind === 'sequence' && <>
+      {select('Tipo de mensaje', link.style?.op ?? '->>', MESSAGE_TYPES, (value) => op('seq.setMessageOp', { eventId: link.id, op: value }))}
+      {select('Envolver mensaje en', '', [['', 'Sin fragmento nuevo'], ['loop', 'Bucle'], ['alt', 'Alternativa'], ['opt', 'Opcional'], ['par', 'Paralelo'], ['critical', 'Región crítica'], ['break', 'Interrupción'], ['rect', 'Recuadro']], (value) => { if (value) op('seq.wrapInFragment', { eventId: link.id, kind: value }); })}
+      <p className="text-faint">El fragmento incluye el mensaje seleccionado.</p>
+      <div className="flex gap-2"><button type="button" disabled={!canEdit || model.links[0]?.id === link.id} className="text-accent disabled:opacity-50" onClick={() => { const i = model.links.indexOf(link); op('seq.moveEvent', { eventId: link.id, afterEvent: model.links[i - 2]?.id ?? null }); }}>Subir mensaje</button><button type="button" disabled={!canEdit || model.links.at(-1)?.id === link.id} className="text-accent disabled:opacity-50" onClick={() => op('seq.moveEvent', { eventId: link.id, afterEvent: model.links[model.links.indexOf(link) + 1]?.id })}>Bajar mensaje</button></div>
+      <button type="button" disabled={!canEdit} className="text-accent hover:underline" onClick={() => op('et.activation', { eventId: link.id })}>Activar/desactivar durante mensaje</button>
+    </>}
+    <button type="button" disabled={!canEdit} className="self-start text-accent hover:underline" onClick={() => {
+      if (kind === 'flowchart') op('reverseEdge', { edgeId: link.id });
+      else if (kind === 'sequence') op('seq.reverseMessage', { eventId: link.id });
+      else if (kind === 'class') op('cl.reverseRelation', { relId: link.id });
+      else if (kind === 'state') op('st.reverseTransition', { transId: link.id });
+    }} hidden={kind === 'er'}>Invertir dirección</button>
+  </>;
 }
 
 export const KIND_NAME: Record<DiagramKind, string> = {

@@ -9,7 +9,7 @@ async function openDiagram(page, name) {
   await page.keyboard.press('ControlOrMeta+k');
   const open = page.getByRole('dialog', { name: 'Abrir o buscar' });
   await open.getByLabel('Buscar', { exact: true }).fill(`${name}.mmd`);
-  await open.getByRole('option').filter({ hasText: `${name}.mmd` }).first().click();
+  await open.getByRole('option').filter({ hasText: `diagramas/${name}.mmd` }).first().click();
   await expect(page.getByTitle(`Guardar y exportar a figuras/diagramas/${name}.pdf (y .svg)`, { exact: true })).toBeVisible();
 }
 
@@ -22,8 +22,8 @@ async function pdfText(pdf) {
   } finally { await task.destroy(); }
 }
 
-test('local exporta las seis plantillas sin Docker ni rsvg @sin-herramientas @smoke', async ({ studio, page }, info) => {
-  test.setTimeout(120_000);
+test('local exporta todas las plantillas sin Docker ni rsvg @sin-herramientas @smoke', async ({ studio, page }, info) => {
+  test.setTimeout(240_000);
   await studio.json('/api/settings', { method: 'PUT', data: { compileEngine: 'local' } });
   const detection = await studio.json('/api/engines');
   expect(detection.local.tools.rsvg.path).toBeNull();
@@ -47,7 +47,10 @@ test('local exporta las seis plantillas sin Docker ni rsvg @sin-herramientas @sm
     expect(pdf.toString('latin1')).not.toContain('/Times-Roman');
     const text = (await pdfText(pdf)).replace(/\s+/g, ' ');
     expect(text).toContain({ flujo: '¿Son válidos?', secuencia: 'Confirmación', estados: 'En revisión',
-      arquitectura: 'Almacenamiento', er: 'usuario_id', clases: 'iniciarSesion()' }[t.id]);
+      arquitectura: 'Almacenamiento', er: 'usuario_id', clases: 'iniciarSesion()',
+      gantt: 'Diseño', cronologia: 'Evaluación', 'mapa-mental': 'Bibliografía', c4: 'Aplicación',
+      kanban: 'Documentar la API', requisitos: 'consultar documentos', sectores: 'Investigación',
+      cuadrantes: 'Buscador', sankey: 'Memoria' }[t.id]);
     await info.attach(`${t.id}-js.pdf`, { body: pdf, contentType: 'application/pdf' });
     await info.attach(`${t.id}.svg`, { path: path.join(studio.root, `memoria/figuras/diagramas/${t.id}.svg`), contentType: 'image/svg+xml' });
     if (process.env.E2E_DIAGRAM_OUT) {
@@ -57,8 +60,8 @@ test('local exporta las seis plantillas sin Docker ni rsvg @sin-herramientas @sm
       await fs.writeFile(path.join(output, `${t.id}-js.pdf`), pdf);
     }
   }
-  expect(exports).toHaveLength(12);
-  expect(exports.filter(body => body.pdf)).toHaveLength(6);
+  expect(exports).toHaveLength(DIAGRAM_TEMPLATES.length * 2);
+  expect(exports.filter(body => body.pdf)).toHaveLength(DIAGRAM_TEMPLATES.length);
 });
 
 test('local conserva latin-ext y no sobrescribe la figura si falta un carácter @sin-herramientas @smoke', async ({ studio, page }) => {
@@ -90,7 +93,7 @@ test('el motor Docker exporta un diagrama desde el navegador @worker', async ({ 
   await page.keyboard.press('ControlOrMeta+k');
   const open = page.getByRole('dialog', { name: 'Abrir o buscar' });
   await open.getByLabel('Buscar', { exact: true }).fill('prueba.mmd');
-  await open.getByRole('option').filter({ hasText: 'prueba.mmd' }).first().click();
+  await open.getByRole('option').filter({ hasText: 'diagramas/prueba.mmd' }).first().click();
   await page.getByRole('button', { name: 'Exportar', exact: true }).click();
   await expect.poll(async () => (await studio.json('/api/diagramas/estado?path=diagramas%2Fprueba.mmd')).estado).toBe('exportado');
   const pdf = await fs.readFile(path.join(studio.root, 'memoria/figuras/diagramas/prueba.pdf'));

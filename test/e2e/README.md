@@ -47,4 +47,17 @@ Ejemplo macOS/Linux; el contenedor tiene un puerto libre y se elimina al salir:
 
 Sin reintentos automáticos que oculten inestabilidad. Al fallar se conservan trazas, pantallas y logs de la API en `test/e2e/test-results/`, además del informe HTML en `playwright-report/`; la CI los publica durante siete días. Son evidencias de fixtures, nunca contenido personal. Abrir una traza desde `test/e2e` con `npx playwright show-trace <ruta/trace.zip>`.
 
-Límites: no Firefox/WebKit ni Electron; la suite completa y TeX real no se ejecutan en Windows/macOS en CI. No cubre interrupciones físicas de disco ni políticas de permisos de cada sincronizador. Las fallas de escritura/renombrado y recuperación de staging siguen cubiertas por tests de servidor; el E2E verifica su efecto visible. Los casos de regresión se corresponden con R1 (revisión), R2 (cola/destino/duplicación), R3 (adjuntos y traslado) y R4 (foco).
+Límites: no Firefox/WebKit; Electron se ejecuta por separado con `E2E_DESKTOP=1`; la suite completa y TeX real no se ejecutan en Windows/macOS en CI. No cubre interrupciones físicas de disco ni políticas de permisos de cada sincronizador. Las fallas de escritura/renombrado y recuperación de staging siguen cubiertas por tests de servidor; el E2E verifica su efecto visible. Los casos de regresión se corresponden con R1 (revisión), R2 (cola/destino/duplicación), R3 (adjuntos y traslado) y R4 (foco).
+
+## Biblioteca por tipos, contexto y descubrimiento
+
+`library.spec.mjs` verifica ficha plegable, foco de teclado, presentación por tipos y ancho estrecho. `project-context.spec.mjs` verifica selección sin tocar Markdown, revisión/corrección, invalidación, propuestas de los quince tipos y creación exclusiva tras render válido. `discovery.spec.mjs` verifica Rápida/Ampliada, reapertura, preferencia de modelo y guardado elegido sin adjuntos. La marca `@contexto` activa únicamente en el servidor de pruebas un proveedor ficticio; nunca consulta una cuenta real ni se empaqueta ese proveedor.
+
+```sh
+npm run build --prefix web
+npm run bundle --prefix server
+npm test --prefix test/e2e -- project-context.spec.mjs discovery.spec.mjs
+E2E_DESKTOP=1 npm test --prefix test/e2e -- assistant.spec.mjs
+```
+
+No ejecutes dos procesos Playwright sobre la misma carpeta de resultados: borrarían mutuamente sus trazas. Los recorridos nativos utilizan un perfil temporal, notas y memoria ficticias. El ensayo final con una cuenta real en otro perfil aislado sigue siendo una comprobación explícita independiente; los tests no reutilizan credenciales de la app personal.

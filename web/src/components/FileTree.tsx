@@ -76,7 +76,7 @@ export function FileTree({ root, filter }: { root: Root; filter: string }) {
   /** Destino resaltado durante un arrastre: ruta de carpeta, '' = raíz. */
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const hover = useRef<{ path: string; timer: ReturnType<typeof setTimeout> } | null>(null);
-  const activeId = useActivePanel((s) => s.id);
+  const activeId = useActivePanel((s) => s.ids[root === 'notes' ? 'notes' : 'memoria']);
   // Estado de guardado de los documentos abiertos de esta raíz: "ruta|estado;…"
   const openStates = useDocs((s) =>
     Object.values(s.docs)

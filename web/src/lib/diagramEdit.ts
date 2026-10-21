@@ -12,27 +12,32 @@ export type VisimerResult = ParseLike;
 
 export type DiagramKind = 'flowchart' | 'sequence' | 'state' | 'class' | 'er' | 'otro';
 
-/** Tipos con edición visual completa; el resto se ve en el lienzo pero solo se edita con código. */
+/** Tipos con edición mediante bloques en el lienzo. */
 export const EDITABLE_KINDS: ReadonlySet<DiagramKind> = new Set(['flowchart', 'sequence', 'state', 'class', 'er']);
 
-/** Tipo del diagrama según su primera línea con contenido (sin comentarios, `%%{init}%%` ni cabecera `---`). */
-export function diagramKind(code: string): DiagramKind {
+/** Primera línea con contenido, sin comentarios, `%%{init}%%` ni cabecera `---`. */
+export function diagramHeader(code: string): { text: string; from: number } | null {
   let inFront = false;
-  for (const raw of code.split(/\r?\n/)) {
-    const l = raw.trim();
+  for (const m of code.matchAll(/^.*$/gm)) {
+    const l = m[0].trim();
     if (!l) continue;
     if (l === '---') {
       inFront = !inFront;
       continue;
     }
     if (inFront || l.startsWith('%%')) continue;
-    if (/^(flowchart|graph)\b/.test(l)) return 'flowchart';
-    if (/^sequenceDiagram\b/.test(l)) return 'sequence';
-    if (/^stateDiagram(-v2)?\b/.test(l)) return 'state';
-    if (/^classDiagram(-v2)?\b/.test(l)) return 'class';
-    if (/^erDiagram\b/.test(l)) return 'er';
-    return 'otro';
+    return { text: l, from: m.index };
   }
+  return null;
+}
+
+export function diagramKind(code: string): DiagramKind {
+  const l = diagramHeader(code)?.text ?? '';
+  if (/^(flowchart|graph)\b/.test(l)) return 'flowchart';
+  if (/^sequenceDiagram\b/.test(l)) return 'sequence';
+  if (/^stateDiagram(-v2)?\b/.test(l)) return 'state';
+  if (/^classDiagram(-v2)?\b/.test(l)) return 'class';
+  if (/^erDiagram\b/.test(l)) return 'er';
   return 'otro';
 }
 
@@ -115,14 +120,21 @@ const FLOW: PaletteItem[] = [
     glyph: 'group',
     make: (ctx) => {
       const id = sel(ctx, 'node:');
-      return id ? { kind: 'text', code: wrapInGroup(ctx.code, id) } : null;
+      return id ? { kind: 'op', op: { type: 'et.createGroup', id } } : null;
     },
   },
 ];
 
+export function nextParticipantId(result: ParseLike): string {
+  const ids = new Set(result.sequence?.participants.map((p) => p.id));
+  let n = 1;
+  while (ids.has(`P${n}`)) n++;
+  return `P${n}`;
+}
+
 const SEQ: PaletteItem[] = [
-  { id: 'participante', label: 'Participante', hint: 'Una caja (sistema, componente…)', glyph: 'participant', make: () => ({ kind: 'op', op: { type: 'seq.addParticipant', ptype: 'participant', name: 'Participante' }, edit: true }) },
-  { id: 'actor', label: 'Actor', hint: 'Una persona (muñeco)', glyph: 'actor', make: () => ({ kind: 'op', op: { type: 'seq.addParticipant', ptype: 'actor', name: 'Actor' }, edit: true }) },
+  { id: 'participante', label: 'Participante', hint: 'Una caja (sistema, componente…)', glyph: 'participant', make: (ctx) => ({ kind: 'op', op: { type: 'seq.addParticipant', ptype: 'participant', name: nextParticipantId(ctx.result) }, edit: true, follow: (id) => [{ type: 'seq.renameParticipant', id, name: 'Participante' }] }) },
+  { id: 'actor', label: 'Actor', hint: 'Una persona (muñeco)', glyph: 'actor', make: (ctx) => ({ kind: 'op', op: { type: 'seq.addParticipant', ptype: 'actor', name: nextParticipantId(ctx.result) }, edit: true, follow: (id) => [{ type: 'seq.renameParticipant', id, name: 'Actor' }] }) },
   {
     id: 'mensaje',
     label: 'Mensaje',
@@ -246,6 +258,9 @@ export interface Block {
   label: string;
   /** Forma o tipo actual (flujo, estados, secuencia). */
   shape: string | null;
+  members?: { line: number; text: string }[];
+  parent?: string | null;
+  composite?: boolean;
 }
 export interface Link {
   /** Id de entidad de Visimer de la conexión (cambia si cambia el orden del código). */
@@ -256,6 +271,8 @@ export interface Link {
   fromLabel: string;
   toLabel: string;
   label: string;
+  style?: { line?: string; arrowStart?: string; arrowEnd?: string; op?: string; leftCard?: string; rightCard?: string; sourceCard?: string | null; targetCard?: string | null };
+  activation?: string | null;
 }
 export interface Model {
   blocks: Block[];
@@ -263,32 +280,37 @@ export interface Model {
   /** Dirección actual (`TD`, `LR`…) o null si el tipo no la tiene. */
   direction: string | null;
   hasDirection: boolean;
+  groups?: { id: string; label: string; parent?: string | null }[];
+  autonumber?: boolean;
 }
 
 /** Lo que se usa del análisis de Visimer (`ParseResult`); estructural para no depender del paquete. */
 export interface ParseLike {
   flowchart?: {
     direction: string | null;
-    nodes: { id: string; label: string; shape: string }[];
-    edges: { entityId: string; source: string; target: string; label: string | null }[];
+    nodes: { id: string; label: string; shape: string; subgraph?: string | null; refs?: { lineIndex: number; ref: { span: { start: number; end: number }; shape?: string | null; classNames?: string[]; attrsRaw?: string | null } }[] }[];
+    edges: { entityId: string; source: string; target: string; label: string | null; seg?: { line: string; arrowStart: string; arrowEnd: string } }[];
+    subgraphs?: { id: string; title: string | null; parent: string | null; openLine: number; endLine: number }[];
   } | null;
   state?: {
     direction: { value: string } | null;
-    states: { id: string; label: string; stereotype: string | null }[];
+    states: { id: string; label: string; stereotype: string | null; parent?: string | null; isComposite?: boolean; decl?: { lineIndex: number; opensBlock: boolean } | null; declLines?: number[] }[];
+    statements?: Map<number, { kind: string; id?: string; opensBlock?: boolean }>;
     transitions: { entityId: string; source: string; target: string; label: string | null }[];
   } | null;
   classGraph?: {
     direction: { value: string } | null;
-    classes: { id: string; label: string }[];
-    relations: { entityId: string; source: string; target: string; label: string | null }[];
+    classes: { id: string; label: string; members?: { lineIndex: number; text: string }[] }[];
+    relations: { entityId: string; source: string; target: string; label: string | null; stmt?: { op: string; sourceCard: string | null; targetCard: string | null } }[];
   } | null;
   er?: {
-    entities: { id: string; label: string }[];
-    relations: { entityId: string; source: string; target: string; label: string }[];
+    entities: { id: string; label: string; attributes?: { lineIndex: number; text: string }[] }[];
+    relations: { entityId: string; source: string; target: string; label: string; stmt?: { leftCard: string; rightCard: string; line: string } }[];
   } | null;
   sequence?: {
-    participants: { id: string; label?: string; ptype?: string }[];
-    events?: { kind: string; entityId: string; stmt: { source?: string; target?: string; text: string } }[];
+    participants: { id: string; label?: string; ptype?: string; decl?: { lineIndex: number; aliasSpan?: { start: number; end: number } | null; idSpan: { start: number; end: number } } | null }[];
+    events?: { kind: string; entityId: string; lineIndex?: number; stmt: { source?: string; target?: string; text: string; op?: string; activation?: string | null; opSpan?: { start: number; end: number }; targetSpan?: { start: number; end: number } } }[];
+    autonumber?: { enabled: boolean };
   } | null;
 }
 
@@ -302,33 +324,41 @@ export function buildModel(kind: DiagramKind, r: ParseLike): Model {
   const none: Model = { blocks: [], links: [], direction: null, hasDirection: false };
   if (kind === 'flowchart' && r.flowchart) {
     const g = r.flowchart;
-    const blocks = g.nodes.map((n) => ({ id: `node:${n.id}`, raw: n.id, label: n.label, shape: n.shape }));
+    const blocks = g.nodes.map((n) => ({ id: `node:${n.id}`, raw: n.id, label: n.label, shape: n.shape, parent: n.subgraph }));
     const lab = (raw: string) => g.nodes.find((n) => n.id === raw)?.label ?? raw;
-    const links = g.edges.map((e) => ({ id: e.entityId, from: `node:${e.source}`, to: `node:${e.target}`, fromLabel: lab(e.source), toLabel: lab(e.target), label: e.label ?? '' }));
-    return { blocks, links, direction: g.direction ?? 'TD', hasDirection: true };
+    const links = g.edges.map((e) => ({ id: e.entityId, from: `node:${e.source}`, to: `node:${e.target}`, fromLabel: lab(e.source), toLabel: lab(e.target), label: e.label ?? '', style: e.seg }));
+    return { blocks, links, direction: g.direction ?? 'TD', hasDirection: true, groups: g.subgraphs?.map((s) => ({ id: s.id, label: s.title ?? s.id, parent: s.parent })) };
   }
   if (kind === 'state' && r.state) {
     const g = r.state;
-    const blocks = g.states.map((s) => ({ id: `state:${s.id}`, raw: s.id, label: orDash(s.label, s.id), shape: s.stereotype ? s.stereotype.replace(/[<>]/g, '') : 'state' }));
+    const parents = new Map<string, string | null>();
+    const stack: string[] = [];
+    for (const stmt of g.statements?.values() ?? []) {
+      if (stmt.kind === 'blockClose') stack.pop();
+      if (stmt.kind !== 'decl' || !stmt.id) continue;
+      if (!parents.has(stmt.id)) parents.set(stmt.id, stack.at(-1) ?? null);
+      if (stmt.opensBlock) stack.push(stmt.id);
+    }
+    const blocks = g.states.map((s) => ({ id: `state:${s.id}`, raw: s.id, label: orDash(s.label, s.id), shape: s.stereotype ? s.stereotype.replace(/[<>]/g, '') : 'state', parent: parents.has(s.id) ? parents.get(s.id) : s.parent, composite: s.isComposite }));
     const end = (raw: string, pseudo: string) => (raw === '[*]' ? { id: null, label: pseudo } : { id: `state:${raw}`, label: g.states.find((s) => s.id === raw)?.label || raw });
     const links = g.transitions.map((t) => {
       const a = end(t.source, 'Inicio');
       const b = end(t.target, 'Fin');
       return { id: t.entityId, from: a.id, to: b.id, fromLabel: a.label, toLabel: b.label, label: t.label ?? '' };
     });
-    return { blocks, links, direction: g.direction?.value ?? 'TD', hasDirection: true };
+    return { blocks, links, direction: g.direction?.value ?? 'TD', hasDirection: true, groups: g.states.filter((s) => s.isComposite).map((s) => ({ id: s.id, label: s.label, parent: parents.has(s.id) ? parents.get(s.id) : s.parent })) };
   }
   if (kind === 'class' && r.classGraph) {
     const g = r.classGraph;
-    const blocks = g.classes.map((c) => ({ id: `class:${c.id}`, raw: c.id, label: c.label, shape: null }));
+    const blocks = g.classes.map((c) => ({ id: `class:${c.id}`, raw: c.id, label: c.label, shape: null, members: c.members?.map((m) => ({ line: m.lineIndex, text: m.text })) }));
     const lab = (raw: string) => g.classes.find((c) => c.id === raw)?.label ?? raw;
-    const links = g.relations.map((e) => ({ id: e.entityId, from: `class:${e.source}`, to: `class:${e.target}`, fromLabel: lab(e.source), toLabel: lab(e.target), label: e.label ?? '' }));
+    const links = g.relations.map((e) => ({ id: e.entityId, from: `class:${e.source}`, to: `class:${e.target}`, fromLabel: lab(e.source), toLabel: lab(e.target), label: e.label ?? '', style: e.stmt }));
     return { blocks, links, direction: g.direction?.value ?? 'TD', hasDirection: true };
   }
   if (kind === 'er' && r.er) {
     const g = r.er;
-    const blocks = g.entities.map((c) => ({ id: `entity:${c.id}`, raw: c.id, label: c.label, shape: null }));
-    const links = g.relations.map((e) => ({ id: e.entityId, from: `entity:${e.source}`, to: `entity:${e.target}`, fromLabel: e.source, toLabel: e.target, label: e.label }));
+    const blocks = g.entities.map((c) => ({ id: `entity:${c.id}`, raw: c.id, label: c.label, shape: null, members: c.attributes?.map((m) => ({ line: m.lineIndex, text: m.text })) }));
+    const links = g.relations.map((e) => ({ id: e.entityId, from: `entity:${e.source}`, to: `entity:${e.target}`, fromLabel: e.source, toLabel: e.target, label: e.label, style: e.stmt }));
     return { blocks, links, direction: null, hasDirection: false };
   }
   if (kind === 'sequence' && r.sequence) {
@@ -337,8 +367,8 @@ export function buildModel(kind: DiagramKind, r: ParseLike): Model {
     const lab = (raw: string) => g.participants.find((p) => p.id === raw)?.label ?? raw;
     const links = (g.events ?? [])
       .filter((e) => e.kind === 'message')
-      .map((e) => ({ id: e.entityId, from: `participant:${e.stmt.source}`, to: `participant:${e.stmt.target}`, fromLabel: lab(e.stmt.source ?? ''), toLabel: lab(e.stmt.target ?? ''), label: e.stmt.text.trim() }));
-    return { blocks, links, direction: null, hasDirection: false };
+      .map((e) => ({ id: e.entityId, from: `participant:${e.stmt.source}`, to: `participant:${e.stmt.target}`, fromLabel: lab(e.stmt.source ?? ''), toLabel: lab(e.stmt.target ?? ''), label: e.stmt.text.trim(), style: { op: e.stmt.op }, activation: e.stmt.activation }));
+    return { blocks, links, direction: null, hasDirection: false, autonumber: g.autonumber?.enabled };
   }
   return none;
 }
@@ -566,4 +596,169 @@ export function esVisimer(text: string): string {
   const m = /^([A-Za-z ]+): (.+)$/.exec(text);
   if (m && VISIMER_ES[m[1]]) return `${VISIMER_ES[m[1]]}: ${m[2] === 'default' ? 'por defecto' : m[2]}`;
   return text;
+}
+
+/** Solo los huecos de Visimer; el resto de operaciones sigue usando sus ediciones mínimas. */
+export function controlSource(code: string, result: ParseLike, op: VisimerOp): string | null {
+  const eol = code.includes('\r\n') ? '\r\n' : '\n';
+  const lines = code.split(/\r?\n/);
+  const join = () => lines.join('\n').replace(/\n/g, eol);
+  const replace = (start: number, end: number, text: string) => code.slice(0, start) + text + code.slice(end);
+  if (op.type === 'seq.wrapInFragment') {
+    const event = result.sequence?.events?.find((e) => e.entityId === op.eventId);
+    const headers: Record<string, string> = { loop: 'loop Repetir', alt: 'alt Condición', opt: 'opt Opcional', par: 'par Paralelo', critical: 'critical Obligatorio', break: 'break Interrupción', rect: 'rect rgb(107, 114, 148, 0.25)' };
+    const header = headers[String(op.kind)];
+    if (!event || event.lineIndex === undefined || !header) return code;
+    const line = lines[event.lineIndex];
+    const indent = /^\s*/.exec(line)?.[0] ?? '  ';
+    lines.splice(event.lineIndex, 1, `${indent}${header}`, `${indent}  ${line.trim()}`, `${indent}end`);
+    return join();
+  }
+  if (op.type === 'seq.renameParticipant') {
+    const participant = result.sequence?.participants.find((p) => p.id === op.id);
+    const label = String(op.name).replace(/[\r\n:;]/g, ' ').trim();
+    if (!participant || !label) return code;
+    const decl = participant.decl;
+    if (decl?.aliasSpan) return replace(decl.aliasSpan.start, decl.aliasSpan.end, label);
+    if (decl) {
+      return replace(decl.idSpan.end, decl.idSpan.end, ` as ${label}`);
+    }
+    const header = diagramHeader(code);
+    if (!header) return code;
+    const end = code.indexOf('\n', header.from);
+    const at = end < 0 ? code.length : eol === '\r\n' ? end - 1 : end;
+    return replace(at, at, `${eol}  participant ${participant.id} as ${label}`);
+  }
+  if (op.type === 'et.activation') {
+    const event = result.sequence?.events?.find((e) => e.entityId === op.eventId && e.kind === 'message');
+    if (!event || event.lineIndex === undefined) return code;
+    const i = event.lineIndex;
+    const target = event.stmt.target;
+    const before = `activate ${target}`;
+    const after = `deactivate ${target}`;
+    const paired = lines[i - 1]?.trim() === before && lines[i + 1]?.trim() === after;
+    if (paired) { lines.splice(i + 1, 1); lines.splice(i - 1, 1); }
+    else {
+      const indent = /^\s*/.exec(lines[i])?.[0] ?? '  ';
+      lines.splice(i + 1, 0, `${indent}${after}`);
+      lines.splice(i, 0, `${indent}${before}`);
+    }
+    return join();
+  }
+  if (op.type === 'st.moveToComposite') {
+    const states = result.state?.states ?? [];
+    const state = states.find((s) => s.id === op.id);
+    if (!state || state.isComposite) return code;
+    let n = 1;
+    while (states.some((s) => s.id === `Composite${n}`)) n++;
+    const declarations = (state.declLines ?? []).map((i) => lines[i].trim()).filter(Boolean);
+    for (const i of state.declLines ?? []) lines[i] = '';
+    const header = lines.findIndex((l) => /^stateDiagram/.test(l.trim()));
+    lines[header] += `\n  state Composite${n} {\n    ${declarations.length ? declarations.join('\n    ') : `state ${state.id}`}\n  }`;
+    return join();
+  }
+  if (op.type !== 'et.moveGroup' && op.type !== 'et.createGroup') return null;
+  const id = String(op.id);
+  const group = String(op.group ?? '');
+  const flow = result.flowchart;
+  if (flow) {
+    const node = flow.nodes.find((n) => n.id === id);
+    if (!node) return code;
+    const groups = flow.subgraphs ?? [];
+    let target = group;
+    if (op.type === 'et.createGroup') {
+      let n = 1;
+      while (groups.some((g) => g.id === `grupo${n}`)) n++;
+      target = `grupo${n}`;
+    }
+    if (target && op.type !== 'et.createGroup' && !groups.some((g) => g.id === target)) return code;
+    const touched = new Set(node.refs?.map((r) => r.lineIndex));
+    const loose: string[] = [];
+    const definition = node.refs?.findLast((r) => r.ref.shape) ?? node.refs?.findLast((r) => r.ref.attrsRaw) ?? node.refs?.[0];
+    let text = definition ? code.slice(definition.ref.span.start, definition.ref.span.end) : id;
+    const attrs = node.refs?.findLast((r) => r.ref.attrsRaw)?.ref.attrsRaw;
+    if (attrs) text = definition?.ref.attrsRaw ? text.replace(definition.ref.attrsRaw, attrs) : `${text}${attrs}`;
+    const classes = new Set(node.refs?.flatMap((r) => r.ref.classNames ?? []));
+    for (const name of classes) if (!definition?.ref.classNames?.includes(name)) text += `:::${name}`;
+    for (const i of touched) {
+      const refs = flow.nodes.flatMap((n) => (n.refs ?? []).filter((r) => r.lineIndex === i).map((r) => ({ node: n, ref: r.ref })));
+      const hasOther = refs.some((r) => r.node.id !== id);
+      // Las flechas salen del grupo; sus otros extremos conservan su declaración en el lugar original.
+      if (hasOther || flow.edges.some((e) => e.source === id && e.target === id && node.refs?.some((r) => r.lineIndex === i))) loose.push(lines[i].trimStart());
+      lines[i] = refs.filter((r) => r.node.id !== id).map((r) => `    ${code.slice(r.ref.span.start, r.ref.span.end)}`).join('\n');
+    }
+    const declaration = `    ${text}`;
+    if (op.type === 'et.createGroup') {
+      const headerLine = lines.findIndex((l) => /^(flowchart|graph)\b/.test(l.trim()));
+      lines[headerLine] += `\n  subgraph ${target} [Grupo]\n${declaration}\n  end`;
+    } else if (target) {
+      const g = groups.find((g) => g.id === target)!;
+      lines[g.openLine] += `\n${declaration}`;
+    } else {
+      const headerLine = lines.findIndex((l) => /^(flowchart|graph)\b/.test(l.trim()));
+      lines[headerLine] += `\n  ${text}`;
+    }
+    return `${join().replace(/(?:\r?\n)*$/, '')}${eol}${loose.map((l) => `  ${l}`).join(eol)}${loose.length ? eol : ''}`;
+  }
+  const states = result.state?.states;
+  const state = states?.find((s) => s.id === id);
+  if (!state || state.isComposite) return code;
+  const target = states?.find((s) => s.id === group && s.isComposite);
+  if (group && !target) return code;
+  const declarations = (state.declLines ?? []).map((i) => lines[i].trim()).filter(Boolean);
+  for (const i of state.declLines ?? []) lines[i] = '';
+  const declaration = declarations.length ? declarations.join('\n    ') : `state ${id}`;
+  if (target) {
+    const open = target.declLines?.find((i) => /\{\s*$/.test(lines[i]));
+    if (open === undefined) return code;
+    lines[open] += `\n    ${declaration}`;
+  } else {
+    const headerLine = lines.findIndex((l) => /^stateDiagram/.test(l.trim()));
+    lines[headerLine] += `\n  ${declaration}`;
+  }
+  return join();
+}
+
+export const CLASS_RELATIONS = [
+  ['<|--', 'Herencia'], ['--|>', 'Herencia inversa'], ['*--', 'Composición'], ['--*', 'Composición inversa'],
+  ['o--', 'Agregación'], ['--o', 'Agregación inversa'], ['-->', 'Asociación'], ['<--', 'Asociación inversa'],
+  ['..>', 'Dependencia'], ['<..', 'Dependencia inversa'], ['..|>', 'Realización'], ['<|..', 'Realización inversa'],
+  ['--', 'Línea continua'], ['..', 'Línea discontinua'],
+];
+export const MESSAGE_TYPES = [
+  ['->>', 'Flecha continua'], ['-->>', 'Respuesta discontinua'], ['->', 'Línea continua'], ['-->', 'Línea discontinua'],
+  ['-x', 'Cruz continua'], ['--x', 'Cruz discontinua'], ['-)', 'Asíncrono continuo'], ['--)', 'Asíncrono discontinuo'],
+];
+export const ER_CARDS = [
+  ['exactly-one', 'Exactamente uno'], ['zero-or-one', 'Cero o uno'], ['zero-or-more', 'Cero o varios'], ['one-or-more', 'Uno o varios'],
+];
+export function erCard(glyph: string): string {
+  return glyph.includes('o') ? (glyph.includes('{') || glyph.includes('}') ? 'zero-or-more' : 'zero-or-one')
+    : glyph.includes('{') || glyph.includes('}') ? 'one-or-more' : 'exactly-one';
+}
+export function attributeParts(text: string) {
+  const m = /^(\S+)\s+(\S+)(?:\s+((?:PK|FK|UK)(?:\s*,\s*(?:PK|FK|UK))*))?(?:\s+"(.*)")?$/.exec(text);
+  return m ? { type: m[1], name: m[2], keys: m[3]?.replace(/\s/g, '') ?? '', comment: m[4] ?? '' } : null;
+}
+export function attributeText(parts: { type: string; name: string; keys: string; comment: string }): string {
+  return `${parts.type} ${parts.name}${parts.keys ? ` ${parts.keys}` : ''}${parts.comment ? ` "${parts.comment.replace(/"/g, "'")}"` : ''}`;
+}
+
+export function memberParts(text: string) {
+  const m = /^([+\-#~]?)(.*?)([$*]?)$/.exec(text.trim())!;
+  const method = /^([^()\s]+)\(([^()]*)\)(?:\s+(.+))?$/.exec(m[2]);
+  const attribute = /^(?:(.+)\s+)?([^\s]+)$/.exec(m[2]);
+  return { visibility: m[1], name: method?.[1] ?? attribute?.[2] ?? m[2],
+    type: method?.[3] ?? (method ? '' : attribute?.[1] ?? ''),
+    method: !!method, parameters: method?.[2] ?? '', modifier: m[3] };
+}
+export function memberText(parts: ReturnType<typeof memberParts>): string {
+  return `${parts.visibility}${parts.method ? `${parts.name}(${parts.parameters})${parts.type ? ` ${parts.type}` : ''}`
+    : `${parts.type ? `${parts.type} ` : ''}${parts.name}`}${parts.modifier}`;
+}
+
+/** El selector nativo acepta colores opacos; los estilos calculados del SVG llegan como rgb(). */
+export function svgColorHex(value: string): string | null {
+  const m = /^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/.exec(value);
+  return m ? `#${m.slice(1).map((v) => Number(v).toString(16).padStart(2, '0')).join('')}` : null;
 }

@@ -16,6 +16,8 @@ import { openFile, openPdf, type FileParams } from '../state/workspace';
 import { showInPdf } from '../state/synctex';
 import { useCursor } from '../state/cursor';
 import type { Diagnostic } from '../api';
+import { LatexVisualToolbar } from '../components/LatexVisualToolbar';
+import { AskAssistant } from '../components/AskAssistant';
 
 export async function saveAndCompile(key?: string) {
   if (key) await saveDoc(key);
@@ -56,6 +58,7 @@ export function LatexPanel({ params, api }: IDockviewPanelProps<FileParams>) {
   const all = usePlacedDiagnostics();
   const mine = useMemo<LineDiagnostic[]>(() => all.filter((d) => d.path === path && d.line != null), [all, path]);
   const [showList, setShowList] = useState(true);
+  const [visual, setVisual] = useState(false);
   const { errors, warnings } = countDiags(all);
   const hasPdf = useCompile((s) => Boolean(s.last?.pdfUrl));
   const canSync = root === 'memoria' && /\.tex$/i.test(path);
@@ -81,11 +84,14 @@ export function LatexPanel({ params, api }: IDockviewPanelProps<FileParams>) {
 
   return (
     <div className="flex h-full flex-col bg-bg">
-      <div className="flex h-7 shrink-0 items-center gap-2 border-b border-line px-2 text-[11.5px] text-muted">
-        <span className="min-w-0 flex-1 truncate font-mono" title={path}>
-          {path}
-        </span>
+      <div className="flex min-h-7 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-line px-2 py-1 text-[11.5px] text-muted">
+        {canSync && <div role="group" aria-label="Modo de edición de la memoria" className="flex shrink-0 items-center gap-1 rounded-lg border border-line-strong bg-soft p-1">
+          <Button variant={visual ? 'primary' : 'ghost'} aria-pressed={visual} onClick={() => setVisual(true)}>Visual</Button>
+          <Button variant={!visual ? 'primary' : 'ghost'} aria-pressed={!visual} onClick={() => setVisual(false)}>Código</Button>
+        </div>}
+        <span className="flex-1" aria-hidden="true" />
         <SaveIndicator docKey={key} />
+        <AskAssistant root={root} path={path} />
         {canSync && (
           <IconButton label={`Ver en PDF (${kbd(shortcutFor('showInPdf'))})`} onClick={() => showHere()} disabled={!hasPdf}>
             <FileSearch size={14} />
@@ -106,6 +112,7 @@ export function LatexPanel({ params, api }: IDockviewPanelProps<FileParams>) {
         </Button>
       </div>
       <DocBanners docKey={key} lang={langFor(path)} />
+      {visual && canSync && <LatexVisualToolbar docKey={key} />}
       <div className="relative min-h-0 flex-1">
         {status === 'loading' && (
           <div className="absolute inset-0 flex items-center justify-center text-muted">
@@ -114,6 +121,7 @@ export function LatexPanel({ params, api }: IDockviewPanelProps<FileParams>) {
         )}
         <CodeEditor
           docKey={key}
+          visualLatex={visual && canSync}
           lang={langFor(path)}
           onSave={() => saveDoc(key)}
           onSaveCompile={() => saveAndCompile(key)}

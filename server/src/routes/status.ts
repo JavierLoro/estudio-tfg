@@ -29,6 +29,10 @@ export default async function statusRoutes(app: FastifyInstance, { ctx }: { ctx:
     let captureIdentity: { libraryId?: string; libraryError?: string };
     try { captureIdentity = { libraryId: libraryId(snap) }; }
     catch (e) { captureIdentity = { libraryError: e instanceof Error ? e.message : 'Identidad de biblioteca no válida' }; }
+    const message = health.ok ? undefined : [
+      ...(snap.compileEngine === 'auto' && docker && !docker.ok ? [docker.message ?? 'Docker no está disponible.'] : []),
+      health.message ?? 'El motor seleccionado no está disponible.',
+    ].join(' ');
     return {
       notesDir: snap.notesDir,
       memoriaDir: snap.memoriaDir,
@@ -36,7 +40,7 @@ export default async function statusRoutes(app: FastifyInstance, { ctx }: { ctx:
       resourcesSubdir: snap.resourcesSubdir,
       syncConflicts: (conflicts as string[][]).flat().sort(),
       worker: (docker ?? health).ok ? 'up' : 'down',
-      motor: { seleccion: snap.compileEngine, tipo: engine.type, estado: health.ok ? 'up' : 'down', version: health.version, capacidades: health.capabilities },
+      motor: { seleccion: snap.compileEngine, tipo: engine.type, estado: health.ok ? 'up' : 'down', version: health.version, capacidades: health.capabilities, ...(message ? { mensaje: message } : {}) },
       ...(ctx.watcher?.status ?? { watcher: 'ok' }),
       configured: isConfigured(snap),
       instanceId: instanceId(snap),

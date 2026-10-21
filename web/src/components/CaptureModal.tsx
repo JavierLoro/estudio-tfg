@@ -1,13 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Upload, X } from 'lucide-react';
 import type { ResourceKind } from '../api';
 import { submitCaptureBatch, useCaptureQueue, type CaptureOutcome } from '../state/captureQueue';
 import { useUI } from '../state/ui';
 import { openResource } from '../state/workspace';
 import { KIND_LABEL, kinds } from '../lib/library';
+import { useDesktop } from '../state/desktop';
+const Discovery = lazy(() => import('./Discovery'));
 import { Button, Modal, Spinner, cx } from './ui';
 
 export function CaptureModal() {
+  const desktop = useDesktop(s => !!s.info);
+  const [tab, setTab] = useState<'manual' | 'assistant'>('manual');
   const open = useUI((s) => s.captureOpen),
     setOpen = useUI((s) => s.setCaptureOpen);
   const pending = useCaptureQueue((s) => s.items);
@@ -78,7 +82,7 @@ export function CaptureModal() {
       title="Añadir a Biblioteca"
       width={660}
       footer={
-        <>
+        tab === 'assistant' ? <Button onClick={() => setOpen(false)}>Cerrar bandeja</Button> : <>
           <span className="mr-auto text-[11px] text-faint">La clasificación es opcional.</span>
           <Button disabled={busy} onClick={() => setOpen(false)}>
             {report.length ? 'Listo' : 'Cancelar'}
@@ -89,7 +93,9 @@ export function CaptureModal() {
         </>
       }
     >
-      <div
+      {desktop && <div role="tablist" aria-label="Añadir recursos" className="flex gap-2 border-b border-line p-2"><Button role="tab" aria-selected={tab === 'manual'} onClick={() => setTab('manual')}>Añadir manualmente</Button><Button role="tab" aria-selected={tab === 'assistant'} onClick={() => setTab('assistant')}>Buscar con asistente</Button></div>}
+      {desktop && tab === 'assistant' && <Suspense fallback={<p>Cargando búsqueda…</p>}><Discovery /></Suspense>}
+      <div hidden={tab === 'assistant'}
         className={cx('space-y-3 p-4', drag && 'bg-active')}
         onDragOver={(e) => {
           if (e.dataTransfer.types.includes('Files')) {

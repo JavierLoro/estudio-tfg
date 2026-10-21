@@ -1,0 +1,66 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { test, expect } from './fixtures.mjs';
+import { DIAGRAM_TEMPLATES } from '../../web/src/lib/diagramTemplates.ts';
+
+for (const type of ['flujo', 'sectores']) {
+  test(`ajusta el espacio de código y editor de ${type} sin perder cambios @smoke`, async ({ studio, page }) => {
+    const source = DIAGRAM_TEMPLATES.find(t => t.id === type).source;
+    const dir = path.join(studio.root, 'memoria/diagramas');
+    await fs.mkdir(dir);
+    const file = path.join(dir, 'ajustable.mmd');
+    await fs.writeFile(file, source);
+    await page.addInitScript(() => {
+      if (sessionStorage.getItem('ratio-inicial-preparado')) return;
+      sessionStorage.setItem('ratio-inicial-preparado', '1');
+      localStorage.setItem('et:diagram:code-ratio', '"valor no válido"');
+    });
+    await page.goto(studio.server.url);
+    await page.keyboard.press('ControlOrMeta+k');
+    const quick = page.getByRole('dialog', { name: 'Abrir o buscar' });
+    await quick.getByLabel('Buscar', { exact: true }).fill('ajustable.mmd');
+    await quick.getByRole('option').filter({ hasText: 'diagramas/ajustable.mmd' }).first().click();
+    const code = page.getByRole('button', { name: 'Código', exact: true });
+    const separator = page.getByRole('separator', { name: 'Ancho del código del diagrama', exact: true });
+    await code.click();
+    await expect(separator).toHaveAttribute('aria-valuenow', '50');
+    const editor = page.locator('.cm-content:visible');
+    await expect(editor).toContainText(source.trim());
+    await editor.press('ControlOrMeta+End');
+    await editor.press('Enter');
+    await editor.pressSequentially('%% Cambio pendiente ficticio');
+    const oldWidth = (await editor.boundingBox()).width;
+    const handle = await separator.boundingBox();
+    await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(handle.x + 150, handle.y + handle.height / 2, { steps: 8 });
+    await page.mouse.up();
+    expect(Number(await separator.getAttribute('aria-valuenow'))).toBeGreaterThan(50);
+    expect((await editor.boundingBox()).width).toBeGreaterThan(oldWidth + 100);
+    await separator.press('Home');
+    await expect(separator).toHaveAttribute('aria-valuenow', '20');
+    await separator.press('ArrowLeft');
+    await expect(separator).toHaveAttribute('aria-valuenow', '20');
+    await separator.press('End');
+    await separator.press('ArrowRight');
+    await expect(separator).toHaveAttribute('aria-valuenow', '80');
+    await separator.press('ArrowLeft');
+    await expect(separator).toHaveAttribute('aria-valuenow', '75');
+    await code.click();
+    await expect(separator).not.toBeVisible();
+    await expect(editor).not.toBeVisible();
+    await code.click();
+    await expect(separator).toHaveAttribute('aria-valuenow', '75');
+    await expect(editor).toContainText('Cambio pendiente ficticio');
+    await page.getByRole('button', { name: /^Deshacer \(/ }).click();
+    await expect(editor).not.toContainText('Cambio pendiente ficticio');
+    await separator.dblclick();
+    await expect(separator).toHaveAttribute('aria-valuenow', '50');
+    await separator.press('ArrowLeft');
+    await expect(separator).toHaveAttribute('aria-valuenow', '45');
+    expect(await fs.readFile(file, 'utf8')).toBe(source);
+    page.on('dialog', dialog => dialog.accept());
+    await page.reload();
+    await expect(separator).toHaveAttribute('aria-valuenow', '45');
+  });
+}

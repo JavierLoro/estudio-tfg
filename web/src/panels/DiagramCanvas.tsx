@@ -5,12 +5,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MermaidWysiwyg, type MermaidCanvasView, type MermaidWysiwygEditor } from '@visimer/react';
-import { ArrowRight, Layers, PanelLeftClose, PanelLeftOpen, PanelRight, PanelRightClose, Pencil, Plus, Shapes, Trash2 } from 'lucide-react';
+import { ArrowRight, Ellipsis, Layers, PanelLeftClose, PanelLeftOpen, PanelRight, PanelRightClose, Pencil, Plus, Shapes, Trash2 } from 'lucide-react';
 import { canvasMermaid } from '../lib/diagram';
+import { diagramFormKind } from '../lib/diagramForm';
+import DiagramForm from './DiagramForm';
 import {
   EDITABLE_KINDS,
   buildModel,
   connectOp,
+  controlSource,
   deleteLinkOp,
   diagramKind,
   directionOp,
@@ -22,6 +25,7 @@ import {
   renameOp,
   shapeOp,
   shapeOptions,
+  svgColorHex,
   type DiagramKind,
   type Model,
   type PaletteItem,
@@ -29,12 +33,16 @@ import {
 } from '../lib/diagramEdit';
 import { cx } from '../components/ui';
 import { load, save as saveLocal } from '../lib/storage';
-import { toast } from '../state/ui';
+import { toast, useUI } from '../state/ui';
+import { useDocs, type DiagramFormDraft } from '../state/docs';
 import { BLOCK_DRAG_TYPE, KIND_NAME, Palette, PropsPanel, StatusBar, type PropsHandlers } from './DiagramParts';
+import { openContextMenu, type MenuItem } from '../components/ContextMenu';
+import { assistantContextActions, copyContextText } from '../components/AssistantContextActions';
 
 type EditorOp = Parameters<MermaidWysiwygEditor['dispatch']>[0];
 
 interface Props {
+  docKey: string;
   code: string;
   seed: string;
   /** El código tiene un error de sintaxis: el lienzo no se edita hasta corregirlo. */
@@ -42,6 +50,9 @@ interface Props {
   /** Hay cambios sin guardar (barra de estado). */
   dirty: boolean;
   onCodeChange: (code: string) => void;
+  formDraft: DiagramFormDraft | null;
+  onDraftChange: (draft: DiagramFormDraft | null) => void;
+  onValidationChange: (next: string | null) => void;
   /** Deshacer / rehacer del documento (Mod-Z): el historial es el del editor de código. */
   onUndo: () => void;
   onRedo: () => void;
@@ -59,7 +70,11 @@ const NARROW_PALETTE = 480;
 // antes que el suyo (se registra al cargar el módulo) y marca que la pulsación es de una barra.
 let barPressed = false;
 if (typeof document !== 'undefined') {
-  document.addEventListener('pointerdown', (e) => void (barPressed = !!(e.target as Element | null)?.closest?.('[data-et-canvas-bar]')), true);
+  document.addEventListener('pointerdown', (e) => {
+    const focused = document.activeElement;
+    if (focused instanceof HTMLInputElement && focused.closest('[data-et-canvas-bar]') && focused !== e.target) focused.blur();
+    barPressed = !!(e.target as Element | null)?.closest?.('[data-et-canvas-bar]');
+  }, true);
   document.addEventListener('pointerup', () => void setTimeout(() => (barPressed = false), 0), true);
 }
 
@@ -100,15 +115,19 @@ function entityAtPoint(host: HTMLElement, x: number, y: number): { id: string; e
 
 const bigBtn = 'inline-flex h-6 w-6 items-center justify-center rounded text-muted transition-colors hover:bg-hover hover:text-fg disabled:opacity-40';
 
-export default function DiagramCanvas({ code, seed, broken, dirty, onCodeChange, onUndo, onRedo, onSave, onSaveCompile }: Props) {
+export default function DiagramCanvas({ docKey, code, seed, broken, dirty, formDraft, onCodeChange, onDraftChange, onValidationChange, onUndo, onRedo, onSave, onSaveCompile }: Props) {
   const kind: DiagramKind = diagramKind(code);
   const editable = EDITABLE_KINDS.has(kind);
-  const canEdit = editable && !broken;
+  const formKind = diagramFormKind(code);
+  const [formOn, setFormOn] = useState(true);
+  const [checking, setChecking] = useState(false);
+  const canEdit = editable && !broken && !checking;
   const mermaid = useMemo(() => canvasMermaid(seed), [seed]);
   const [editor, setEditor] = useState<MermaidWysiwygEditor | null>(null);
   const [view, setView] = useState<MermaidCanvasView | null>(null);
   const [selection, setSelection] = useState<string[]>([]);
-  const [, setTick] = useState(0);
+  const [colors, setColors] = useState<{ fill: string | null; stroke: string | null; color: string | null } | null>(null);
+  const [tick, setTick] = useState(0);
   const [pending, setPending] = useState<string | null>(null);
   const [shapeMenu, setShapeMenu] = useState(false);
   const [menuUp, setMenuUp] = useState(false);
@@ -120,6 +139,11 @@ export default function DiagramCanvas({ code, seed, broken, dirty, onCodeChange,
   const wrap = useRef<HTMLDivElement>(null);
   const bar = useRef<HTMLDivElement>(null);
   const kept = useRef<string[]>([]);
+  const codeRef = useRef(code);
+  codeRef.current = code;
+  const validation = useRef(0);
+  useEffect(() => { validation.current++; setChecking(false); onValidationChange(null); }, [code, onValidationChange]);
+  useEffect(() => () => { validation.current++; }, []);
   const pendingRef = useRef<string | null>(null);
   pendingRef.current = pending;
   useSpanishChrome(wrap);
@@ -144,7 +168,7 @@ export default function DiagramCanvas({ code, seed, broken, dirty, onCodeChange,
   const model: Model = useMemo(
     () => (editor && editable ? buildModel(kind, editor.result) : { blocks: [], links: [], direction: null, hasDirection: false }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [editor, editable, kind, code],
+    [editor, editable, kind, code, tick],
   );
 
   const onSelectionChange = (ids: string[]) => {
@@ -164,13 +188,62 @@ export default function DiagramCanvas({ code, seed, broken, dirty, onCodeChange,
   const selectedBlock = selected && isBlockId(selected) && canEdit && model.blocks.some((b) => b.id === selected) ? selected : null;
   const palette = paletteFor(kind);
 
+  // El SVG resuelve también classDef y los colores por defecto; se relee tras cada render/Deshacer.
+  useEffect(() => {
+    const update = () => {
+      if (kind !== 'flowchart' || !selected || !wrap.current) { setColors(null); return; }
+      const entities = Array.from(wrap.current.querySelectorAll(`[data-mw-entity="${CSS.escape(selected)}"]`));
+      const shapes = entities.map((el) => el.matches('.label-container,path.flowchart-link') ? el : el.querySelector('.label-container,path.flowchart-link'));
+      const shape = shapes.find((el): el is Element => !!el);
+      const text = entities.map((el) => el.querySelector('text')).find((el) => !!el);
+      const style = shape ? getComputedStyle(shape) : null;
+      setColors(style ? { fill: svgColorHex(style.fill), stroke: svgColorHex(style.stroke), color: text ? svgColorHex(getComputedStyle(text).fill) : null } : null);
+    };
+    update();
+    return view?.on('render', update);
+  }, [kind, selected, view, tick]);
+
+  const publishVisual = useCallback(async (next: string) => {
+    const turn = ++validation.current;
+    if (next === codeRef.current) { setChecking(false); onValidationChange(null); return; }
+    onValidationChange(next);
+    setChecking(true);
+    try {
+      await mermaid.parse(next);
+      if (turn === validation.current) onCodeChange(next);
+    } catch {
+      if (turn !== validation.current) return;
+      editor?.setCode(codeRef.current, 'external');
+      toast({ kind: 'error', text: 'No se pudo aplicar el cambio: produciría un diagrama inválido. Se conserva el diagrama anterior.' });
+    } finally {
+      if (turn === validation.current) { setChecking(false); onValidationChange(null); }
+    }
+  }, [editor, mermaid, onCodeChange, onValidationChange]);
+
   const run = useCallback(
     (op: VisimerOp | null) => {
       if (!editor || !op) return null;
-      return editor.dispatch(op as EditorOp, 'canvas');
+      try {
+        const next = controlSource(editor.code, editor.result, op);
+        if (next !== null) {
+          editor.setCode(next, 'canvas');
+          return { edits: [], created: [] as string[] };
+        }
+        return editor.dispatch(op as EditorOp, 'canvas');
+      } catch {
+        toast({ kind: 'error', text: 'No se pudo aplicar este cambio. Se conserva el diagrama anterior.' });
+        return null;
+      }
     },
     [editor],
   );
+
+  const editParticipant = async (id: string) => {
+    const participant = editor?.result.sequence?.participants.find((p) => `participant:${p.id}` === id);
+    if (!participant) return;
+    const name = await useUI.getState().ask({ title: 'Nombre del participante', label: 'Nombre visible', initial: participant.label });
+    if (name !== null) run(renameOp('sequence', id, name));
+  };
 
   /** Añade un bloque de la paleta. `anchor`: el bloque de referencia (seleccionado, o sobre el que se suelta). */
   const addBlock = (item: PaletteItem, anchor: string[], forceConnect = false) => {
@@ -201,18 +274,19 @@ export default function DiagramCanvas({ code, seed, broken, dirty, onCodeChange,
         off();
         if (editor.entityExists(created)) {
           editor.setSelection([created], 'canvas');
-          view.editEntityLabel(created);
+          if (kind === 'sequence' && created.startsWith('participant:')) void editParticipant(created);
+          else view.editEntityLabel(created);
         }
       });
     }
   };
 
-  const addAfter = () => {
-    if (!selectedBlock) return;
+  const addAfterBlock = (block: string) => {
     const id = { flowchart: 'paso', state: 'estado', class: 'clase', er: 'entidad', sequence: 'mensaje', otro: '' }[kind];
     const item = palette.find((p) => p.id === id);
-    if (item) addBlock(item, [selectedBlock], kind === 'class' || kind === 'er');
+    if (item) addBlock(item, [block], kind === 'class' || kind === 'er');
   };
+  const addAfter = () => { if (selectedBlock) addAfterBlock(selectedBlock); };
 
   const connectTo = (from: string, to: string) => {
     const op = connectOp(kind, from, to);
@@ -226,6 +300,9 @@ export default function DiagramCanvas({ code, seed, broken, dirty, onCodeChange,
   // Clic en el bloque de destino cuando se pulsó «Conectar» en la barra flotante.
   const hooks = useMemo(
     () => ({
+      onEntityDoubleClick: (entity: string) => {
+        if (kind === 'sequence' && entity.startsWith('participant:')) { void editParticipant(entity); return true; }
+      },
       onEntityClick: (entity: string) => {
         const from = pendingRef.current;
         if (!from) return;
@@ -240,6 +317,8 @@ export default function DiagramCanvas({ code, seed, broken, dirty, onCodeChange,
   );
 
   const handlers: PropsHandlers = {
+    onOperation: (op) => void run(op),
+    onSelect: (id) => editor?.setSelection(id ? [id] : [], 'canvas'),
     onRename: (id, text) => {
       const t = text.trim();
       if (!t || !editor) return;
@@ -330,9 +409,63 @@ export default function DiagramCanvas({ code, seed, broken, dirty, onCodeChange,
     }
   };
 
+  const showContextMenu = (event: { clientX: number; clientY: number; preventDefault: () => void }, id: string | null) => {
+    const block = model.blocks.find(b => b.id === id), link = model.links.find(l => l.id === id);
+    const source = codeRef.current;
+    const fresh = () => {
+      if (source === codeRef.current) return true;
+      toast({ kind: 'warn', text: 'El diagrama ha cambiado. Vuelve a abrir el menú.' }); return false;
+    };
+    if (id && editor?.entityExists(id)) editor.setSelection([id], 'canvas');
+    wrap.current?.focus({ preventScroll: true });
+    const properties = () => {
+      if (!fresh()) return;
+      editor?.setSelection(id ? [id] : [], 'canvas');
+      if (narrow) setDrawer(true); else { setPropsOpen(true); saveLocal(PROPS_KEY, true); }
+    };
+    const items: MenuItem[] = [];
+    if (block || link) {
+      items.push({ label: block ? 'Propiedades del bloque' : 'Propiedades de la conexión', run: properties });
+      items.push({ label: 'Copiar texto del elemento', run: () => copyContextText(block?.label ?? link?.label ?? '') });
+    }
+    if (canEdit && block) {
+      items.push({ label: 'Cambiar texto del bloque…', run: () => {
+        void (async () => { const text = await useUI.getState().ask({ title: 'Texto del bloque', label: 'Texto', initial: block.label }); if (text !== null && fresh()) handlers.onRename(block.id, text); })();
+      } });
+      items.push({ label: 'Conectar con otro bloque', run: () => { if (fresh()) setPending(block.id); } });
+      items.push({ label: 'Añadir bloque después', run: () => { if (fresh()) addAfterBlock(block.id); } });
+      items.push({ label: 'Borrar bloque', danger: true, run: () => { if (fresh()) handlers.onDeleteBlock(block.id); } });
+    } else if (canEdit && link) {
+      items.push({ label: 'Cambiar etiqueta de la conexión…', run: () => {
+        void (async () => { const text = await useUI.getState().ask({ title: 'Etiqueta de la conexión', label: 'Texto', initial: link.label }); if (text !== null && fresh()) handlers.onLinkLabel(link.id, text); })();
+      } });
+      items.push({ label: 'Borrar conexión', danger: true, run: () => { if (fresh()) handlers.onDeleteLink(link.id); } });
+    } else if (canEdit && !block && !link) {
+      const available = palette.filter(item => editor && item.make({ selection: [], result: editor.result, code: source }));
+      if (available.length) items.push({ label: 'Añadir elemento…', run: () => {
+        if (fresh()) openContextMenu(event, available.map(item => ({ label: item.label, run: () => { if (fresh()) addBlock(item, []); } })), 'Añadir al diagrama');
+      } });
+    }
+    items.push({ label: 'Deshacer', run: () => { if (fresh()) onUndo(); } }, { label: 'Rehacer', run: () => { if (fresh()) onRedo(); } });
+    const doc = useDocs.getState().docs[docKey];
+    if (doc) {
+      const subject = block ? `el bloque «${block.label}» (${block.raw})` : link ? `la conexión de «${link.fromLabel}» a «${link.toLabel}»` : 'el diagrama';
+      items.push(...assistantContextActions({ root: doc.root, path: doc.path, text: source }, subject, false, block ? 'este bloque' : link ? 'esta conexión' : 'el diagrama'));
+    }
+    openContextMenu(event, items, block ? `Bloque: ${block.label}` : link ? `Conexión: ${link.fromLabel} → ${link.toLabel}` : 'Diagrama');
+  };
+
   const onKeyDownCapture = (e: React.KeyboardEvent) => {
     const t = e.target as HTMLElement;
     const typing = t.isContentEditable || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT';
+    if (!typing && (e.key === 'ContextMenu' || e.shiftKey && e.key === 'F10')) {
+      e.stopPropagation();
+      const id = kept.current.length === 1 ? kept.current[0] : null;
+      const el = id ? wrap.current?.querySelector(`[data-mw-entity="${CSS.escape(id)}"]`) : wrap.current;
+      const rect = el?.getBoundingClientRect() ?? wrap.current?.getBoundingClientRect();
+      if (rect) showContextMenu({ clientX: rect.left + 12, clientY: rect.top + 12, preventDefault: () => e.preventDefault() }, id);
+      return;
+    }
     if (e.key === 'Escape' && pending) {
       setPending(null);
       return;
@@ -348,10 +481,12 @@ export default function DiagramCanvas({ code, seed, broken, dirty, onCodeChange,
     } else if (k === 's') {
       e.preventDefault();
       e.stopPropagation();
+      (document.activeElement as HTMLElement | null)?.blur?.();
       onSave();
     } else if (k === 'enter') {
       e.preventDefault();
       e.stopPropagation();
+      (document.activeElement as HTMLElement | null)?.blur?.();
       onSaveCompile();
     }
   };
@@ -374,20 +509,31 @@ export default function DiagramCanvas({ code, seed, broken, dirty, onCodeChange,
 
   const propsPanel = (
     <div data-et-canvas-bar onPointerUp={restoreSelection} className={cx('flex w-[200px] shrink-0 flex-col gap-2 border-l border-line bg-bg p-2.5', narrow && 'absolute top-0 right-0 bottom-0 z-20 pt-9 shadow-pop')}>
-      <PropsPanel kind={kind} kindName={KIND_NAME[kind]} model={model} selection={selection} canEdit={canEdit} h={handlers} />
+      <PropsPanel kind={kind} kindName={KIND_NAME[kind]} model={model} selection={selection} canEdit={canEdit} colors={colors} h={handlers} />
     </div>
   );
 
   return (
     <div ref={root} className="flex h-full min-h-0 flex-col" onKeyDownCapture={onKeyDownCapture}>
-      {!editable && (
+      {formKind && <div className="flex shrink-0 items-center gap-2 border-b border-line bg-bg px-2 py-1 text-[12px] text-muted">
+        <button type="button" onClick={() => setFormOn(!formOn)} aria-pressed={formOn}
+          className="rounded border border-line-strong px-2 py-1 text-fg focus-visible:outline-2 focus-visible:outline-accent">
+          {formOn ? 'Ocultar formulario' : 'Mostrar formulario'}
+        </button>
+        <span>Formulario y código comparten el mismo documento.</span>
+      </div>}
+      {!editable && !formKind && (
         <div className="flex shrink-0 items-center gap-1.5 border-b border-line bg-bg px-2 py-1 text-[12px] text-muted">
           <Layers size={13} />
           Este tipo de diagrama solo se puede editar con código.
         </div>
       )}
+      {checking && <div role="status" className="shrink-0 border-b border-line px-2 py-1 text-[11.5px] text-muted">Validando el cambio…</div>}
       {broken && editable && <div className="shrink-0 border-b border-line bg-bg px-2 py-1 text-[11.5px] text-danger">Corrige el error del código para seguir editando aquí.</div>}
-      <div className="flex min-h-0 flex-1">
+      <div className={cx('flex min-h-0 flex-1', formKind && width < 600 && 'flex-col')}>
+        {formKind && <div className={cx('min-h-0 shrink-0', !formOn && 'hidden', width < 600 ? 'h-1/2 w-full border-b border-line' : 'h-full w-72')}>
+          <DiagramForm code={code} seed={seed} formDraft={formDraft} onChange={onCodeChange} onDraftChange={onDraftChange} />
+        </div>}
         {editable && (
           <div data-et-canvas-bar onPointerUp={restoreSelection} className={cx('flex shrink-0 flex-col gap-1.5 border-r border-line bg-bg p-2', iconsOnly ? 'w-11 items-center' : 'w-[148px]')}>
             <Palette items={palette} icons={iconsOnly} disabled={!canEdit} canUse={(it) => !editor || it.make({ selection, result: editor.result, code }) !== null} onUse={(it) => addBlock(it, selection)} />
@@ -400,6 +546,15 @@ export default function DiagramCanvas({ code, seed, broken, dirty, onCodeChange,
         )}
         <div
           ref={wrap}
+          tabIndex={0}
+          role="region"
+          aria-label="Lienzo del diagrama"
+          onContextMenuCapture={event => {
+            if ((event.target as Element).closest('input,textarea,select,button,[contenteditable="true"],[role="menu"]')) return;
+            event.stopPropagation();
+            const entity = (event.target as Element).closest('[data-mw-entity]')?.getAttribute('data-mw-entity') ?? null;
+            showContextMenu(event, entity);
+          }}
           onDragOver={onDragOver}
           onDragLeave={() => markDrop(null)}
           onDrop={onDrop}
@@ -407,7 +562,7 @@ export default function DiagramCanvas({ code, seed, broken, dirty, onCodeChange,
         >
           <MermaidWysiwyg
             code={code}
-            onCodeChange={onCodeChange}
+            onCodeChange={(next) => void publishVisual(next)}
             mermaid={mermaid}
             readOnly={!canEdit}
             panZoom
@@ -440,7 +595,11 @@ export default function DiagramCanvas({ code, seed, broken, dirty, onCodeChange,
               style={{ visibility: 'hidden' }}
               className="absolute z-10 flex gap-0.5 rounded-md border border-line-strong bg-bg p-[3px] shadow-pop"
             >
-              {tool('Cambiar texto', <Pencil size={14} />, () => view?.editEntityLabel(selectedBlock))}
+              {tool('Cambiar texto', <Pencil size={14} />, () => { if (kind === 'sequence') void editParticipant(selectedBlock); else view?.editEntityLabel(selectedBlock); })}
+              {tool('Menú del bloque', <Ellipsis size={14} />, () => {
+                const rect = bar.current?.getBoundingClientRect();
+                if (rect) showContextMenu({ clientX: rect.left, clientY: rect.bottom + 2, preventDefault: () => {} }, selectedBlock);
+              })}
               <div className="relative">
                 {tool('Cambiar forma', <Shapes size={14} />, () => {
                   // Si no cabe debajo de la barra, el menú se abre hacia arriba.
@@ -479,7 +638,8 @@ export default function DiagramCanvas({ code, seed, broken, dirty, onCodeChange,
         </div>
         {editable && !narrow && propsOpen && propsPanel}
       </div>
-      <StatusBar kind={kind} model={model} saved={!dirty} editable={editable} />
+      {formKind ? <div className="border-t border-line px-2 py-1 text-[11px] text-muted">{dirty ? 'Cambios sin guardar' : 'Guardado'} · Vista previa con zoom y desplazamiento</div>
+        : <StatusBar kind={kind} model={model} saved={!dirty} editable={editable} />}
     </div>
   );
 }
