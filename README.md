@@ -1,27 +1,72 @@
-# Estudio TFG
+<p align="center">
+  <img src="desktop/icons/macos.png" alt="Logo de Estudio TFG" width="128" height="128">
+</p>
 
-**Tu TFG, de las primeras notas al PDF final.**
+<h1 align="center">Estudio TFG</h1>
 
-Escribe la memoria, consulta tus apuntes, reúne bibliografía y crea diagramas en un mismo espacio. Estudio TFG conecta el material que investigas con el documento que estás escribiendo, con tus archivos guardados en tu equipo.
+<p align="center"><strong>Tu TFG, de las primeras notas al PDF final.</strong></p>
 
-[![CI](https://github.com/JavierLoro/estudio-tfg/actions/workflows/ci.yml/badge.svg)](https://github.com/JavierLoro/estudio-tfg/actions/workflows/ci.yml)
+<p align="center">
+  Memoria, apuntes, bibliografía y diagramas en un mismo espacio.<br>
+  Conecta lo que investigas con lo que escribes, con tus archivos en tu equipo.
+</p>
 
-**[Descargar la app](https://github.com/JavierLoro/estudio-tfg/releases)** · [Guía técnica](docs/README.md) · [Hoja de ruta](docs/HOJA-DE-RUTA.md)
+<p align="center">
+  <a href="https://github.com/JavierLoro/estudio-tfg/releases"><strong>Descargar la app</strong></a> ·
+  <a href="#un-recorrido-por-estudio-tfg">Ver cómo se trabaja</a> ·
+  <a href="docs/README.md">Guía técnica</a> ·
+  <a href="docs/HOJA-DE-RUTA.md">Hoja de ruta</a>
+</p>
 
-## Un espacio para avanzar con tu trabajo
+<p align="center">
+  <a href="https://github.com/JavierLoro/estudio-tfg/actions/workflows/ci.yml"><img src="https://github.com/JavierLoro/estudio-tfg/actions/workflows/ci.yml/badge.svg" alt="Estado de las comprobaciones de CI"></a>
+</p>
 
-De una idea en tus notas a una cita en la memoria. De un esquema a una figura lista para el PDF. Ten a mano lo que necesitas mientras redactas.
+[![Memoria en modo Visual junto al PDF del proyecto de demostración](docs/imagenes/memoria-visual.png)](docs/imagenes/memoria-visual.png)
 
-| Lo que necesitas | Cómo te ayuda Estudio TFG |
-| --- | --- |
-| **Escribir y ver el resultado** | Memoria en LaTeX con modos Visual y Código. PDF fijo a la derecha, con ancho ajustable, búsqueda y navegación entre el texto y su página. |
-| **Aprovechar tus apuntes** | Abre tus notas de Obsidian, sigue enlaces y alterna lectura y edición sin salir de la app. |
-| **Encontrar y citar tus fuentes** | Biblioteca de referencias, PDF, imágenes y webs. Importa BibTeX, RIS o DOI y lleva citas y figuras al documento. |
-| **Explicar una idea con un diagrama** | Crea flujos, secuencias, mapas mentales, cronologías y más. Usa controles visuales, formularios o código, y exporta figuras en PDF vectorial. |
-| **Consultar mientras escribes** | Multivista combina dos apartados, permite ajustar sus tamaños y guarda tus distribuciones favoritas. |
-| **Pedir ayuda sobre tu contenido** | Asistente flotante con tu cuenta de ChatGPT: prepara consultas desde una selección y revisa propuestas antes de guardarlas. Tú eliges a qué documentos puede acceder. |
+<p align="center"><sub>Redacta en Visual o Código y consulta el PDF a la derecha. Pulsa cualquier captura para ampliarla.</sub></p>
 
-El modo Visual facilita la redacción básica; fórmulas, macros y estructuras avanzadas siguen disponibles en Código. El asistente es opcional y su disponibilidad depende de tu cuenta y plan. [Conoce su funcionamiento](docs/ASISTENTE.md).
+| A tu ritmo | Con tus herramientas | En tu equipo |
+| --- | --- | --- |
+| De la primera lectura a la entrega de la memoria. | LaTeX, Markdown de Obsidian, BibTeX y Mermaid. | Compilación local y asistente opcional con tu cuenta de ChatGPT. |
+
+## Un recorrido por Estudio TFG
+
+Las capturas muestran un **proyecto ficticio sobre movilidad ciclista en un campus**. Los documentos, las referencias y el PDF son de demostración; la búsqueda utiliza un proveedor simulado. [Detalles de las capturas](docs/imagenes/README.md).
+
+### Escribe sin perder de vista el resultado
+
+Redacta títulos, párrafos, listas y citas en **Visual**, y pasa a **Código** cuando necesites fórmulas, macros o estructuras avanzadas de LaTeX. El PDF permanece al lado: ajusta su ancho, busca texto y navega entre el documento y su página.
+
+### Ten tus notas al lado de lo que escribes
+
+Abre tus apuntes de Obsidian, sigue sus enlaces y recupera una idea mientras redactas. **Multivista** combina dos apartados, permite ajustar el espacio de cada uno y guarda tus distribuciones favoritas. La app se adapta al tema claro u oscuro del sistema.
+
+[![Multivista en tema oscuro con la memoria y una nota de diagnóstico abiertas en paralelo](docs/imagenes/multivista-notas.png)](docs/imagenes/multivista-notas.png)
+
+### Convierte las lecturas en fuentes que puedas utilizar
+
+Reúne artículos, libros, documentos, imágenes y webs en **Biblioteca**. Consulta sus datos, agrupa por colecciones y distingue lo revisado de lo pendiente. Importa BibTeX, RIS o DOI y lleva citas y figuras a la memoria.
+
+[![Biblioteca con recursos de distintos tipos y la ficha de consulta de un artículo simulado](docs/imagenes/biblioteca.png)](docs/imagenes/biblioteca.png)
+
+### Dale forma a una idea antes de explicarla
+
+Crea flujos, secuencias, mapas mentales y cronologías entre **quince tipos de diagrama**. Combina controles visuales, formularios y código Mermaid; después exporta en PDF vectorial e inserta la figura en la memoria.
+
+[![Editor de diagramas con el recorrido del proyecto de demostración](docs/imagenes/diagramas.png)](docs/imagenes/diagramas.png)
+
+### Encuentra fuentes y decide qué incorporar
+
+El **asistente opcional con tu cuenta de ChatGPT** permite consultar selecciones y documentos, preparar cambios y generar propuestas de diagramas. Puedes definir el contexto del TFG y elegir sus fuentes: conectar una cuenta no concede acceso automático a tus archivos.
+
+En **Buscar con asistente**, describe lo que necesitas y revisa los candidatos antes de incorporarlos a Biblioteca. La bandeja muestra su procedencia, posible aportación y limitaciones; tú eliges qué guardar o descartar. La búsqueda combina ChatGPT, cuando la cuenta y el modelo admiten navegación, con Crossref para referencias académicas.
+
+[![Bandeja de búsqueda con candidatos simulados, aportaciones, limitaciones y acciones para guardar o descartar](docs/imagenes/busqueda-asistida.png)](docs/imagenes/busqueda-asistida.png)
+
+<p align="center"><sub>Demostración con IA y fuentes simuladas. La disponibilidad real del asistente y de la búsqueda web depende de la cuenta, el modelo y el plan.</sub></p>
+
+[Conoce el asistente y sus permisos](docs/ASISTENTE.md) · [Guía de Biblioteca](docs/BIBLIOTECA.md)
 
 ## Tus archivos, tu forma de trabajar
 
@@ -34,6 +79,8 @@ Historial de guardados, borradores recuperables y detección de conflictos te ay
 ## Instalar la app de escritorio
 
 Disponible para **macOS, Windows y Linux**, con dos variantes: **completa / offline** y **ligera / online**. La app instalada prepara su motor de compilación; no necesitas instalar Node, Docker ni TeX por separado.
+
+**[Ir a las descargas →](https://github.com/JavierLoro/estudio-tfg/releases)**
 
 <details>
 <summary><strong>Ver cómo descargarla e instalarla</strong></summary>
