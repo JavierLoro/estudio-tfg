@@ -15,7 +15,9 @@ let t: TestEnv;
 let bin: string;
 let mode: 'ok' | 'timeout' = 'ok';
 let different = false;
-let biberVersionDelay = 0;
+let versionDelays: Record<string, number>;
+let biberOutput: string | undefined;
+let biberExitCode = 0;
 type Call = { cmd: string; args: string[]; options: any; child: EventEmitter & { pid: number }; canonicalCwd?: string };
 let calls: Call[];
 const versions: Record<string, string> = { latexmk: 'Latexmk, Version 4.88', biber: 'biber version: 2.22', pdflatex: 'pdfTeX 1.40.29 (TeX Live 2026)', 'rsvg-convert': 'rsvg-convert 2.60' };
@@ -32,7 +34,7 @@ beforeEach(async () => {
   vi.stubEnv('PATH', bin);
   vi.stubEnv('AUTH_TOKEN', 'secreto-ficticio-no-propagar');
   vi.stubEnv('PERL5OPT', 'configuracion-ficticia-no-propagar');
-  mode = 'ok'; different = false; biberVersionDelay = 0; calls = [];
+  mode = 'ok'; different = false; versionDelays = {}; biberOutput = undefined; biberExitCode = 0; calls = [];
   vi.spyOn(childProcess, 'spawn').mockImplementation(((cmd: string, args: string[], options: any) => {
     const child = Object.assign(new EventEmitter(), { pid: 910000 + calls.length, stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(), kill: () => child.emit('close', null, 'SIGTERM') });
     const call: Call = { cmd, args, options, child };
@@ -47,11 +49,12 @@ beforeEach(async () => {
       if (!args.includes('-pdf')) {
         const name = path.basename(cmd).replace(/\.exe$/, '');
         const finish = () => {
-          child.stdout.write(different ? `${name} versión ficticia antigua 0.1\n` : versions[name] + '\n');
-          child.emit('close', 0);
+          child.stdout.write(name === 'biber' && biberOutput !== undefined ? biberOutput : different
+            ? (name === 'biber' ? 'biber version: 0.1\n' : `${name} versión ficticia antigua 0.1\n`) : versions[name] + '\n');
+          child.emit('close', name === 'biber' ? biberExitCode : 0);
         };
-        if (name === 'biber' && biberVersionDelay) {
-          const timer = setTimeout(finish, biberVersionDelay);
+        if (versionDelays[name]) {
+          const timer = setTimeout(finish, versionDelays[name]);
           child.once('close', () => clearTimeout(timer));
         } else finish();
         return;
@@ -73,7 +76,7 @@ beforeEach(async () => {
   });
   syncBuiltinESMExports();
 });
-afterEach(async () => { vi.restoreAllMocks(); syncBuiltinESMExports(); vi.unstubAllEnvs(); await t.close(); });
+afterEach(async () => { vi.restoreAllMocks(); vi.useRealTimers(); syncBuiltinESMExports(); vi.unstubAllEnvs(); await t.close(); });
 
 const compiles = () => calls.filter((call) => call.args.includes('-pdf'));
 const source = async () => (await createSourceTar(t.cfg)).stream;
@@ -161,11 +164,96 @@ it('selecciona TeX por ruta privada sin cambiar PATH ni mezclar herramientas ext
   expect(Object.values(health.tools).every(tool => tool.path === null)).toBe(true);
 });
 
-it('el arranque frío de biber no marca como ausente una herramienta válida', async () => {
-  biberVersionDelay = 3000;
-  const health = await detectLocal(t.cfg, true);
+it('el biber privado puede superar 30 segundos y comparte detección incluso con refresco', async () => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+  t.cfg.texBinDir = bin;
+  versionDelays.biber = 31_000;
+  const pending = detectLocal(t.cfg, true);
+  await vi.waitFor(() => expect(vi.getTimerCount()).toBe(2));
+  await vi.advanceTimersByTimeAsync(30_000);
+  expect(detectLocal(t.cfg)).toBe(pending);
+  expect(detectLocal(t.cfg, true)).toBe(pending);
+  await vi.runAllTimersAsync();
+  const health = await pending;
   expect(health.tools.biber.version).toBe('biber version: 2.22');
   expect(health.ok).toBe(true);
+  expect(calls.filter(call => call.args.includes('--noconf'))).toHaveLength(1);
+  vi.advanceTimersByTime(29_999);
+  expect(detectLocal(t.cfg)).toBe(pending);
+  vi.advanceTimersByTime(1);
+  const expired = detectLocal(t.cfg);
+  expect(expired).not.toBe(pending);
+  await vi.waitFor(() => expect(vi.getTimerCount()).toBe(2));
+  await vi.runAllTimersAsync();
+  await expired;
+});
+
+it.each([
+  [true, 'biber', 120_000],
+  [true, 'latexmk', 30_000],
+  [true, 'pdflatex', 30_000],
+  [true, 'rsvg-convert', 30_000],
+  [false, 'biber', 10_000],
+  [false, 'latexmk', 10_000],
+  [false, 'pdflatex', 10_000],
+  [false, 'rsvg-convert', 10_000],
+] as const)('acota detección privada=%s de %s a %i ms aunque ya haya impreso versión', async (privateEngine, tool, timeoutMs) => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  const timer = vi.spyOn(globalThis, 'setTimeout');
+  if (privateEngine) t.cfg.texBinDir = bin;
+  versionDelays[tool] = timeoutMs + 1;
+  const pending = detectLocal(t.cfg, true);
+  await vi.waitFor(() => expect(vi.getTimerCount()).toBe(2));
+  const call = calls.find(call => path.basename(call.cmd).replace(/\.exe$/, '') === tool)!;
+  (call.child as any).stdout.write(versions[tool] + '\n');
+  expect(timer).toHaveBeenCalledWith(expect.any(Function), timeoutMs);
+  await vi.runAllTimersAsync();
+  const health = await pending;
+  const key = tool === 'rsvg-convert' ? 'rsvg' : tool;
+  expect(health.tools[key].version).toBeNull();
+  expect(health.ok).toBe(tool === 'rsvg-convert');
+  if (tool !== 'rsvg-convert') expect(health.message).toContain(tool);
+  await expect(fs.stat(call.options.cwd)).rejects.toMatchObject({ code: 'ENOENT' });
+});
+
+it.each([
+  ['Aviso Perl: configuración regional\n\nbiber version: 2.22\nOtro aviso Perl\n', 0, 'biber version: 2.22'],
+  ['Aviso Perl: configuración regional\n', 0, null],
+  ['biber version: 2.22\n', 1, null],
+] as const)('identifica biber por su línea de versión y exige salida correcta: %s', async (output, code, expected) => {
+  biberOutput = output; biberExitCode = code;
+  const health = await detectLocal(t.cfg, true);
+  expect(health.tools.biber.version).toBe(expected);
+  expect(health.ok).toBe(expected !== null);
+});
+
+it('separa configuraciones intercaladas, conserva sus detecciones y permite refrescar al terminar', async () => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  versionDelays.biber = 1000;
+  const previous = { ...t.cfg };
+  const first = detectLocal(t.cfg, true);
+  await vi.waitFor(() => expect(vi.getTimerCount()).toBe(2));
+  const privateBin = path.join(t.dir, 'otro motor privado');
+  await binaries(privateBin);
+  t.cfg.texBinDir = privateBin;
+  const second = detectLocal(t.cfg, true);
+  expect(second).not.toBe(first);
+  expect(detectLocal(previous, true)).toBe(first);
+  expect(detectLocal(t.cfg, true)).toBe(second);
+  await vi.waitFor(() => expect(vi.getTimerCount()).toBe(4));
+  await vi.runAllTimersAsync();
+  const [a, b] = await Promise.all([first, second]);
+  expect(a.ok && b.ok).toBe(true);
+  expect(path.dirname(a.tools.biber.path!)).toBe(bin);
+  expect(path.dirname(b.tools.biber.path!)).toBe(privateBin);
+  expect(detectLocal(previous)).toBe(first);
+  expect(detectLocal(t.cfg)).toBe(second);
+  const refreshed = detectLocal(previous, true);
+  expect(refreshed).not.toBe(first);
+  await vi.waitFor(() => expect(vi.getTimerCount()).toBe(2));
+  await vi.runAllTimersAsync();
+  expect((await refreshed).ok).toBe(true);
+  expect(calls.filter(call => call.args.includes('--noconf'))).toHaveLength(3);
 });
 
 it('explica herramientas ausentes antes de ejecutar y rsvg es opcional para compilar', async () => {

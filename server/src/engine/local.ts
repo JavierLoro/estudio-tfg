@@ -16,7 +16,7 @@ export interface LocalHealth extends EngineHealth {
   warnings: string[];
 }
 const REFERENCE = { latexmk: '4.88', biber: '2.22', pdflatex: '1.40.29' } as const;
-let cached: { key: string; until: number; health: Promise<LocalHealth> } | null = null;
+const cache = new Map<string, { until: number; health: Promise<LocalHealth> }>();
 let svgQueue: Promise<unknown> = Promise.resolve();
 
 async function findTool(name: string, cfg: Config): Promise<string | null> {
@@ -53,9 +53,12 @@ async function probe(cfg: Config): Promise<LocalHealth> {
       if (!tool.path) return;
       const args = key === 'latexmk' ? ['-norc', '-v'] : key === 'biber' ? ['--noconf', '--version'] : ['--version'];
       // Biber empaquetado extrae PAR al primer uso; los runners Windows/Mac pueden necesitar más tiempo.
-      const result = await run(tool.path, args, { cwd: runtime, env, timeoutMs: cfg.texBinDir ? 30_000 : 10_000 });
-      if (result.code === 0 && !result.timedOut) tool.version = result.output.trim().split(/\r?\n/)[0]?.slice(0, 300) || null;
-      else console.warn(`No se pudo detectar ${COMMANDS[key as ToolName]} (${result.timedOut ? 'tiempo agotado' : `salida ${result.code}`}): ${result.output.slice(-2000)}`);
+      const timeoutMs = cfg.texBinDir ? (key === 'biber' ? 120_000 : 30_000) : 10_000;
+      const result = await run(tool.path, args, { cwd: runtime, env, timeoutMs });
+      if (result.code === 0 && !result.timedOut && !result.cancelled) {
+        const lines = result.output.trim().split(/\r?\n/);
+        tool.version = (key === 'biber' ? lines.find((line) => /^biber version:\s*\S+/i.test(line)) : lines[0])?.slice(0, 300) || null;
+      } else console.warn(`No se pudo detectar ${COMMANDS[key as ToolName]} (${result.timedOut ? 'tiempo agotado' : `salida ${result.code}`}): ${result.output.slice(-2000)}`);
     }));
   } finally { await fs.rm(runtime, { recursive: true, force: true }); }
   const missing = (['latexmk', 'biber', 'pdflatex'] as const).filter((key) => !tools[key].version);
@@ -75,9 +78,18 @@ async function probe(cfg: Config): Promise<LocalHealth> {
 
 export function detectLocal(cfg: Config, refresh = false): Promise<LocalHealth> {
   const key = [cfg.texBinDir ?? '', cfg.texPerlDir ?? '', process.env.PATH ?? '', cfg.memoriaDir, cfg.notesDir].join('\0');
-  if (!refresh && cached?.key === key && cached.until > Date.now()) return cached.health;
-  cached = { key, until: Date.now() + 30_000, health: probe(cfg) };
-  return cached.health;
+  for (const [entryKey, entry] of cache) if (entry.until <= Date.now()) cache.delete(entryKey);
+  const cached = cache.get(key);
+  if (cached && (cached.until === Infinity || !refresh)) return cached.health;
+  const entry = { until: Infinity, health: probe({ ...cfg }).then((health) => {
+    entry.until = Date.now() + 30_000;
+    return health;
+  }, (error) => {
+    cache.delete(key);
+    throw error;
+  }) };
+  cache.set(key, entry);
+  return entry.health;
 }
 
 export function localEngine(cfg: Config): Engine {

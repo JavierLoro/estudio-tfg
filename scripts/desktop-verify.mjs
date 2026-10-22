@@ -123,7 +123,7 @@ try {
     const error = wizard.locator('.text-danger');
     if (await error.count()) throw new Error(await error.first().innerText());
     return wizard.getByText('PDF generado. Ya puedes empezar a escribir.', { exact: true }).isVisible();
-  }, { timeout: 120_000 }).toBe(true);
+  }, { timeout: 270_000 }).toBe(true);
   const first = await json(page, '/api/compile/last');
   assert.equal(first.ok, true); assert.deepEqual(first.diagnostics, []);
   results.push({ variant, perfil: 'generico', reinicio: false, diagnostics: first.diagnostics });
@@ -157,7 +157,7 @@ try {
   const saved = original + '\nTexto ficticio guardado en la app instalada.\n';
   const draft = saved + '\nBorrador ficticio recuperado tras reiniciar.\n';
   const openIntroduction = async current => {
-    await current.getByRole('button', { name: /^Abrir o buscar \(/ }).click();
+    await current.getByRole('navigation', { name: 'Secciones' }).getByRole('button', { name: 'Buscar', exact: true }).click();
     const quick = current.getByRole('dialog', { name: 'Abrir o buscar' });
     await quick.getByLabel('Buscar', { exact: true }).fill('01-introduccion.tex');
     await quick.getByRole('option').filter({ hasText: '1-capitulos/01-introduccion.tex' }).first().click();
@@ -183,7 +183,7 @@ try {
   const diagramsDir = path.join(root, 'Memoria/diagramas'); await fs.mkdir(diagramsDir, { recursive: true });
   for (const template of DIAGRAM_TEMPLATES) {
     await fs.writeFile(path.join(diagramsDir, `${template.id}.mmd`), template.source);
-    await page.getByRole('button', { name: /^Abrir o buscar \(/ }).click();
+    await page.getByRole('navigation', { name: 'Secciones' }).getByRole('button', { name: 'Buscar', exact: true }).click();
     const open = page.getByRole('dialog', { name: 'Abrir o buscar' });
     await open.getByLabel('Buscar', { exact: true }).fill(`${template.id}.mmd`);
     await open.getByRole('option').filter({ hasText: `diagramas/${template.id}.mmd` }).first().click();
@@ -237,6 +237,9 @@ try {
     const text = await page.locator('body').innerText().catch(() => 'Sin captura');
     await fs.writeFile(path.join(packageRoot, 'error.txt'), text);
     console.error(text);
+    const engines = await json(page, '/api/engines').catch(error => ({ error: error.message }));
+    await fs.writeFile(path.join(packageRoot, 'engines-error.json'), JSON.stringify(engines, null, 2));
+    console.error(JSON.stringify(engines));
     const last = await json(page, '/api/compile/last').catch(() => null);
     if (last) {
       console.error(JSON.stringify(last));

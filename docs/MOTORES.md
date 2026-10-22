@@ -31,6 +31,24 @@ usan copias ficticias: un PDF generado no implica bibliografía correcta.
 - Implementación pendiente en [G3–G5](HOJA-DE-RUTA.md#g3): este apartado fija la
   decisión y su planificación; todavía no existen instaladores ni descarga automática.
 
+## Detección local y arranque frío
+
+Biber del motor privado puede extraer su runtime PAR al primer uso. Su detección
+admite hasta **120 segundos**; latexmk, pdfLaTeX y rsvg privados conservan 30 s.
+Las herramientas de TeX del sistema conservan 10 s. Imprimir la versión antes de
+agotar el tiempo no basta: el proceso debe terminar correctamente. La versión de
+Biber se extrae de `biber version: …`, sin confundir avisos de Perl con su identidad.
+
+Las consultas con la misma configuración comparten una detección en curso,
+incluso al refrescar desde Ajustes. La caché dura 30 s desde que termina y separa
+las rutas TeX/Perl, el PATH y las raíces de memoria/notas. Un refresco tras terminar
+inicia otra detección; no amplía el tiempo de compilación.
+
+El verificador de distribución espera hasta 270 s por el primer PDF, mantiene
+los límites de cada proceso y guarda `/api/engines` en `engines-error.json` si
+falla. El workflow recoge esta evidencia junto a capturas y logs para distinguir
+herramientas ausentes, rutas y versiones.
+
 ## Entorno y versiones
 
 - macOS arm64, Node 24.21.0; binario oficial **Tectonic 0.17.0** para

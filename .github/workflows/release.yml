@@ -142,6 +142,7 @@ jobs:
             desktop/dist/${{ matrix.platform }}/*/app.log
             desktop/dist/${{ matrix.platform }}/*/compile-error.log
             desktop/dist/${{ matrix.platform }}/*/latexmk-error.log
+            desktop/dist/${{ matrix.platform }}/*/engines-error.json
             desktop/dist/${{ matrix.platform }}/*/error.txt
             desktop/dist/${{ matrix.platform }}/*/*.png
             desktop/dist/${{ matrix.platform }}/*/biblioteca/*.json
