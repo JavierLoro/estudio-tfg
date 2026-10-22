@@ -129,6 +129,10 @@ try {
   results.push({ variant, perfil: 'generico', reinicio: false, diagnostics: first.diagnostics });
   await wizard.getByRole('button', { name: 'Terminar', exact: true }).click();
   await wizard.waitFor({ state: 'hidden' });
+  // El espacio de trabajo puede haber abierto Ajustes antes de crear las carpetas.
+  const settings = page.getByRole('dialog', { name: 'Ajustes', exact: true });
+  if (await settings.isVisible()) await settings.getByRole('button', { name: 'Cerrar ajustes', exact: true }).click();
+  await settings.waitFor({ state: 'hidden' });
   await page.locator('.pdfViewer .page').first().waitFor({ timeout: 30_000 });
   const health = await json(page, '/api/engines');
   assert.equal(health.local.ok, true);
