@@ -3,10 +3,10 @@ import path from 'node:path';
 import type { Ctx } from './context.ts';
 import { HttpError } from './errors.ts';
 import { atomicWrite, backup, createExclusive, rev, walkFiles } from './fsutil.ts';
-import { type BuiltOutline, type OutlineItem, letterFor, slugify, splitLines, stripComment } from './outline.ts';
+import { type BuiltOutline, type OutlineItem, INACTIVE_START, INACTIVE_END, inactiveSection, sectionHeading, cleanTitle, letterFor, slugify, splitLines, stripComment } from './outline.ts';
 import { normalizeRel, resolveSafe } from './paths.ts';
 
-export type SectionKind = 'chapter' | 'section' | 'appendix';
+export type SectionKind = 'chapter' | 'section' | 'subsection' | 'appendix';
 
 export interface CreateSectionResult {
   item: OutlineItem | null;
@@ -57,8 +57,9 @@ async function readWithRev(ctx: Ctx, rel: string): Promise<{ abs: string; conten
 }
 
 /** Re-read, compare revision, back up and write atomically (same guarantees as PUT /api/file). */
-async function commit(ctx: Ctx, rel: string, abs: string, baseRev: string, next: string, onConflict?: () => Promise<void>) {
+async function commit(ctx: Ctx, rel: string, abs: string, baseRev: string, next: string, onConflict?: () => Promise<void>, validate?: () => Promise<void>) {
   await sectionHooks.beforeCommit?.(rel);
+  await validate?.();
   const current = await fs.readFile(abs);
   const curRev = rev(current);
   if (curRev !== baseRev) {
@@ -271,20 +272,20 @@ async function createChapter(ctx: Ctx, kind: 'chapter' | 'appendix', title: stri
   });
 }
 
-async function createSubsection(ctx: Ctx, title: string, parentId: unknown, afterId: unknown): Promise<CreateSectionResult> {
+async function createSubsection(ctx: Ctx, kind: 'section' | 'subsection', title: string, parentId: unknown, afterId: unknown): Promise<CreateSectionResult> {
   const b0 = await rebuild(ctx);
   const hasAfter = !(afterId === undefined || afterId === null || afterId === '');
   const hasParent = !(parentId === undefined || parentId === null || parentId === '');
   if (!hasAfter && !hasParent) throw fieldError('parent', 'Indica el capítulo (parent) o el apartado anterior (after)');
   let anchor = hasAfter ? findItem(b0, afterId, 'after') : findItem(b0, parentId, 'parent');
   let mode: 'after' | 'end' = hasAfter ? 'after' : 'end';
-  if (anchor.kind === 'subsection' && mode === 'after') {
+  if (kind === 'section' && anchor.kind === 'subsection' && mode === 'after') {
     const parentSec = b0.flat.find((it) => it.children.includes(anchor) && it.kind === 'section');
     if (parentSec) anchor = parentSec;
   }
-  const chapterish = anchor.kind === 'chapter' || anchor.kind === 'appendix' || anchor.kind === 'frontmatter';
-  if (chapterish) mode = 'end';
-  else if (anchor.kind !== 'section' || mode !== 'after') {
+  const parentKind = kind === 'section' ? ['chapter', 'appendix', 'frontmatter'] : ['section'];
+  if (parentKind.includes(anchor.kind)) mode = 'end';
+  else if (anchor.kind !== kind || mode !== 'after') {
     throw fieldError(hasAfter ? 'after' : 'parent', 'El apartado indicado no admite secciones');
   }
   if (!anchor.enabled) throw fieldError(hasAfter ? 'after' : 'parent', 'Ese apartado está desactivado');
@@ -296,10 +297,13 @@ async function createSubsection(ctx: Ctx, title: string, parentId: unknown, afte
     const eol = eolOf(f.content);
     const lines = splitLines(f.content);
     const stripped = lines.map(stripComment);
-    const stop =
-      mode === 'end'
+    const stop = kind === 'subsection'
+      ? (mode === 'end'
+        ? /\\(?:chapter|section|appendix|backmatter|bibliography|printbibliography)(?![a-zA-Z@])|\\end\s*\{document\}/
+        : /\\(?:chapter|section|subsection|appendix|backmatter|bibliography|printbibliography)(?![a-zA-Z@])|\\end\s*\{document\}/)
+      : (mode === 'end'
         ? /\\(?:chapter|appendix|backmatter|bibliography|printbibliography)(?![a-zA-Z@])|\\end\s*\{document\}/
-        : /\\(?:chapter|section|appendix|backmatter|bibliography|printbibliography)(?![a-zA-Z@])|\\end\s*\{document\}/;
+        : /\\(?:chapter|section|appendix|backmatter|bibliography|printbibliography)(?![a-zA-Z@])|\\end\s*\{document\}/);
     let end = lines.length;
     for (let i = anchorLine; i < lines.length; i++) {
       if (stop.test(stripped[i])) {
@@ -311,7 +315,7 @@ async function createSubsection(ctx: Ctx, title: string, parentId: unknown, afte
     while (k > anchorLine && lines[k - 1].trim() === '') k--;
     const slug = slugify(title, 'seccion');
     const label = uniqueLabel(await existingLabels(ctx), 'sec', slug);
-    const block = ['', `\\section{${texEscape(title)}}\\label{${label}}`, '', '% Escribe aquí el contenido de esta sección.'];
+    const block = ['', `\\${kind}{${texEscape(title)}}\\label{${label}}`, '', '% Escribe aquí el contenido de este apartado.'];
     if (k < lines.length && lines[k].trim() !== '') block.push('');
     const next = [...lines];
     next.splice(k, 0, ...block);
@@ -319,7 +323,7 @@ async function createSubsection(ctx: Ctx, title: string, parentId: unknown, afte
     const line = k + 2;
     const nb = await rebuild(ctx);
     ctx.outline.changed();
-    const item = nb.flat.find((it) => it.file === file && it.line === line && it.kind === 'section') ?? null;
+    const item = nb.flat.find((it) => it.file === file && it.line === line && it.kind === kind) ?? null;
     return { item, file, line };
   });
 }
@@ -327,10 +331,199 @@ async function createSubsection(ctx: Ctx, title: string, parentId: unknown, afte
 export async function createSection(ctx: Ctx, body: unknown): Promise<CreateSectionResult> {
   const b = (body ?? {}) as Record<string, unknown>;
   const kind = b.kind;
-  if (kind !== 'chapter' && kind !== 'section' && kind !== 'appendix') {
-    throw fieldError('kind', 'kind debe ser chapter, section o appendix');
+  if (kind !== 'chapter' && kind !== 'section' && kind !== 'subsection' && kind !== 'appendix') {
+    throw fieldError('kind', 'kind debe ser chapter, section, subsection o appendix');
   }
   const title = validateTitle(b.title);
-  if (kind === 'section') return createSubsection(ctx, title, b.parent, b.after);
+  if (kind === 'section' || kind === 'subsection') return createSubsection(ctx, kind, title, b.parent, b.after);
   return createChapter(ctx, kind, title, b.after);
+}
+
+export type SectionAction = 'rename' | 'up' | 'down' | 'promote' | 'demote' | 'toggle';
+const EDITABLE = new Set(['chapter', 'appendix', 'frontmatter', 'section', 'subsection']);
+const levelOf = (item: OutlineItem) => item.kind === 'subsection' ? 2 : item.kind === 'section' ? 1 : 0;
+
+function relatives(b: BuiltOutline, item: OutlineItem) {
+  let siblings = b.outline.items;
+  let parent: OutlineItem | null = null;
+  for (const candidate of b.flat) {
+    if (candidate.children.includes(item)) { parent = candidate; siblings = candidate.children; break; }
+  }
+  return { parent, siblings: siblings.filter((other) => other.kind === item.kind) };
+}
+
+function blockRange(b: BuiltOutline, item: OutlineItem, lines: string[]) {
+  const start = item.line - 1;
+  const inactive = inactiveSection(lines, start);
+  if (inactive) return { start, end: inactive.end };
+  if (!sectionHeading(lines.join('\n'), item.line)) throw fieldError('id', 'La cabecera no tiene un formato que se pueda organizar');
+  let end = lines.length;
+  for (const other of b.flat) {
+    if (other.file === item.file && other.line > item.line && levelOf(other) <= levelOf(item)) end = Math.min(end, other.line - 1);
+  }
+  for (let i = start + 1; i < end; i++) {
+    if (/\\(?:frontmatter|mainmatter|appendix|backmatter|bibliography|printbibliography)(?![a-zA-Z@])|\\end\s*\{document\}/.test(stripComment(lines[i]))) {
+      end = i; break;
+    }
+  }
+  return { start, end };
+}
+
+// shortcut: solo mueve bloques autónomos; ampliar el analizador antes de admitir grupos o condiciones.
+function requireSimpleBlock(lines: string[], start: number, end: number) {
+  const code = lines.slice(0, end).map(stripComment);
+  const balance = (text: string) => {
+    const bare = text.replace(/\\[{}]/g, '');
+    let braces = 0;
+    for (const c of bare) { if (c === '{') braces++; if (c === '}') braces--; }
+    const envs = [...bare.matchAll(/\\(begin|end)\s*\{([^{}]+)\}/g)].filter((m) => m[2] !== 'document');
+    return { braces, envs: envs.reduce((n, m) => n + (m[1] === 'begin' ? 1 : -1), 0) };
+  };
+  const before = balance(code.slice(0, start).join('\n'));
+  const chunk = code.slice(start).join('\n');
+  const inside = balance(chunk);
+  if (before.braces || before.envs || inside.braces || inside.envs || /\\(?:if[a-zA-Z]*|else|fi)(?![a-zA-Z@])/.test(chunk)) {
+    throw fieldError('id', 'Este apartado contiene grupos o condiciones especiales; reorganízalo desde el editor');
+  }
+}
+
+function moveBlock(lines: string[], start: number, end: number, at: number, block = lines.slice(start, end)) {
+  if (at > start && at < end) throw fieldError('id', 'El destino está dentro del apartado');
+  const next = [...lines];
+  next.splice(start, end - start);
+  const position = at >= end ? at - (end - start) : at;
+  next.splice(position, 0, ...block);
+  return { lines: next, line: position + 1 };
+}
+
+async function sectionEdit(ctx: Ctx, b: BuiltOutline, item: OutlineItem, action: SectionAction, title?: unknown) {
+  const main = await readWithRev(ctx, normalizeRel(ctx.cfg.memoriaMain));
+  const mainLines = splitLines(main.content);
+  const includes = mainLines.flatMap((raw, idx) => {
+    const inc = includeAt(raw, idx);
+    return inc && keyOf(inc.target) === keyOf(item.file) ? [inc] : [];
+  });
+  const wholeFile = levelOf(item) === 0 && item.file !== ctx.cfg.memoriaMain &&
+    b.flat.filter((other) => other.file === item.file && levelOf(other) === 0).length === 1 && includes.length > 0;
+  const standalone = (idx: number) => /^[ \t]*(?:%+[ \t]*)?\\(?:input|include)\s*\{[^{}]+\}[ \t]*(?:%.*)?$/.test(mainLines[idx]);
+  if (wholeFile && (action === 'toggle' || action === 'up' || action === 'down')) {
+    if (!includes.every((inc) => standalone(inc.idx))) throw fieldError('id', 'La inclusión comparte una línea con otros comandos; edítala desde el código');
+    if (action === 'toggle') {
+      for (const inc of includes) {
+        mainLines[inc.idx] = item.enabled ? mainLines[inc.idx].replace(/^(\s*)/, '$1% ') : mainLines[inc.idx].replace(/^(\s*)%+[ \t]?/, '$1');
+      }
+      return { path: ctx.cfg.memoriaMain, before: main, after: mainLines.join(eolOf(main.content)), line: item.line };
+    }
+    const { siblings } = relatives(b, item);
+    const peer = siblings[siblings.indexOf(item) + (action === 'up' ? -1 : 1)];
+    if (!peer) throw fieldError('id', 'El apartado ya está en el extremo de su grupo');
+    const targets = mainLines.flatMap((raw, idx) => {
+      const inc = includeAt(raw, idx);
+      return inc && keyOf(inc.target) === keyOf(peer.file) ? [idx] : [];
+    });
+    if (includes.length !== 1 || targets.length !== 1 || !standalone(targets[0])) {
+      throw fieldError('id', 'Solo se pueden mover inclusiones únicas y directas del archivo principal');
+    }
+    requireSimpleBlock(mainLines, includes[0].idx, includes[0].idx + 1);
+    requireSimpleBlock(mainLines, targets[0], targets[0] + 1);
+    const moved = moveBlock(mainLines, includes[0].idx, includes[0].idx + 1, targets[0] + (action === 'down' ? 1 : 0));
+    return { path: ctx.cfg.memoriaMain, before: main, after: moved.lines.join(eolOf(main.content)), line: item.line };
+  }
+
+  const source = item.file === ctx.cfg.memoriaMain ? main : await readWithRev(ctx, item.file);
+  const lines = splitLines(source.content);
+  const nl = eolOf(source.content);
+  const start = item.line - 1;
+  const inactive = inactiveSection(lines, start);
+  if (!item.enabled && inactive && action !== 'toggle') throw fieldError('id', 'Activa el apartado antes de editarlo');
+  const heading = sectionHeading(source.content, item.line);
+  if (!inactive && (!heading || cleanTitle(heading.title) !== item.title ||
+    heading.kind !== (levelOf(item) === 0 ? 'chapter' : item.kind) ||
+    b.flat.filter((other) => other.file === item.file && other.line === item.line).length !== 1)) {
+    throw fieldError('id', 'La cabecera comparte línea o tiene una estructura especial; edítala desde el código');
+  }
+  if (action === 'rename') {
+    if (!heading || heading.title.includes('\\iflanguage')) throw fieldError('id', 'El título tiene una estructura especial; edítalo desde el código');
+    const text = validateTitle(title);
+    // Se actualiza también el índice: no se conserva un título corto antiguo.
+    const after = source.content.slice(0, heading.from) + `\\${heading.kind}${heading.star}{${texEscape(text)}}` + source.content.slice(heading.to);
+    return { path: item.file, before: source, after, line: item.line };
+  }
+  const range = blockRange(b, item, lines);
+  if (action === 'toggle') {
+    if (inactive) lines.splice(start, inactive.end - start, ...inactive.content);
+    else {
+      requireSimpleBlock(lines, range.start, range.end);
+      lines.splice(start, range.end - start, INACTIVE_START, ...lines.slice(start, range.end).map((line) => '% ' + line), INACTIVE_END);
+    }
+    return { path: item.file, before: source, after: lines.join(nl), line: item.line };
+  }
+  if (!heading || !item.enabled) throw fieldError('id', 'Activa el apartado antes de reorganizarlo');
+  requireSimpleBlock(lines, range.start, range.end);
+  const { siblings, parent } = relatives(b, item);
+  if (action === 'up' || action === 'down') {
+    const peer = siblings[siblings.indexOf(item) + (action === 'up' ? -1 : 1)];
+    if (!peer) throw fieldError('id', 'El apartado ya está en el extremo de su grupo');
+    if (peer.file !== item.file) throw fieldError('id', 'Estos apartados están en archivos distintos; mueve sus inclusiones desde Archivos');
+    const target = blockRange(b, peer, lines);
+    requireSimpleBlock(lines, target.start, target.end);
+    const moved = moveBlock(lines, range.start, range.end, action === 'up' ? target.start : target.end);
+    return { path: item.file, before: source, after: moved.lines.join(nl), line: moved.line };
+  }
+  if (action === 'demote') {
+    const previous = siblings[siblings.indexOf(item) - 1];
+    if (item.kind !== 'section' || item.children.length || !previous?.enabled || previous.file !== item.file) {
+      throw fieldError('id', 'Solo una sección sin subsecciones puede pasar a ser subsección de la sección anterior');
+    }
+    lines[start] = lines[start].replace(/\\section(?![a-zA-Z@])/, '\\subsection');
+    return { path: item.file, before: source, after: lines.join(nl), line: item.line };
+  }
+  if (item.kind !== 'subsection' || !parent || parent.file !== item.file) throw fieldError('id', 'Solo una subsección puede pasar a ser sección');
+  const parentRange = blockRange(b, parent, lines);
+  requireSimpleBlock(lines, parentRange.start, parentRange.end);
+  const block = lines.slice(range.start, range.end);
+  block[0] = block[0].replace(/\\subsection(?![a-zA-Z@])/, '\\section');
+  const moved = moveBlock(lines, range.start, range.end, parentRange.end, block);
+  return { path: item.file, before: source, after: moved.lines.join(nl), line: moved.line };
+}
+
+export async function editSection(ctx: Ctx, body: unknown) {
+  const input = (body ?? {}) as Record<string, unknown>;
+  if (!['rename', 'up', 'down', 'promote', 'demote', 'toggle'].includes(input.action as string)) throw fieldError('action', 'Acción de apartado no válida');
+  if (!input.baseRev || typeof input.baseRev !== 'object' || Array.isArray(input.baseRev)) throw fieldError('baseRev', 'Faltan las revisiones de la estructura');
+  const checkRevisions = (built: BuiltOutline) => {
+    const revisions = built.outline.revisions!;
+    const expected = input.baseRev as Record<string, unknown>;
+    if (Object.keys(expected).length !== Object.keys(revisions).length || Object.entries(revisions).some(([file, revision]) => expected[file] !== revision)) {
+      throw new HttpError(409, 'La memoria cambió; recarga la estructura antes de organizarla');
+    }
+  };
+  const initial = await rebuild(ctx);
+  checkRevisions(initial);
+  const first = findItem(initial, input.id, 'id');
+  if (!EDITABLE.has(first.kind) || first.warnings.includes('no encontrado')) throw fieldError('id', 'Este elemento no se puede organizar');
+  const prepared = await sectionEdit(ctx, initial, first, input.action as SectionAction, input.title);
+  return ctx.locks.run(`memoria:${prepared.path}`, async () => {
+    const built = await rebuild(ctx);
+    const revisions = built.outline.revisions!;
+    checkRevisions(built);
+    const item = findItem(built, input.id, 'id');
+    if (!EDITABLE.has(item.kind) || item.warnings.includes('no encontrado')) throw fieldError('id', 'Este elemento no se puede organizar');
+    const edit = await sectionEdit(ctx, built, item, input.action as SectionAction, input.title);
+    if (edit.path !== prepared.path) throw new HttpError(409, 'Cambió el destino de la reorganización');
+    if (rev(edit.before.content) !== revisions[edit.path]) throw new HttpError(409, 'El archivo cambió mientras se preparaba el cambio');
+    await commit(ctx, edit.path, edit.before.abs, revisions[edit.path], edit.after, undefined, async () => {
+      for (const [file, revision] of Object.entries(revisions)) {
+        const current = await readWithRev(ctx, file).catch((e) => {
+          if (e instanceof HttpError && e.statusCode === 404) throw new HttpError(409, 'Se retiró un archivo antes de aplicar la reorganización');
+          throw e;
+        });
+        if (current.rev !== revision) throw new HttpError(409, 'La memoria cambió antes de aplicar la reorganización');
+      }
+    });
+    ctx.bus.change({ root: 'memoria', path: edit.path, kind: 'change' });
+    const next = await rebuild(ctx);
+    ctx.outline.changed();
+    return { outline: next.outline, file: item.file, line: edit.line, changed: edit.path };
+  });
 }

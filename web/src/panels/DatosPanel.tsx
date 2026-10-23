@@ -15,15 +15,25 @@ import {
   type Perfil,
   type PlantillaPreview,
   type PlantillaResultado,
+  type PortadasResponse,
 } from '../api';
 import { indicatorColor } from '../components/DocBanners';
 import { kbd } from '../lib/kbd';
+import { docKey } from '../lib/paths';
 import { Banner, Button, Modal, Spinner, cx } from '../components/ui';
+import { PortadasDialog } from '../components/PortadasDialog';
+import { Tipografia } from '../components/Tipografia';
+import { Paginacion } from '../components/Paginacion';
+import { Indices } from '../components/Indices';
+import { INDICES_DEFAULTS, INDICES_KEYS, TIPOS_INDICE } from '../../../shared/indices';
+import { PAGINACION_DEFAULTS, PAGINACION_KEYS, POSICIONES_PAGINA } from '../../../shared/paginacion';
+import { TIPOGRAFIA_DEFAULTS, TIPOGRAFIA_KEYS, NIVELES_TITULOS } from '../../../shared/tipografia';
 import { useCompile, isPdfOutdated } from '../state/compile';
-import { isDirty, saveAll, useDocs } from '../state/docs';
+import { handleExternalChange, isDirty, saveAll, useDocs } from '../state/docs';
 import { onFileChange } from '../state/events';
 import { useOutline } from '../state/outline';
 import { openFile } from '../state/workspace';
+import { useUI } from '../state/ui';
 import { saveAndCompile } from './LatexPanel';
 
 type Option = [value: string, label: string];
@@ -70,7 +80,7 @@ const TRABAJO: FieldSpec[] = [
 ];
 
 const RESUMEN: FieldSpec[] = [
-  { key: 'palabrasClave', label: 'Palabras clave', wide: true, help: 'Separadas por comas, en el idioma del documento.' },
+  { key: 'palabrasClave', label: 'Palabras clave', wide: true, help: 'Separadas por comas, en español, para el Resumen.' },
   { key: 'keywords', label: 'Keywords', wide: true, help: 'Las mismas en inglés, para el Abstract.' },
 ];
 
@@ -155,13 +165,38 @@ const MARGENES: FieldSpec[] = [
   { key: 'margenSuperior', label: 'Superior', placeholder: '25mm', mono: true },
   { key: 'margenInferior', label: 'Inferior', placeholder: '25mm', mono: true },
 ];
+const PAGINA: FieldSpec[] = [
+  { key: 'papel', label: 'Tamaño de papel', kind: 'select', def: 'a4', options: [['a4', 'A4 (210 × 297 mm)'], ['carta', 'Carta (216 × 279 mm)']] },
+  { key: 'caras', label: 'Preparación de las páginas', kind: 'select', def: 'automatico', options: [['automatico', 'Según el formato del documento'], ['una', 'Una cara'], ['dos', 'Dos caras']],
+    help: 'Una elección explícita conserva tus márgenes. A dos caras se alternan interior y exterior; los capítulos empiezan en página derecha.' },
+  ...([
+    ['mostrarPortada', 'Portada exterior adicional'],
+    ['mostrarPortadaInterior', 'Portada con los datos del trabajo'],
+    ['mostrarDerechos', 'Página de créditos'],
+    ['mostrarTribunal', 'Hoja de tribunal'],
+  ] as const).map(([key, label]): FieldSpec => ({ key, label, kind: 'select', def: 'si', options: [['si', 'Mostrar'], ['no', 'Ocultar']],
+    help: 'Se aplica si el documento principal incluye esta página.' })),
+];
 
-const INST_KEYS = new Set([...INSTITUCION, ...MARGENES].map((f) => f.key).concat('logo'));
-const ALL_KEYS = [...TRABAJO, ...RESUMEN, ...DOCUMENTO, ...INSTITUCION, ...MARGENES].map((f) => f.key).concat('logo');
-const LABEL = Object.fromEntries([...TRABAJO, ...RESUMEN, ...DOCUMENTO, ...INSTITUCION, ...MARGENES].map((f) => [f.key, f.label]));
+const INST_KEYS = new Set([...INSTITUCION, ...MARGENES, ...PAGINA].map((f) => f.key).concat('logo', ...TIPOGRAFIA_KEYS, ...PAGINACION_KEYS, ...INDICES_KEYS));
+const ALL_KEYS = [...TRABAJO, ...RESUMEN, ...DOCUMENTO, ...INSTITUCION, ...MARGENES, ...PAGINA].map((f) => f.key).concat('logo', ...TIPOGRAFIA_KEYS, ...PAGINACION_KEYS, ...INDICES_KEYS);
+const LABEL = Object.fromEntries([...TRABAJO, ...RESUMEN, ...DOCUMENTO, ...INSTITUCION, ...MARGENES, ...PAGINA].map((f) => [f.key, f.label]));
+Object.assign(LABEL, { fuenteTexto: 'Fuente del texto', fuenteTitulos: 'Fuente de los títulos' });
+for (const [nivel, nombre] of NIVELES_TITULOS) {
+  for (const [prefijo, texto] of [['fuente', 'Fuente de'], ['tamano', 'Tamaño de'], ['negrita', 'Negrita en'], ['mayusculas', 'Mayúsculas de']]) {
+    LABEL[prefijo + nivel] = texto + ' ' + nombre.toLowerCase();
+  }
+}
 LABEL.logo = 'Logo';
+Object.assign(LABEL, { numeracionPaginas: 'Numeración de páginas', estiloPagina: 'Diseño de cabeceras y pies',
+  reflejarCabeceras: 'Posiciones en páginas pares', cabeceraInicioCapitulo: 'Cabecera al empezar un capítulo' });
+for (const [key, label] of POSICIONES_PAGINA) { LABEL[key] = label; LABEL[key + 'Texto'] = 'Texto de ' + label.toLowerCase(); }
+Object.assign(LABEL, Object.fromEntries(TIPOS_INDICE), { numerarHasta: 'Numerar los títulos hasta', indiceHasta: 'Mostrar en el índice general hasta' });
 
-const flat = (d: DatosResponse): Record<string, string> => ({ ...d.datos, ...d.institucion });
+const flat = (d: DatosResponse): Record<string, string> => ({ ...d.datos, ...d.institucion,
+  ...Object.fromEntries(TIPOGRAFIA_KEYS.map((key) => [key, d.institucion[key] || TIPOGRAFIA_DEFAULTS[key]])),
+  ...Object.fromEntries(PAGINACION_KEYS.map((key) => [key, d.institucion[key] ?? PAGINACION_DEFAULTS[key]])),
+  ...Object.fromEntries(INDICES_KEYS.map((key) => [key, d.institucion[key] || INDICES_DEFAULTS[key]])) });
 
 const inputCls =
   'h-7 min-w-0 w-full rounded-md border bg-bg px-2 text-[12.5px] outline-none focus:border-accent disabled:opacity-60';
@@ -196,6 +231,7 @@ export function DatosPanel() {
     { kind: 'ok'; res: PlantillaResultado; version: string } | { kind: 'deshecho'; text: string } | null
   >(null);
   const [undoBusy, setUndoBusy] = useState(false);
+  const [composicion, setComposicion] = useState<PortadasResponse | null>(null);
 
   const dataRef = useRef<DatosResponse | null>(null);
   const formRef = useRef<Record<string, string>>({});
@@ -213,6 +249,7 @@ export function DatosPanel() {
   };
 
   const outdated = useCompile((s) => isPdfOutdated(s));
+  const principal = useUI((s) => s.status?.memoriaMain ?? 'tfg.tex');
   const compiling = useCompile((s) => s.compiling);
 
   /** Claves cuyo valor difiere del disco (y no han fallado ya con ese mismo valor). */
@@ -445,6 +482,10 @@ export function DatosPanel() {
   const phase: Phase = saving ? 'saving' : general || Object.values(errors).some(Boolean) ? 'error' : data && dirtyKeysFor(data, form) ? 'dirty' : 'ok';
 
   const hasInst = data ? data.rev.institucion !== null : false;
+  const indicesDisponibles = hasInst && !!plantilla && plantilla.versionMemoria === plantilla.versionPlantilla;
+  const paginacionDisponible = indicesDisponibles || (hasInst && plantilla?.versionMemoria === 'v0.9');
+  const tipografiaDisponible = paginacionDisponible || (hasInst && plantilla?.versionMemoria === 'v0.8');
+  const paginaDisponible = tipografiaDisponible || plantilla?.versionMemoria === 'v0.7';
   const logo = form.logo ?? '';
   const logoExt = logo.split('.').pop()?.toLowerCase();
 
@@ -523,7 +564,7 @@ export function DatosPanel() {
         <ClipboardList size={15} className="text-muted" />
         <h1 className="text-[13px] font-semibold">Datos del trabajo</h1>
         <div className="flex-1" />
-        {data && (
+        {data && plantilla?.estado !== 'desconocida' && (
           <span
             className="inline-flex items-center gap-1.5 text-[11px] text-muted"
             title={`${PHASE_LABEL[phase]} · ${kbd('Mod-S')} guarda ahora`}
@@ -533,8 +574,8 @@ export function DatosPanel() {
             <span>{PHASE_LABEL[phase]}</span>
           </span>
         )}
-        <Button variant="ghost" onClick={() => openFile('memoria', 'datos.tex')} title="Editar el código de datos.tex">
-          Abrir datos.tex
+        <Button variant="ghost" onClick={() => openFile('memoria', data?.rev.datos ? 'datos.tex' : principal)}>
+          {data?.rev.datos ? 'Abrir datos.tex' : 'Abrir archivo principal'}
         </Button>
       </div>
 
@@ -640,11 +681,35 @@ export function DatosPanel() {
               <Spinner />
             </div>
           )
+        ) : plantilla?.estado === 'desconocida' ? (
+          <section className="mx-auto flex max-w-3xl items-center justify-between gap-3 rounded-lg border border-line bg-bg p-4">
+            <h2 className="text-sm font-medium">Formato de la plantilla</h2>
+            <Button onClick={() => openFile('memoria', principal)}>Editar código</Button>
+          </section>
         ) : (
           <div className="mx-auto flex max-w-3xl flex-col gap-3">
             <Section title="Trabajo">{TRABAJO.map(renderField)}</Section>
             <Section title="Resumen">{RESUMEN.map(renderField)}</Section>
             <Section title="Documento">{DOCUMENTO.map(renderField)}</Section>
+            {tipografiaDisponible && <Section title="Texto y títulos">
+              <div className="sm:col-span-2"><Tipografia values={form} onChange={setValue} onBlur={queueSave} errors={errors} /></div>
+            </Section>}
+            {paginacionDisponible && <Section title="Numeración, cabeceras y pies">
+              <div className="sm:col-span-2"><Paginacion values={form} onChange={setValue} onBlur={queueSave} errors={errors} /></div>
+            </Section>}
+            {indicesDisponibles && <Section title="Índices y numeración de apartados">
+              <div className="sm:col-span-2"><Indices values={form} onChange={setValue} errors={errors} /></div>
+            </Section>}
+            {paginaDisponible &&
+              <Section title="Página y portadas">
+                {PAGINA.map(renderField)}
+                {data.institucion.mostrarPortada && <div className="sm:col-span-2">
+                  <Button onClick={async () => {
+                    try { setComposicion(await api.portadas()); }
+                    catch (e) { setGeneral(errorMessage(e)); }
+                  }}>Componer portadas…</Button>
+                </div>}
+              </Section>}
             <Section
               title="Institución"
               note={
@@ -721,7 +786,8 @@ export function DatosPanel() {
                     )}
                     <p className="mt-1 text-[11px] text-faint">PDF, PNG o JPG, máximo 5 MB.</p>
                   </div>
-                  {INSTITUCION.slice(2).map(renderField)}
+                  {INSTITUCION.slice(2).filter((field) => !tipografiaDisponible ||
+                    !['tamanoLetra', 'interlineado'].includes(field.key)).map(renderField)}
                   <div className="min-w-0 sm:col-span-2">
                     <div className="mb-1 text-[12px] font-medium">Márgenes</div>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -768,6 +834,14 @@ export function DatosPanel() {
           onApply={aplicarPlantilla}
         />
       )}
+      {composicion && <PortadasDialog initial={composicion.config} datos={form} institucion={form} onClose={() => setComposicion(null)}
+        onSave={async (config) => {
+          const pending = useDocs.getState().docs[docKey('memoria', 'estilo/portadas.tex')];
+          if (pending && (isDirty(pending) || pending.conflict || pending.draftOffer || pending.saving)) throw new Error('Guarda o resuelve los cambios del archivo de portadas antes de usar el editor visual.');
+          await api.savePortadas({ config, baseRev: composicion.baseRev });
+          await handleExternalChange({ root: 'memoria', path: 'estilo/portadas.tex', kind: 'change' });
+          setTouched(true);
+        }} />}
     </div>
   );
 }

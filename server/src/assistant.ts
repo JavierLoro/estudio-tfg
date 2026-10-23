@@ -3,6 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { discoveryRoutes } from './discovery.ts';
+import { normativaRoutes } from './routes/normativa.ts';
 import { ProjectContext } from './projectContext.ts';
 import type { ContextSnapshot } from '../../shared/assistant.ts';
 import type { Ctx } from './context.ts';
@@ -21,7 +22,7 @@ export interface AssistantProvider {
   disconnect(id: string): Promise<AssistantAccountView>;
   cancelSignIn(): Promise<void>;
   models(): Promise<{ id: string; name: string }[]>;
-  respond(model: string, input: any[], tools: any[], signal: AbortSignal, onEvent: (event: any) => void, options?: { purpose: 'chat' | 'context' | 'diagram' | 'search' | 'review' }): Promise<any[]>;
+  respond(model: string, input: any[], tools: any[], signal: AbortSignal, onEvent: (event: any) => void, options?: { purpose: 'chat' | 'context' | 'diagram' | 'search' | 'review' | 'template' }): Promise<any[]>;
   subscribe(fn: () => void): () => void;
   close(): Promise<void>;
 }
@@ -53,6 +54,7 @@ export async function assistantRoutes(app: FastifyInstance, ctx: Ctx, provider: 
   await projectContext.init();
   await projectContext.routes(app);
   await discoveryRoutes(app, ctx, provider, projectContext);
+  await normativaRoutes(app, ctx, provider);
   const dir = path.join(ctx.cfg.dataDir, 'assistant');
   await fs.mkdir(dir, { recursive: true, mode: 0o700 });
   const cache = new Map<string, Thread>(), jobs = new Map<string, AbortController>(), mutations = new Set<string>();

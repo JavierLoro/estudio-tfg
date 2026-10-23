@@ -160,3 +160,9 @@ Consulta las notas de cada release para conocer su alcance y la [hoja de ruta](d
 ¿Quieres contribuir? Empieza por la [guía técnica](docs/README.md#contribuir), las [reglas del repositorio](AGENTS.md) y la [especificación del producto](docs/CONTRACT.md).
 
 Estudio TFG se distribuye bajo [AGPL-3.0](LICENSE). La plantilla conserva la licencia y atribución de su base ARCO; los [créditos y componentes de terceros](docs/README.md#licencia) están en la guía técnica.
+
+### Configuración de plantillas
+
+Ajustes → Plantillas permite crear desde cero, usar un perfil incluido o abrir una plantilla propia desde carpeta o ZIP. La configuración manual incluye portadas, idioma, tipografía, títulos, índices y paginación. El ZIP conserva su clase y recursos; requiere una carpeta nueva y admite hasta 50 MB comprimidos, 200 MB extraídos y 5000 entradas. Los controles visuales dependen de la compatibilidad de la clase.
+
+En escritorio, **Crear desde normativa…** usa tu cuenta de ChatGPT para proponer estos mismos ajustes a partir de un PDF o texto. Muestra citas, dudas y limitaciones antes de revisar y crear una memoria nueva. Consulta la [guía del asistente](docs/ASISTENTE.md#crear-una-plantilla-desde-normativa).

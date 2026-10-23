@@ -1,4 +1,7 @@
 import { eolOf } from './sections.ts';
+import { FUENTES_TEXTO, FUENTES_TITULOS, NIVELES_TITULOS } from '../../shared/tipografia.ts';
+import { CONTENIDOS_PAGINA, NUMERACION_PAGINAS, POSICIONES_PAGINA } from '../../shared/paginacion.ts';
+import { TIPOS_INDICE, NIVELES_APARTADOS } from '../../shared/indices.ts';
 
 // Panel «Datos del trabajo» (v0.5): lectura y escritura de datos.tex y estilo/institucion.tex.
 // Cada campo se lee de la primera línea no comentada que empieza por su comando y al escribir
@@ -10,7 +13,7 @@ export const DATOS_REL = 'datos.tex';
 export const INSTITUCION_REL = 'estilo/institucion.tex';
 export const ADDED_MARK = '%% Añadido por Estudio TFG';
 
-export type FieldKind = 'text' | 'enum' | 'length' | 'year' | 'logo';
+export type FieldKind = 'text' | 'enum' | 'length' | 'year' | 'logo' | 'points';
 
 export interface FieldDef {
   /** Clave en la API. */
@@ -61,10 +64,30 @@ export const FIELDS: FieldDef[] = [
   text('institucion', 'etiquetaEspecialidad'),
   en('institucion', 'idiomaPortadas', ['espanol', 'ingles', 'documento']),
   en('institucion', 'tamanoLetra', ['10pt', '11pt', '12pt']),
+  en('institucion', 'papel', ['a4', 'carta']),
+  en('institucion', 'caras', ['automatico', 'una', 'dos']),
+  ...['mostrarPortada', 'mostrarPortadaInterior', 'mostrarDerechos', 'mostrarTribunal'].map((key) => en('institucion', key, ['si', 'no'])),
   ...(['margenInterior', 'margenExterior', 'margenSuperior', 'margenInferior'] as const).map(
     (key, arg): FieldDef => ({ key, cmd: 'margenes', file: 'institucion', kind: 'length', arg, nargs: 4 }),
   ),
   en('institucion', 'interlineado', ['1', '1.15', '1.25', '1.5', '2']),
+  en('institucion', 'fuenteTexto', FUENTES_TEXTO.map(([value]) => value)),
+  en('institucion', 'fuenteTitulos', FUENTES_TITULOS.map(([value]) => value)),
+  ...NIVELES_TITULOS.flatMap(([nivel]) => [
+    en('institucion', 'fuente' + nivel, ['heredar', ...FUENTES_TITULOS.map(([value]) => value)]),
+    { key: 'tamano' + nivel, cmd: 'tamano' + nivel, file: 'institucion', kind: 'points' } as FieldDef,
+    en('institucion', 'negrita' + nivel, ['si', 'no']),
+    en('institucion', 'mayusculas' + nivel, ['si', 'no']),
+  ]),
+  en('institucion', 'numeracionPaginas', NUMERACION_PAGINAS.map(([value]) => value)),
+  en('institucion', 'estiloPagina', ['actual', 'personalizado']),
+  en('institucion', 'reflejarCabeceras', ['si', 'no']),
+  en('institucion', 'cabeceraInicioCapitulo', ['si', 'no']),
+  ...POSICIONES_PAGINA.flatMap(([key]) => [
+    en('institucion', key, CONTENIDOS_PAGINA.map(([value]) => value)), text('institucion', key + 'Texto'),
+  ]),
+  ...TIPOS_INDICE.map(([key]) => en('institucion', key, ['si', 'no'])),
+  ...['numerarHasta', 'indiceHasta'].map((key) => en('institucion', key, NIVELES_APARTADOS.map(([value]) => value))),
 ];
 
 export const FIELD_BY_KEY = new Map(FIELDS.map((f) => [`${f.file}:${f.key}`, f]));
@@ -212,6 +235,11 @@ export function encodeValue(f: FieldDef, value: unknown): string {
     case 'length':
       if (!LENGTH_RE.test(v)) throw new FieldInvalid(f.key, `${f.key}: longitud no válida «${v}» (p. ej. 35mm)`);
       return v;
+    case 'points':
+      if (!/^\d+(\.\d+)?$/.test(v) || Number(v) < 8 || Number(v) > 36 || Number(v) * 2 % 1 !== 0) {
+        throw new FieldInvalid(f.key, 'Usa un tamaño de título entre 8 y 36 puntos, en pasos de medio punto');
+      }
+      return String(Number(v));
     case 'year':
       if (v !== '' && !/^\d{4}$/.test(v)) throw new FieldInvalid(f.key, `${f.key}: el año debe tener 4 cifras`);
       return v;

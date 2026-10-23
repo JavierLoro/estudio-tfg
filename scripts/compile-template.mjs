@@ -13,6 +13,9 @@ import { tsImport } from '../server/node_modules/tsx/dist/esm/api/index.mjs';
 // Reutilizar el empaquetado seguro de la API con su ejecutor TypeScript ya instalado.
 const { loadConfig } = await tsImport('../server/src/config.ts', import.meta.url);
 const { createSourceTar, isValidBuildId } = await tsImport('../server/src/compile.ts', import.meta.url);
+const { applyChanges } = await tsImport('../server/src/datos.ts', import.meta.url);
+const { FUENTES_TEXTO } = await tsImport('../shared/tipografia.ts', import.meta.url);
+const { nuevaMemoria } = await tsImport('../server/src/nueva-memoria.ts', import.meta.url);
 
 export async function checkTemplateResult(body, outputDir) {
   if (body?.ok !== true || !Array.isArray(body.diagnostics)) throw new Error('La compilación no terminó correctamente');
@@ -20,6 +23,8 @@ export async function checkTemplateResult(body, outputDir) {
   if (typeof body.buildId !== 'string' || !isValidBuildId(body.buildId) || body.pdf !== `${body.buildId}/main.pdf`) throw new Error('El worker no indicó un PDF válido');
   const pdf = await fs.readFile(path.join(outputDir, body.pdf));
   if (pdf.length < 5 || pdf.subarray(0, 5).toString() !== '%PDF-') throw new Error('No se generó un PDF válido en la carpeta compartida');
+  const log = await fs.readFile(path.join(outputDir, body.buildId, 'main.log'), 'utf8');
+  if (/LaTeX Font Warning:|Missing character:/.test(log)) throw new Error('La plantilla produjo avisos de fuentes o caracteres ausentes (se exigen 0)');
 }
 
 async function waitForWorker(url) {
@@ -40,10 +45,68 @@ export async function compileTemplates({ workerUrl, outputDir }) {
   const scratch = await fs.mkdtemp(path.join(os.tmpdir(), 'estudio-tfg-template-'));
   const failures = [];
   try {
-    for (const { id } of listPerfiles()) {
-      const memoria = path.join(scratch, id);
+    const variantes = [
+      ...listPerfiles().flatMap(({ id }) => [{ id, ingles: false }, { id, ingles: true }]),
+      ...FUENTES_TEXTO.map(([fuente]) => ({ id: 'generico', ingles: false, fuente })),
+      ...['romanos', 'continua'].flatMap((numeracion) => ['si', 'no'].map((reflejo) => ({ id: 'generico', ingles: false, numeracion, reflejo }))),
+      ...['capitulos', 'secciones', 'subsecciones', 'sin-indices', 'vacios'].map((indices) => ({ id: 'generico', ingles: false, indices })),
+    ];
+    for (const { id, ingles, fuente, numeracion, reflejo, indices } of variantes) {
+      const nombre = indices ? `${id}-indices-${indices}` : numeracion ? `${id}-paginas-${numeracion}-reflejo-${reflejo}`
+        : fuente ? `${id}-fuente-${fuente}` : ingles ? `${id}-ingles` : id;
+      const memoria = path.join(scratch, nombre);
       await fs.mkdir(memoria);
       copyTemplate(memoria, { perfil: id });
+      if (indices === 'vacios') {
+        const archivos = nuevaMemoria({ datos: { modo: 'final' }, institucion: {}, apartados: { indices: true }, capitulos: ['Prueba de índices vacíos'] });
+        for (const [rel, data] of archivos) {
+          await fs.mkdir(path.dirname(path.join(memoria, rel)), { recursive: true });
+          await fs.writeFile(path.join(memoria, rel), data);
+        }
+      } else if (indices) {
+        const inst = path.join(memoria, 'estilo/institucion.tex');
+        await fs.writeFile(inst, applyChanges(await fs.readFile(inst, 'utf8'), 'institucion', {
+          numerarHasta: indices === 'capitulos' ? 'capitulos' : indices === 'subsecciones' ? 'secciones' : 'subsecciones',
+          indiceHasta: indices === 'sin-indices' ? 'subsecciones' : indices,
+          indiceGeneral: indices === 'sin-indices' ? 'no' : 'si', indiceFiguras: indices === 'secciones' ? 'si' : 'no',
+          indiceTablas: indices === 'capitulos' ? 'si' : 'no', indiceCodigo: indices === 'subsecciones' ? 'si' : 'no',
+        }));
+        await fs.appendFile(path.join(memoria, '1-capitulos/01-introduccion.tex'), String.raw`
+\section{Sección de prueba del índice}
+Texto ficticio para verificar la profundidad elegida.
+\subsection{Subsección de prueba del índice}
+Texto ficticio para verificar los títulos sin número.
+`);
+      }
+      if (numeracion) {
+        const inst = path.join(memoria, 'estilo/institucion.tex');
+        await fs.writeFile(inst, applyChanges(await fs.readFile(inst, 'utf8'), 'institucion', {
+          numeracionPaginas: numeracion, estiloPagina: 'personalizado', caras: 'dos', reflejarCabeceras: reflejo,
+          cabeceraInicioCapitulo: reflejo, cabeceraIzquierda: 'texto', cabeceraIzquierdaTexto: 'Cabecera propia & prueba',
+          cabeceraCentro: 'capitulo', cabeceraDerecha: 'seccion',
+          pieIzquierda: 'texto', pieIzquierdaTexto: 'Pie propio', pieCentro: 'vacio', pieDerecha: 'pagina',
+        }));
+        await fs.appendFile(path.join(memoria, '1-capitulos/01-introduccion.tex'), String.raw`
+\newpage
+\section{Prueba en página par}
+Página ficticia para comprobar la cabecera y el pie reflejados.
+\newpage
+Página ficticia para comprobar las posiciones en la siguiente página impar.
+`);
+      }
+      if (fuente) {
+        const inst = path.join(memoria, 'estilo/institucion.tex');
+        const titulos = { times: 'palatino', latinmodern: 'times', palatino: 'latinmodern', heros: 'heros' };
+        await fs.writeFile(inst, applyChanges(await fs.readFile(inst, 'utf8'), 'institucion', {
+          fuenteTexto: fuente, fuenteTitulos: titulos[fuente], fuenteSeccion: 'sans',
+          tamanoCapitulo: '24', tamanoSeccion: '17.5', tamanoSubseccion: '12',
+          negritaSubseccion: 'no', mayusculasCapitulo: 'no', mayusculasSeccion: 'no', mayusculasSubseccion: 'si',
+        }));
+      }
+      if (ingles) {
+        const datos = path.join(memoria, 'datos.tex');
+        await fs.writeFile(datos, (await fs.readFile(datos, 'utf8')).replace(/^\\idioma\{espanol\}/m, '\\idioma{ingles}'));
+      }
       const cfg = loadConfig({ MEMORIA_DIR: memoria, NOTES_DIR: scratch, BUILD_DIR: outputDir, ALLOWED_ROOTS: scratch }, scratch);
       let body;
       try {
@@ -53,14 +116,14 @@ export async function compileTemplates({ workerUrl, outputDir }) {
           body: Readable.toWeb(stream), duplex: 'half', signal: AbortSignal.timeout(180_000),
         });
         body = await res.json();
-        await fs.writeFile(path.join(outputDir, `resultado-${id}.json`), JSON.stringify(body, null, 2) + '\n');
+        await fs.writeFile(path.join(outputDir, `resultado-${nombre}.json`), JSON.stringify(body, null, 2) + '\n');
         if (!res.ok) throw new Error(`Error del worker (HTTP ${res.status})`);
         await checkTemplateResult(body, outputDir);
-        console.log(`✓ ${id}: PDF generado, 0 avisos (LaTeX y biber)`);
+        console.log(`✓ ${nombre}: PDF generado, 0 avisos (LaTeX y biber)`);
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
-        failures.push(`${id}: ${message}`);
-        console.error(`✗ ${id}: ${message}`);
+        failures.push(`${nombre}: ${message}`);
+        console.error(`✗ ${nombre}: ${message}`);
         if (body?.diagnostics) console.error(JSON.stringify(body.diagnostics, null, 2));
       }
     }

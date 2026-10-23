@@ -954,6 +954,8 @@ Las propuestas posteriores se reúnen en [Propuestas del asistente y decisiones 
 - **Alcance aprobado**: búsqueda autónoma en fuentes autorizadas por conversación, texto/PDF/imágenes, actividad visible, historial local separado por cuenta/proyecto y propuestas sobre varios documentos con revisión previa. Sin terminal, navegación web, creación ni borrado de documentos.
 - **Guía y contrato**: [ASISTENTE.md](ASISTENTE.md) y [CONTRACT.md, v0.40](CONTRACT.md#asistente-de-escritorio-con-chatgpt-v040).
 
+- **Plantillas desde normativa**: implementadas en la rama de revisión, con adjunto autorizado, citas, dudas y revisión manual antes de crear una memoria nueva; contrato v0.76. Validación automatizada con proveedor ficticio; pendiente ensayo con cuenta real.
+
 #### NF1.1 · Conexión personal y sesiones seguras — #77
 
 - **Entrega**: PKCE, `state`, `nonce`, identidad OIDC validada, registro del cliente por cuenta, almacén seguro del sistema y renovación rotatoria serializada. Conectar, cambiar de cuenta, reconectar, autorizar uso del plan y desconectar desde la app. Catálogo de modelos de la cuenta y explicación de uso del plan.

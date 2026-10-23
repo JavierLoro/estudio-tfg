@@ -63,6 +63,8 @@ function position(dock: DockviewApi, opts: OpenOptions) {
   const group = dock.activeGroup?.api.isVisible ? dock.activeGroup : dock.groups.find(g => g.api.isVisible);
   if (opts.side && group) return { referenceGroup: group, direction: 'right' as const };
   if (group) return { referenceGroup: group };
+  // El PDF fijo puede ser el único grupo restante y estar oculto.
+  if (dock.groups.length) return { referenceGroup: dock.groups[0], direction: 'left' as const };
   return undefined;
 }
 

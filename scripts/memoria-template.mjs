@@ -19,7 +19,7 @@ export const DEFAULT_PERFIL = 'esi-uclm';
  * Versión de la plantilla actual (nombre de su manifiesto). Súbela cuando cambie la
  * versión de la clase (\ProvidesClass de estilo/memoria.cls).
  */
-export const PLANTILLA_VERSION = 'v0.5';
+export const PLANTILLA_VERSION = 'v0.10';
 
 const PERFIL_ID = /^[a-z0-9][a-z0-9-]*$/;
 
@@ -100,16 +100,23 @@ export function hasGit() {
  * no tiene `.git`, crea su propio repositorio con un commit inicial. Nunca
  * sobrescribe: si `dir` no está vacía lanza un error con `code = 'ENOTEMPTY'`;
  * si el perfil no existe, con `code = 'EPERFIL'` (antes de crear nada).
+ * `archivos` permite usar fuentes ya generadas y validadas por el servidor, con rutas internas fijas.
  * @returns {{ dir: string, git: boolean, perfil: string, warning?: string }} git = se creó el repositorio.
  */
-export function createMemoriaFromTemplate(dir, { perfil = DEFAULT_PERFIL, templatesDir = TEMPLATES_DIR } = {}) {
+export function createMemoriaFromTemplate(dir, { perfil = DEFAULT_PERFIL, templatesDir = TEMPLATES_DIR, archivos } = {}) {
   perfilDir(perfil, templatesDir);
   if (!isEmptyDir(dir)) {
     throw Object.assign(new Error(`La carpeta no está vacía: ${dir}`), { code: 'ENOTEMPTY' });
   }
   const available = hasGit(); // Comprobar antes de copiar para no fallar por Git ausente a mitad.
   fs.mkdirSync(dir, { recursive: true });
-  copyTemplate(dir, { perfil, templatesDir });
+  if (archivos) {
+    for (const [rel, content] of archivos) {
+      const dest = path.join(dir, rel);
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      fs.writeFileSync(dest, content, { flag: 'wx' });
+    }
+  } else copyTemplate(dir, { perfil, templatesDir });
   if (!available) return { dir, git: false, perfil, warning: NO_GIT_WARNING };
   if (fs.existsSync(path.join(dir, '.git'))) return { dir, git: false, perfil };
   const git = (...a) => execFileSync('git', [...gitPlatformArgs(), ...a], { cwd: dir, stdio: 'ignore' });

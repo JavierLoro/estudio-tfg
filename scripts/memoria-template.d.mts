@@ -14,7 +14,7 @@ export declare function perfilDir(perfil: string, templatesDir?: string): string
 export declare function copyTemplate(dir: string, opts?: { perfil?: string; templatesDir?: string }): void;
 export declare const NO_GIT_WARNING: string;
 export declare function hasGit(): boolean;
-export declare function createMemoriaFromTemplate(dir: string, opts?: { perfil?: string; templatesDir?: string }): { dir: string; git: boolean; perfil: string; warning?: string };
+export declare function createMemoriaFromTemplate(dir: string, opts?: { perfil?: string; templatesDir?: string; archivos?: Map<string, string | Buffer> }): { dir: string; git: boolean; perfil: string; warning?: string };
 export interface Manifiesto {
   version: string;
   clase: string | null;
