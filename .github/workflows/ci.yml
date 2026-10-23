@@ -205,6 +205,7 @@ jobs:
           name: plantilla-diagnosticos
           path: |
             ${{ env.TEMPLATE_OUT }}/resultado-*.json
+            ${{ env.TEMPLATE_OUT }}/mapa-*.pdf
             ${{ env.TEMPLATE_OUT }}/**/*.log
             ${{ env.TEMPLATE_OUT }}/**/latexmk.txt
             ${{ env.TEMPLATE_OUT }}/native/**/resultado-*.json

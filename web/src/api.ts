@@ -96,6 +96,24 @@ export interface SaveResponse {
   mtime: number;
 }
 
+export interface ImportedFile {
+  root: Root;
+  path: string;
+  rev: string;
+  reused: boolean;
+}
+
+export interface LibraryMapNode {
+  id: string;
+  parent: string | null;
+  title: string;
+  note: string;
+  resourceId?: string;
+}
+export interface LibraryMapLink { id: string; from: string; to: string; label: string }
+export interface LibraryMap { version: 1; nodes: LibraryMapNode[]; links: LibraryMapLink[] }
+export interface LibraryMapResponse { libraryId: string; map: LibraryMap; rev: string; exists: boolean }
+
 export interface Backlink {
   path: string;
   title: string;
@@ -562,6 +580,12 @@ export const api = {
   createFile: (root: Root, path: string, content: string) =>
     json<SaveResponse>('/api/file', jsonBody('POST', { root, path, content })),
 
+  importFile: (root: Root, directory: string, instanceId: string, file: File) => {
+    const body = new FormData();
+    body.set('file', file, file.name);
+    return json<ImportedFile>(`/api/files/import?${qs({ root, directory, instanceId })}`, { method: 'POST', body });
+  },
+
   /** v0.7: crea una carpeta (con intermedias). 409 si ya existe. */
   createDir: (root: Root, path: string) => json<{ path: string }>('/api/dir', jsonBody('POST', { root, path })),
 
@@ -584,6 +608,10 @@ export const api = {
   backlinks: (path: string) => json<{ items: Backlink[] }>(`/api/notes/backlinks?${qs({ path })}`),
 
   capture: (form: FormData) => json<{ path: string; title: string; id?: string; warning?: string }>('/api/capture', { method: 'POST', body: form }),
+
+  libraryMap: () => json<LibraryMapResponse>('/api/library/map'),
+  saveLibraryMap: (libraryId: string, baseRev: string, map: LibraryMap) =>
+    json<LibraryMapResponse>('/api/library/map', jsonBody('PUT', { libraryId, baseRev, map })),
 
   captureOperation: (operationId: string, libraryId: string) =>
     json<{ state: 'unknown' | 'prepared' | 'done' }>(`/api/capture/operation?${qs({ operationId, libraryId })}`),

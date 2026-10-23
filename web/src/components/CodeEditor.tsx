@@ -14,6 +14,8 @@ import { editorViews } from '../lib/editorInsert';
 import { visualCaret } from '../lib/latexVisual';
 import { latexVisualEditor } from '../lib/latexVisualEditor';
 import { editorContextMenu } from './EditorContextMenu';
+import { hasDroppedFiles } from '../lib/fileImport';
+import { openDroppedFiles } from './FileImportDialog';
 
 export interface LineDiagnostic {
   line: number | null;
@@ -111,6 +113,20 @@ export function CodeEditor({ docKey, lang, lineNumbers = true, className, onSave
             ]),
           ),
           baseExtensions({ lineNumbers }),
+          Prec.highest(EditorView.domEventHandlers({
+            dragover: (event) => {
+              if (!hasDroppedFiles(event.dataTransfer)) return false;
+              event.preventDefault();
+              if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+              return true;
+            },
+            drop: (event, view) => {
+              if (!hasDroppedFiles(event.dataTransfer)) return false;
+              event.preventDefault(); event.stopPropagation();
+              openDroppedFiles(event.dataTransfer, { editorKey: docKey, root: doc.root, position: view.posAtCoords({ x: event.clientX, y: event.clientY }) ?? view.state.selection.main.head });
+              return true;
+            },
+          })),
           EditorView.domEventHandlers({
             contextmenu: (event, view) => {
               if (!view.contentDOM.contains(event.target as Node)) return false;

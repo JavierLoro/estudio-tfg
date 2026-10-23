@@ -246,7 +246,7 @@ export const MarkdownView = memo(function MarkdownView({ content, path, root = '
         }
         if (href && !isExternal(href) && !href.startsWith('#')) {
           // Enlace relativo dentro del vault.
-          const rel = decodeURI(href.split('#')[0]);
+          const rel = decodeURIComponent(href.split('#')[0]);
           const target = join(dir, rel);
           return (
             <a
@@ -272,7 +272,7 @@ export const MarkdownView = memo(function MarkdownView({ content, path, root = '
         const s = typeof src === 'string' ? src : '';
         if (s.startsWith('wikiembed:')) return <EmbedImage target={decodeURIComponent(s.slice(10))} alt={alt} notePath={path} />;
         if (s && !isExternal(s) && !s.startsWith('/')) {
-          return <img {...rest} alt={alt} loading="lazy" src={api.rawUrl(root, join(dir, decodeURI(s)))} />;
+          return <img {...rest} alt={alt} loading="lazy" src={api.rawUrl(root, join(dir, decodeURIComponent(s)))} />;
         }
         return <img {...rest} alt={alt} loading="lazy" src={s} />;
       },

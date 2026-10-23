@@ -17,7 +17,7 @@ En Linux, instalar también las bibliotecas del navegador: desde `test/e2e`, `np
 
 ## Compilación real
 
-El recorrido `@worker` exige `E2E_WORKER_URL` y `E2E_WORKER_OUT` (loopback y carpeta temporal montada en `/out`). **Usar un worker dedicado**, sin compartir datos ni puerto con una instancia personal. Sin esas variables, solo ese recorrido se marca omitido. No se simula un PDF ni se da por comprobada la compilación.
+Los recorridos `@worker` exigen `E2E_WORKER_URL` y `E2E_WORKER_OUT` (loopback y carpeta temporal montada en `/out`). **Usar un worker dedicado**, sin compartir datos ni puerto con una instancia personal. Sin esas variables, esos recorridos se marcan omitidos. No se simula un PDF ni se da por comprobada la compilación.
 
 Ejemplo macOS/Linux; el contenedor tiene un puerto libre y se elimina al salir:
 
@@ -43,7 +43,7 @@ Ejemplo macOS/Linux; el contenedor tiene un puerto libre y se elimina al salir:
 
 - `@smoke`: añadir/buscar/consultar, adjuntos, metadatos ficticios, foco/Escape y conflicto externo que exige revisar antes de reaplicar. CI: Chromium en Linux, macOS y Windows.
 - Suite completa: lote parcialmente enviado, respuesta perdida y recibo idempotente, IndexedDB tras recarga, 401 real y reautenticación, cambio de vault, fichas movidas con adjuntos, bibliografía original y duplicados, migrar/deshacer y respaldo/restauración en otra ubicación con manifiestos. CI: Chromium/Linux.
-- `@worker`: importar bibliografía revisada, insertar cita y figura, deshacer/rehacer, guardar y compilar; comprobar el texto del PDF en el visor y recompilar una memoria trasladada sin Biblioteca. La CI reutiliza su worker aislado y mantiene la comprobación L4 de ambos perfiles sin avisos.
+- `@worker`: importar bibliografía revisada, insertar cita y figura, deshacer/rehacer, guardar y compilar; comprobar el texto del PDF en el visor y recompilar una memoria trasladada sin Biblioteca. El mapa añade dos figuras reutilizadas, notas con caracteres especiales, enlace con parámetros, cita y diagrama Mermaid en ambos perfiles; exige cero diagnósticos y repite sobre copias trasladadas con Biblioteca apartada. Conserva cuatro PDFs `mapa-<perfil>-<etapa>.pdf` y sus `resultado-mapa-<perfil>-<etapa>.json` en `E2E_WORKER_OUT`. La CI reutiliza su worker aislado y mantiene la comprobación L4 de ambos perfiles sin avisos.
 
 Sin reintentos automáticos que oculten inestabilidad. Al fallar se conservan trazas, pantallas y logs de la API en `test/e2e/test-results/`, además del informe HTML en `playwright-report/`; la CI los publica durante siete días. Son evidencias de fixtures, nunca contenido personal. Abrir una traza desde `test/e2e` con `npx playwright show-trace <ruta/trace.zip>`.
 
