@@ -6,6 +6,7 @@ import { useMemo } from 'react';
 import { create } from 'zustand';
 import { ApiError, ConflictError, api, diagramasApi, errorMessage, type DiagramaItem, type OutlineItem, type OutlineResponse } from '../api';
 import { basename, docKey, stripExt } from '../lib/paths';
+import { escapeVisualText } from '../lib/latexVisual';
 import { editContent, ensureDoc, requestReveal, saveDoc, useDocs, isDirty } from './docs';
 import { useCursor } from './cursor';
 import { onFileChange } from './events';
@@ -53,7 +54,7 @@ export function refreshDiagramasSoon(delay = 400) {
 // Cambios en disco que afectan al estado: fuentes, figuras exportadas y .tex que las incluyen.
 onFileChange((ev) => {
   if (ev.root !== 'memoria') return;
-  if (/\.(mmd|tex)$/i.test(ev.path) || ev.path.startsWith('figuras/diagramas/') || ev.kind === 'move') refreshDiagramasSoon();
+  if (/\.(mmd|excalidraw|tex)$/i.test(ev.path) || ev.path.startsWith('figuras/diagramas/') || ev.kind === 'move') refreshDiagramasSoon();
 });
 
 export function useDiagramaItem(path: string): DiagramaItem | null {
@@ -62,15 +63,15 @@ export function useDiagramaItem(path: string): DiagramaItem | null {
 
 /** `diagramas/a/b.mmd` → `a/b` (null si no está en diagramas/). */
 export function diagramName(path: string): string | null {
-  if (!path.startsWith(DIAGRAMAS_DIR + '/') || !/\.mmd$/i.test(path)) return null;
-  return path.slice(DIAGRAMAS_DIR.length + 1).replace(/\.mmd$/i, '');
+  if (!path.startsWith(DIAGRAMAS_DIR + '/') || !/\.(mmd|excalidraw)$/i.test(path)) return null;
+  return path.slice(DIAGRAMAS_DIR.length + 1).replace(/\.(mmd|excalidraw)$/i, '');
 }
 
 /** Nombre válido para LaTeX y para el sistema de archivos: sin tildes, espacios ni símbolos. */
 export function sanitizeDiagramName(raw: string): string {
   return raw
     .trim()
-    .replace(/\.mmd$/i, '')
+    .replace(/\.(mmd|excalidraw)$/i, '')
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .split('/')
@@ -126,6 +127,8 @@ export function useStaleFigures(id: string | undefined): string[] | null {
 // ---- Crear ----
 
 interface NewDiagramRequest {
+  instanceId?: string;
+  format?: 'mermaid' | 'excalidraw';
   /** Carpeta dentro de diagramas/ donde crearlo ('' = diagramas/). */
   dir: string;
   /** Fuente ya decidida (copiada de una nota): solo se pide el nombre. */
@@ -139,18 +142,20 @@ export const useNewDiagram = create<{ req: NewDiagramRequest | null }>(() => ({ 
 /** Abre «Nuevo diagrama». `dir`: carpeta del árbol en la que se pidió (se usa si está en diagramas/). */
 export function openNewDiagram(dir = '', source?: string) {
   const inside = dir === DIAGRAMAS_DIR || dir.startsWith(DIAGRAMAS_DIR + '/') ? dir.slice(DIAGRAMAS_DIR.length + 1) : '';
-  useNewDiagram.setState({ req: { dir: inside, source } });
+  useNewDiagram.setState({ req: { dir: inside, source, instanceId: useUI.getState().status?.instanceId } });
 }
 
-export async function createDiagram(name: string, source: string): Promise<string | null> {
+export async function createDiagram(name: string, source: string, format: 'mermaid' | 'excalidraw' = 'mermaid', instanceId = useUI.getState().status?.instanceId): Promise<string | null> {
   const clean = sanitizeDiagramName(name);
   if (!clean) {
     toast({ kind: 'error', text: 'El nombre del diagrama no es válido' });
     return null;
   }
-  const path = `${DIAGRAMAS_DIR}/${clean}.mmd`;
+  const path = `${DIAGRAMAS_DIR}/${clean}.${format === 'excalidraw' ? 'excalidraw' : 'mmd'}`;
   try {
-    await api.createFile('memoria', path, source.endsWith('\n') ? source : source + '\n');
+    if (instanceId !== useUI.getState().status?.instanceId) throw new Error('El proyecto cambió; vuelve al destino original');
+    await api.createFile('memoria', path, format === 'excalidraw' || source.endsWith('\n') ? source : source + '\n', instanceId);
+    if (instanceId !== useUI.getState().status?.instanceId) throw new Error('El archivo se creó en el proyecto original; vuelve a él para abrirlo');
   } catch (e) {
     toast({ kind: 'error', text: e instanceof ApiError && e.status === 409 ? `Ya existe «${path}»` : `No se pudo crear «${path}»: ${errorMessage(e)}` });
     return null;
@@ -166,6 +171,7 @@ export async function createDiagram(name: string, source: string): Promise<strin
 
 /** Guarda la fuente si hace falta, la dibuja con el aspecto de impresión y la exporta (PDF + SVG). */
 export async function exportDiagram(path: string, opts: { quiet?: boolean } = {}): Promise<boolean> {
+  const destination = useUI.getState().status?.instanceId;
   const name = diagramName(path);
   if (!name) {
     toast({ kind: 'error', text: 'Solo se pueden exportar los diagramas de la carpeta diagramas/' });
@@ -183,21 +189,28 @@ export async function exportDiagram(path: string, opts: { quiet?: boolean } = {}
     return false;
   }
   if (isDirty(d) && !(await saveDoc(key))) return false;
-  d = useDocs.getState().docs[key]!;
-  const { renderDiagram } = await import('../lib/diagram');
-  const r = await renderDiagram(d.savedContent, name, `diagrama-${name.replace(/[^A-Za-z0-9_-]/g, '-')}`);
+  d = useDocs.getState().docs[key];
+  if (!d || d.status !== 'ready' || destination !== useUI.getState().status?.instanceId) {
+    toast({ kind: 'error', text: 'El proyecto cambió; vuelve al destino original' });
+    return false;
+  }
+  const excalidraw = /\.excalidraw$/i.test(path);
+  const r = excalidraw
+    ? await (await import('../lib/excalidraw')).renderExcalidraw(d.savedContent)
+    : await (await import('../lib/diagram')).renderDiagram(d.savedContent, name, `diagrama-${name.replace(/[^A-Za-z0-9_-]/g, '-')}`);
   if (!r.ok) {
     toast({ kind: 'error', text: `No se puede exportar: ${r.message.split('\n')[0]}${r.line ? ` (línea ${r.line})` : ''}` });
     return false;
   }
   try {
+    if (destination !== useUI.getState().status?.instanceId) throw new Error('El proyecto cambió; vuelve al destino original');
     let out;
     try {
-      out = await diagramasApi.exportar(path, r.svg, d.rev);
+      out = await diagramasApi.exportar(path, r.svg, d.rev, 'pdf' in r && typeof r.pdf === 'string' ? r.pdf : undefined, destination);
     } catch (e) {
       if (!(e instanceof ApiError) || e.status !== 422 || (e.body as { code?: string })?.code !== 'PDF_BROWSER_REQUIRED') throw e;
       const { diagramPdf } = await import('../lib/diagramPdf');
-      out = await diagramasApi.exportar(path, r.svg, d.rev, await diagramPdf(r.svg));
+      out = await diagramasApi.exportar(path, r.svg, d.rev, await diagramPdf(r.svg), destination);
     }
     await useDiagramas.getState().refresh();
     useUI.getState().refreshTree('memoria');
@@ -219,7 +232,7 @@ export function figureBlock(nombre: string, caption: string, label: string, widt
     '\\begin{figure}[htbp]',
     '  \\centering',
     `  \\includegraphics[width=${width}]{${nombre}}`,
-    `  \\caption{${caption}}`,
+    `  \\caption{${escapeVisualText(caption)}}`,
     `  \\label{${label}}`,
     '\\end{figure}',
   ].join('\n');
@@ -279,6 +292,7 @@ export function sectionEndLine(outline: OutlineResponse, item: OutlineItem, cont
 
 export interface InsertRequest {
   path: string;
+  instanceId?: string;
   target: OutlineItem;
   caption: string;
   label: string;
@@ -292,6 +306,9 @@ export function openInEditor(file: string): boolean {
 }
 
 export async function insertFigure(req: InsertRequest): Promise<boolean> {
+  const currentProject = () => req.instanceId === useUI.getState().status?.instanceId;
+  const changedProject = () => { toast({ kind: 'error', text: 'El proyecto cambió; vuelve al destino original antes de insertar' }); return false; };
+  if (!currentProject()) return changedProject();
   const name = diagramName(req.path);
   if (!name) return false;
   const nombre = `${DIAGRAMAS_DIR}/${name}`;
@@ -301,6 +318,7 @@ export async function insertFigure(req: InsertRequest): Promise<boolean> {
   if (!item || item.estado !== 'exportado' || isDirty(doc)) {
     if (!(await exportDiagram(req.path, { quiet: true }))) return false;
   }
+  if (!currentProject()) return changedProject();
   const outline = useOutline.getState().data;
   const file = req.target.file;
   const block = figureBlock(nombre, req.caption.trim(), req.label.trim(), req.width);
@@ -318,9 +336,10 @@ export async function insertFigure(req: InsertRequest): Promise<boolean> {
   } else {
     try {
       const f = await api.readFile('memoria', file);
+      if (!currentProject()) return changedProject();
       const after = outline ? sectionEndLine(outline, req.target, f.content) : f.content.split('\n').length;
       const r = insertAfterLine(f.content, after, block);
-      await api.saveFile('memoria', file, r.content, f.rev);
+      await api.saveFile('memoria', file, r.content, f.rev, req.instanceId);
       refreshOutlineSoon(500);
       where = `${file}:${r.line}`;
     } catch (e) {
@@ -344,15 +363,15 @@ export async function insertFigure(req: InsertRequest): Promise<boolean> {
   return true;
 }
 
-export const useInsertFigure = create<{ path: string | null }>(() => ({ path: null }));
-export const openInsertFigure = (path: string) => useInsertFigure.setState({ path });
+export const useInsertFigure = create<{ path: string | null; instanceId?: string }>(() => ({ path: null }));
+export const openInsertFigure = (path: string) => useInsertFigure.setState({ path, instanceId: useUI.getState().status?.instanceId });
 
 // ---- Desde las notas ----
 
 /** «Usar en la memoria» en un bloque ```mermaid: copia el bloque a diagramas/<nombre>.mmd. */
 export function copyFromNote(code: string, notePath?: string) {
   const suggested = notePath ? sanitizeDiagramName(stripExt(basename(notePath))) : '';
-  useNewDiagram.setState({ req: { dir: '', source: code, name: suggested } });
+  useNewDiagram.setState({ req: { dir: '', source: code, name: suggested, instanceId: useUI.getState().status?.instanceId, format: /\.excalidraw$/i.test(notePath ?? '') ? 'excalidraw' : 'mermaid' } });
 }
 
 // ---- Renombrar y eliminar (sección Diagramas) ----
@@ -381,7 +400,8 @@ export async function renameDiagram(item: DiagramaItem): Promise<boolean> {
     return false;
   }
   if (clean === current) return false;
-  const to = `${DIAGRAMAS_DIR}/${clean}.mmd`;
+  const extension = /\.excalidraw$/i.test(item.path) ? 'excalidraw' : 'mmd';
+  const to = `${DIAGRAMAS_DIR}/${clean}.${extension}`;
   if (!(await moveEntry('memoria', item.path, to, { rename: true }))) return false;
   // Las figuras siguen a la fuente: mismo nombre en figuras/diagramas/.
   for (const fig of figurePaths(item)) {

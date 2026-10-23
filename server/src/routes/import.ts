@@ -8,6 +8,9 @@ import { linkExclusive, rev } from '../fsutil.ts';
 import { isIgnoredRel } from '../ignore.ts';
 import { normalizeRel, parseRoot, resolveSafe, validateNewPath } from '../paths.ts';
 import { instanceId } from '../settings.ts';
+import { treeKey } from '../fileops.ts';
+import { checkDiagramDestination } from '../diagramFiles.ts';
+import { parseExcalidraw } from '../../../shared/excalidraw.ts';
 
 export default async function importRoutes(app: FastifyInstance, { ctx }: { ctx: Ctx }) {
   app.post('/api/files/import', async (req) => {
@@ -34,12 +37,15 @@ export default async function importRoutes(app: FastifyInstance, { ctx }: { ctx:
       }
       if (!tmp) throw badRequest('Selecciona un archivo');
       const bytes = await fs.readFile(tmp), revision = rev(bytes);
+      if (/\.excalidraw$/i.test(filename)) { try { parseExcalidraw(bytes.toString('utf8')); } catch (e) { throw badRequest((e as Error).message); } }
       const extension = path.posix.extname(filename), stem = filename.slice(0, filename.length - extension.length);
-      return await ctx.locks.run(`${root}:import:${directory}/${filename}`, async () => {
+      return await ctx.locks.run(treeKey(root), () => ctx.locks.run(`${root}:import:${directory}/${filename}`, async () => {
         for (let n = 1; n <= 1000; n++) {
           checkDestination();
           const name = n === 1 ? filename : `${stem} ${n}${extension}`;
           const target = await resolveSafe(cfg, root, path.posix.join(directory, name));
+          try { await checkDiagramDestination(cfg, root, target.rel); }
+          catch (e) { if (e instanceof HttpError && e.statusCode === 409) continue; throw e; }
           if (target.exists) {
             const stat = await fs.stat(target.abs);
             if (stat.isFile() && stat.size === bytes.length && (await fs.readFile(target.abs)).equals(bytes))
@@ -49,7 +55,7 @@ export default async function importRoutes(app: FastifyInstance, { ctx }: { ctx:
           } else n--; // Otra creación ganó el nombre: comprobar sus bytes antes de elegir otro.
         }
         throw new HttpError(409, 'Hay demasiados archivos con este nombre; elige otra carpeta');
-      });
+      }));
     } finally {
       if (tmp) await fs.rm(tmp, { force: true });
     }

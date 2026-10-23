@@ -15,6 +15,14 @@ npm run test:e2e -- --grep "@smoke"
 
 En Linux, instalar también las bibliotecas del navegador: desde `test/e2e`, `npx playwright install --with-deps chromium`. Se prueba la web construida, servida por la propia API; reconstruirla tras cambiar la interfaz.
 
+## Excalidraw
+
+`npm test --prefix test/e2e -- excalidraw.spec.mjs diagram-picker.spec.mjs` comprueba elección de editor y plantillas, guardado/reapertura, Deshacer/Rehacer, imágenes incrustadas, copia desde Biblioteca, conflictos y recuperación del borrador. Simula también cuota agotada y verifica que «Descargar copia» conserva la edición actual sin cambiar el original.
+
+Para el escritorio real, ejecutar antes `npm run bundle --prefix server` y `npm run build --prefix web`, y después `E2E_DESKTOP=1 npm test --prefix test/e2e -- excalidraw-desktop.spec.mjs`. Usa perfil y carpetas temporales; comprueba la CSP, la exportación a SVG/PDF y que todas las fuentes se cargan localmente. No necesita un motor LaTeX instalado.
+
+Con `E2E_EXCALIDRAW_OUT` se conservan las seis exportaciones de plantilla. El recorrido Excalidraw `@worker` inserta una escena con imagen en ambos perfiles, exige cero diagnósticos y recompila tras trasladar la memoria sin Biblioteca. Guarda `excalidraw-*.pdf` y `resultado-excalidraw-*.json` en `E2E_WORKER_OUT`.
+
 ## Compilación real
 
 Los recorridos `@worker` exigen `E2E_WORKER_URL` y `E2E_WORKER_OUT` (loopback y carpeta temporal montada en `/out`). **Usar un worker dedicado**, sin compartir datos ni puerto con una instancia personal. Sin esas variables, esos recorridos se marcan omitidos. No se simula un PDF ni se da por comprobada la compilación.

@@ -238,6 +238,7 @@ test('el mapa compila ambos perfiles y sus copias trasladadas sin Biblioteca @wo
   async function compile(profile, stage, fromEditor) {
     let response;
     if (fromEditor) {
+      await expect(page.getByRole('button', { name: 'Guardar y compilar', exact: true }).last()).toBeVisible();
       const waiting = page.waitForResponse(r => r.url().endsWith('/api/compile') && r.request().method() === 'POST');
       await page.getByRole('button', { name: 'Guardar y compilar', exact: true }).last().click();
       response = await waiting;

@@ -574,11 +574,11 @@ export const api = {
   readFile: (root: Root, path: string) => json<FileResponse>(`/api/file?${qs({ root, path })}`),
 
   /** Lanza ConflictError en 409. */
-  saveFile: (root: Root, path: string, content: string, baseRev: string) =>
-    json<SaveResponse>('/api/file', jsonBody('PUT', { root, path, content, baseRev })),
+  saveFile: (root: Root, path: string, content: string, baseRev: string, instanceId?: string) =>
+    json<SaveResponse>('/api/file', jsonBody('PUT', { root, path, content, baseRev, instanceId })),
 
-  createFile: (root: Root, path: string, content: string) =>
-    json<SaveResponse>('/api/file', jsonBody('POST', { root, path, content })),
+  createFile: (root: Root, path: string, content: string, instanceId?: string) =>
+    json<SaveResponse>('/api/file', jsonBody('POST', { root, path, content, instanceId })),
 
   importFile: (root: Root, directory: string, instanceId: string, file: File) => {
     const body = new FormData();
@@ -793,6 +793,7 @@ export interface DiagramaEstado {
 
 /** Elemento de GET /api/diagramas/estado sin `path`. */
 export interface DiagramaItem extends DiagramaEstado {
+  formato: 'mermaid' | 'excalidraw';
   path: string;
   /** `diagramas/<nombre>` (lo que va en \includegraphics). */
   nombre: string;
@@ -803,6 +804,6 @@ export const diagramasApi = {
   estado: (path: string) => json<DiagramaEstado>(`/api/diagramas/estado?${qs({ path })}`),
   lista: () => json<{ items: DiagramaItem[] }>('/api/diagramas/estado'),
   /** ApiError 409 si la fuente cambió desde `rev` (body.rev = la actual). */
-  exportar: (path: string, svg: string, rev: string, pdf?: string) =>
-    json<{ pdf: string; svg: string; exportadoEn: string }>('/api/diagramas/exportar', jsonBody('POST', { path, svg, rev, pdf })),
+  exportar: (path: string, svg: string, rev: string, pdf?: string, instanceId?: string) =>
+    json<{ pdf: string; svg: string; exportadoEn: string }>('/api/diagramas/exportar', jsonBody('POST', { path, svg, rev, pdf, instanceId })),
 };
