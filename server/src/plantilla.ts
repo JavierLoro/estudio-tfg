@@ -189,6 +189,11 @@ export async function computePlan(cfg: Config, perfilPedido?: string): Promise<P
     revisar,
     next,
   });
+  const mainRel = cfg.memoriaMain;
+  const mainBuf = await readMem(cfg, mainRel);
+  const usedClass = mainBuf?.toString('utf8').replace(/^\s*%.*$/gm, '')
+    .match(/^\s*\\documentclass\s*(?:\[[^\]]*\]\s*)?\{([^}]+)\}/m)?.[1]?.trim();
+  if (usedClass && !['estilo/memoria', 'estilo/esi-tfg'].includes(usedClass)) return plan('desconocida', null);
 
   const memCls = await readMem(cfg, 'estilo/memoria.cls');
   const oldCls = await readMem(cfg, 'estilo/esi-tfg.cls');
@@ -205,8 +210,6 @@ export async function computePlan(cfg: Config, perfilPedido?: string): Promise<P
   };
 
   // tfg.tex: edición puntual (\documentclass y bloque de índices si sigue como en la plantilla).
-  const mainRel = cfg.memoriaMain;
-  const mainBuf = await readMem(cfg, mainRel);
   let sigueClaseAntigua = false;
   if (mainBuf) {
     const src = mainBuf.toString('utf8');

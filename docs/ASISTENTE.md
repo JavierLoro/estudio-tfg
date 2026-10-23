@@ -173,3 +173,16 @@ Solo la necesidad y filtros visibles llegan a los buscadores; nunca los document
 La bandeja es independiente de Biblioteca. Permite detener, retomar consultas y reintentar partes fallidas; no incorpora ni descarga al cerrar. Guarda solo después de revisar datos y duplicados. Consulta los límites y la recuperación en la guía de Biblioteca.
 
 Validación automatizada de estos bloques: OAuth/proveedores ficticios, privacidad de contexto, límites, conflictos, persistencia, parciales, recibos y recorridos de navegador/Electron. La búsqueda web real depende de la cuenta/modelo: **queda pendiente el ensayo final con una cuenta conectada en un perfil aislado** (Rápida, Ampliada, contexto seleccionado y un diagrama). No se han copiado credenciales de la app personal ni consumido su suscripción para estos tests.
+
+
+## Crear una plantilla desde normativa
+
+En escritorio, abre Ajustes → Plantillas → **Crear desde normativa…**. Adjunta un PDF, TXT o Markdown de hasta 20 MiB, elige modelo y marca el envío de esa normativa a ChatGPT. Solo se envía ese archivo; esta acción tiene su propio consentimiento.
+
+Revisa los requisitos junto a sus citas y páginas. **Ver normativa** abre el documento original. Responde a las dudas y pulsa **Analizar respuestas con ChatGPT**; cada análisis consume uso de tu cuenta. Si hay requisitos no compatibles, revísalos antes de continuar. La app no certifica cumplimiento de la normativa.
+
+**Revisar configuración** abre los mismos pasos de creación manual: datos e idioma, página, texto y títulos, apartados y revisión. Puedes corregir la propuesta, componer portadas y añadir capítulos. **Crear memoria** guarda en una carpeta nueva y abre el documento, conservando la memoria anterior. Los logos y requisitos que no puedan representarse quedan para revisión.
+
+Puedes cerrar y recuperar una propuesta, detener un análisis o eliminarlo. No hay reintentos automáticos. Cambiar de cuenta o proyecto cancela lo pendiente; las propuestas permanecen asociadas a su cuenta y proyecto originales. Se admiten veinte propuestas guardadas y cinco análisis explícitos por propuesta. Un fallo o cierre durante la creación exige revisar la carpeta de destino antes de repetirla.
+
+Este flujo se ha comprobado con proveedores y documentos ficticios y compilación real. Queda pendiente validar el análisis con una cuenta real conectada; las pruebas no consumen la suscripción personal.

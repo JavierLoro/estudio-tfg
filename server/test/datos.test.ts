@@ -7,6 +7,9 @@ import { loadConfig, type Config } from '../src/config.ts';
 import { applyChanges, escapeTex, parseDatos, unescapeTex } from '../src/datos.ts';
 import { rev } from '../src/fsutil.ts';
 import { multipart } from './helpers.ts';
+import { TIPOGRAFIA_DEFAULTS } from '../../shared/tipografia.ts';
+import { PAGINACION_DEFAULTS } from '../../shared/paginacion.ts';
+import { INDICES_DEFAULTS } from '../../shared/indices.ts';
 
 const DATOS = `%% datos.tex
 \\titulo{Un título   con {llaves} anidadas}   % comentario del título
@@ -67,6 +70,45 @@ afterEach(async () => {
 });
 
 describe('parser y escritor (puros)', () => {
+  it('guarda índices y profundidades independientes conservando el resto de institución', () => {
+    const values = { ...INDICES_DEFAULTS, indiceGeneral: 'no', indiceFiguras: 'no', numerarHasta: 'secciones', indiceHasta: 'subsecciones' };
+    const out = applyChanges(INST, 'institucion', values);
+    expect(out).toContain(INST);
+    expect(parseDatos(out, 'institucion')).toMatchObject(values);
+    for (const change of [{ indiceCodigo: true }, { indiceTablas: 'quizá' }, { numerarHasta: '4' }, { indiceHasta: '\\input{ajeno}' }])
+      expect(() => applyChanges(INST, 'institucion', change)).toThrow();
+  });
+  it('conserva posiciones, textos literales y numeración sin sustituir el resto de institución', () => {
+    const styles = { ...PAGINACION_DEFAULTS, numeracionPaginas: 'continua', estiloPagina: 'personalizado',
+      cabeceraIzquierda: 'texto', cabeceraIzquierdaTexto: 'Grado & pruebas_1 {2026}', pieDerecha: 'pagina' };
+    const out = applyChanges(INST, 'institucion', styles);
+    expect(out).toContain(INST);
+    expect(out).toContain(String.raw`\cabeceraIzquierdaTexto{Grado \& pruebas\_1 \{2026\}}`);
+    expect(parseDatos(out, 'institucion')).toMatchObject(styles);
+    const hidden = applyChanges(out, 'institucion', { estiloPagina: 'actual' });
+    expect(parseDatos(hidden, 'institucion').cabeceraIzquierdaTexto).toBe(styles.cabeceraIzquierdaTexto);
+  });
+  it('rechaza contenidos y opciones de paginación desconocidos', () => {
+    for (const change of [{ numeracionPaginas: 'letras' }, { estiloPagina: 'libre' }, { reflejarCabeceras: true },
+      { cabeceraCentro: '\\input{ajeno}' }, { pieDerecha: 'otro' }, { cabeceraInicioCapitulo: 'quizá' },
+      { cabeceraIzquierdaTexto: 123 }]) expect(() => applyChanges(INST, 'institucion', change)).toThrow();
+  });
+  it('guarda tipografía y títulos sin alterar datos institucionales ni comentarios', () => {
+    const styles = { ...TIPOGRAFIA_DEFAULTS, fuenteTexto: 'palatino', fuenteTitulos: 'texto', tamanoCapitulo: '24.0', tamanoSeccion: '17.50', negritaSubseccion: 'no', mayusculasSubseccion: 'si' };
+    const result = applyChanges(INST, 'institucion', styles);
+    expect(result).toContain(INST);
+    expect(parseDatos(result, 'institucion')).toMatchObject({ ...styles, tamanoCapitulo: '24', tamanoSeccion: '17.5' });
+    expect(applyChanges(result, 'institucion', { fuenteTexto: 'times' })).toContain('\\margenes{35mm}{20mm}{25mm}{25mm}');
+  });
+
+  it('valida familias, tamaños y opciones de títulos antes de escribir', () => {
+    for (const change of [
+      { fuenteTexto: 'arial' }, { fuenteTexto: '\\input{ajeno}' }, { fuenteTitulos: 'arial' },
+      { fuenteCapitulo: 'otras' }, { negritaSeccion: 'quizá' }, { mayusculasSubseccion: true },
+      ...['', '0', '7.5', '36.5', '13.25', '20pt', 'NaN', 'Infinity', '12\\input{ajeno}'].map((tamanoCapitulo) => ({ tamanoCapitulo })),
+    ]) expect(() => applyChanges(INST, 'institucion', change)).toThrow();
+    for (const size of ['8', '36', '13.5']) expect(parseDatos(applyChanges(INST, 'institucion', { tamanoSubseccion: size }), 'institucion').tamanoSubseccion).toBe(size);
+  });
   it('lee con comentarios, espacios raros y llaves anidadas; ignora líneas comentadas', () => {
     const d = parseDatos(DATOS, 'datos');
     expect(d.titulo).toBe('Un título   con {llaves} anidadas'.replace('{llaves}', '{llaves}'));
@@ -120,6 +162,22 @@ describe('parser y escritor (puros)', () => {
 
 describe('GET/PUT /api/memoria/datos', () => {
   beforeEach(() => boot({ 'datos.tex': DATOS, 'estilo/institucion.tex': INST }));
+  it('editar el estilo mantiene revisión, historial y protección de conflictos', async () => {
+    const before = await get();
+    const style = { fuenteTexto: 'heros', fuenteTitulos: 'texto', tamanoSeccion: '16.5', mayusculasCapitulo: 'no',
+      numeracionPaginas: 'continua', estiloPagina: 'personalizado', pieDerecha: 'pagina', pieIzquierda: 'texto', pieIzquierdaTexto: 'Prueba & texto',
+      indiceTablas: 'no', numerarHasta: 'secciones', indiceHasta: 'subsecciones' };
+    const ok = await put({ institucion: style, baseRev: before.rev });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json().institucion).toMatchObject(style);
+    const content = await read('estilo/institucion.tex');
+    const stale = await put({ institucion: { fuenteTexto: 'times' }, baseRev: before.rev });
+    expect(stale.statusCode).toBe(409);
+    expect(await read('estilo/institucion.tex')).toBe(content);
+    const invalid = await put({ datos: { autor: 'No guardar' }, institucion: { indiceHasta: 'inventado' }, baseRev: ok.json().rev });
+    expect(invalid.statusCode).toBe(400);
+    expect(await read('datos.tex')).toBe(DATOS);
+  });
 
   it('GET devuelve valores y revisiones (sha256/16)', async () => {
     const b = await get();

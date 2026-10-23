@@ -5,6 +5,8 @@ import type { CompileResult, Compiler } from './compile.ts';
 import type { ChangeEvent, EventBus } from './events.ts';
 import { HttpError } from './errors.ts';
 import { normalizeRel, resolveSafe } from './paths.ts';
+import { parseDatos } from './datos.ts';
+import { rev } from './fsutil.ts';
 
 // Vista Documento: outline of the memoria built by following MEMORIA_MAIN through
 // \input/\include. Approximate by design (regex scanner, no TeX expansion).
@@ -33,6 +35,8 @@ export interface Outline {
   generatedAt: string;
   /** Structural problems: missing files, include cycles… */
   warnings: string[];
+  /** Revisiones de las fuentes utilizadas para organizar sin sobrescribir cambios. */
+  revisions?: Record<string, string>;
 }
 
 export interface OutlineRef {
@@ -262,6 +266,59 @@ function readArgs(text: string, pos: number): { opt?: string; arg?: string; end:
   return { opt, arg, end: i };
 }
 
+// shortcut: resuelve \iflanguage con el idioma de datos.tex; ampliar si se necesitan cambios de idioma locales.
+function selectLanguage(src: string, language: string): string {
+  if (!src.includes('\\iflanguage')) return src;
+  const code = src.split('\n').map((line) => stripComment(line).padEnd(line.length)).join('\n');
+  const chars = src.split('');
+  for (const m of code.matchAll(/(?<!\\)\\iflanguage(?![a-zA-Z@])/g)) {
+    const condition = readArgs(code, m.index + m[0].length);
+    if (!['english', 'spanish'].includes(condition.arg?.trim() ?? '')) continue;
+    const yes = readArgs(code, condition.end);
+    const no = readArgs(code, yes.end);
+    if (yes.arg === undefined || no.arg === undefined) continue;
+    const active = condition.arg?.trim() === language ? yes : no;
+    const start = active.end - active.arg!.length - 1;
+    for (const [from, to] of [[m.index, start], [active.end - 1, no.end]]) {
+      for (let i = from; i < to; i++) if (chars[i] !== '\n' && chars[i] !== '\r') chars[i] = ' ';
+    }
+  }
+  return chars.join('');
+}
+
+export const INACTIVE_START = '% et:apartado-desactivado';
+export const INACTIVE_END = '% et:fin-apartado';
+
+/** Cabecera completa; sus posiciones permiten conservar etiquetas y texto posteriores. */
+export function sectionHeading(src: string, line: number) {
+  let offset = 0;
+  for (let n = 1; n < line; n++) {
+    const end = src.indexOf('\n', offset);
+    if (end < 0) return null;
+    offset = end + 1;
+  }
+  const m = /^[ \t]*\\(chapter|section|subsection)(?![a-zA-Z@])(\*?)/.exec(src.slice(offset));
+  if (!m) return null;
+  const args = readArgs(src, offset + m[0].length);
+  if (args.arg === undefined) return null;
+  return { kind: m[1] as 'chapter' | 'section' | 'subsection', star: m[2], title: args.arg,
+    from: offset + m[0].indexOf('\\'), to: args.end };
+}
+
+/** Los bloques comentados por la app conservan también otros bloques inactivos anidados. */
+export function inactiveSection(lines: string[], start: number) {
+  if (lines[start]?.trim() !== INACTIVE_START) return null;
+  let end = start + 1;
+  while (end < lines.length && lines[end].trim() !== INACTIVE_END) {
+    if (!lines[end].startsWith('% ')) return null;
+    end++;
+  }
+  if (end === lines.length) return null;
+  const content = lines.slice(start + 1, end).map((line) => line.slice(2));
+  const heading = sectionHeading(content.join('\n'), 1);
+  return heading ? { end: end + 1, content, heading } : null;
+}
+
 type TokName =
   | 'input' | 'include' | 'frontmatter' | 'mainmatter' | 'appendix' | 'backmatter'
   | 'chapter' | 'section' | 'subsection' | 'bibliography' | 'printbibliography' | 'addbibresource' | 'begin';
@@ -347,6 +404,7 @@ export async function buildOutline(cfg: Config, last: CompileResult | null): Pro
   const own = new Map<OutlineItem, number>();
   const idCount = new Map<string, number>();
   const fileCache = new Map<string, FileData | null>();
+  const revisions: Record<string, string> = Object.create(null);
 
   async function readRel(rel: string): Promise<string | null> {
     try {
@@ -354,7 +412,11 @@ export async function buildOutline(cfg: Config, last: CompileResult | null): Pro
       if (!r.exists) return null;
       const st = await fs.stat(r.abs);
       if (!st.isFile()) return null;
-      return await fs.readFile(r.abs, 'utf8');
+      const bytes = await fs.readFile(r.abs);
+      const revision = rev(bytes);
+      if (revisions[rel] && revisions[rel] !== revision) throw new HttpError(409, 'La memoria cambió mientras se leía su estructura');
+      revisions[rel] = revision;
+      return bytes.toString('utf8');
     } catch (e) {
       if (e instanceof HttpError && e.statusCode === 409) throw e;
       return null;
@@ -366,13 +428,16 @@ export async function buildOutline(cfg: Config, last: CompileResult | null): Pro
     const content = await readRel(rel);
     let data: FileData | null = null;
     if (content !== null) {
-      const raw = splitLines(content);
+      const raw = splitLines(selectLanguage(content, language));
       const stripped = raw.map(stripComment);
       data = { raw, stripped, words: wordsPerLine(stripped), tokens: scanTokens(stripped.join('\n')) };
     }
     fileCache.set(rel, data);
     return data;
   }
+
+  const language = parseDatos((await readRel('datos.tex')) ?? '', 'datos').idioma === 'ingles' ? 'english' : 'spanish';
+  const numerarHasta = parseDatos((await readRel('estilo/institucion.tex')) ?? '', 'institucion').numerarHasta || 'subsecciones';
 
   async function resolveTarget(target: string, cmd: 'input' | 'include'): Promise<string | null> {
     let t = target.trim().replace(/^["']|["']$/g, '');
@@ -553,7 +618,7 @@ export async function buildOutline(cfg: Config, last: CompileResult | null): Pro
     if (tok.name === 'section') {
       const parent = stack.ch;
       const item = makeItem('section', title, rel, line);
-      if (!tok.star && parent?.number) {
+      if (!tok.star && parent?.number && numerarHasta !== 'capitulos') {
         sec++;
         sub = 0;
         item.number = `${parent.number}.${sec}`;
@@ -566,7 +631,7 @@ export async function buildOutline(cfg: Config, last: CompileResult | null): Pro
     // subsection
     const parent = stack.sec ?? stack.ch;
     const item = makeItem('subsection', title, rel, line);
-    if (!tok.star && stack.sec?.number) {
+    if (!tok.star && stack.sec?.number && numerarHasta !== 'secciones') {
       sub++;
       item.number = `${stack.sec.number}.${sub}`;
     }
@@ -581,6 +646,19 @@ export async function buildOutline(cfg: Config, last: CompileResult | null): Pro
     const own0 = record ? d.raw.map(() => null as string | null) : null;
     if (own0) owners.set(rel, own0);
     for (let li = 0; li < d.raw.length; li++) {
+      const inactive = inactiveSection(d.raw, li);
+      if (inactive && inDocument) {
+        const kind = inactive.heading.kind === 'chapter' ? (appendix ? 'appendix' : phase === 'front' ? 'frontmatter' : 'chapter') : inactive.heading.kind;
+        const item = makeItem(kind, cleanTitle(inactive.heading.title), rel, li + 1, {
+          enabled: false, words: wordsPerLine(inactive.content.map(stripComment)).reduce((a, b) => a + b, 0),
+        });
+        if (kind === 'subsection' && stack.sec) stack.sec.children.push(item);
+        else if (kind === 'section' && stack.ch) stack.ch.children.push(item);
+        else items.push(item);
+        own0?.fill(item.id, li, inactive.end);
+        li = inactive.end - 1;
+        continue;
+      }
       const dm = DISABLED_INCLUDE_RE.exec(d.raw[li]);
       if (dm && d.stripped[li].trim() === '') await disabledInclude(dm[1] as 'input' | 'include', dm[2], rel, li + 1);
       for (const tok of d.tokens.get(li) ?? []) {
@@ -704,7 +782,7 @@ export async function buildOutline(cfg: Config, last: CompileResult | null): Pro
   }
 
   return {
-    outline: { main, items, words: total, generatedAt: new Date().toISOString(), warnings },
+    outline: { main, items, words: total, generatedAt: new Date().toISOString(), warnings, revisions },
     owners,
     byId,
     flat,
