@@ -46,13 +46,13 @@ Abre tus apuntes de Obsidian, sigue sus enlaces y recupera una idea mientras red
 
 ### Convierte las lecturas en fuentes que puedas utilizar
 
-Reúne artículos, libros, documentos, imágenes y webs en **Biblioteca**. Consulta sus datos, agrupa por colecciones y distingue lo revisado de lo pendiente. Importa BibTeX, RIS o DOI y lleva citas y figuras a la memoria.
+Reúne artículos, libros, documentos, imágenes y webs en **Biblioteca**. Arrastra archivos a la app y elige Biblioteca, Memoria o Notas. Organiza ideas en un **mapa de contenidos con nodos internos**, enlaza recursos y lleva citas, figuras, notas y enlaces a la memoria. También puedes importar BibTeX, RIS o DOI.
 
 [![Biblioteca con recursos de distintos tipos y la ficha de consulta de un artículo simulado](docs/imagenes/biblioteca.png)](docs/imagenes/biblioteca.png)
 
 ### Dale forma a una idea antes de explicarla
 
-Crea flujos, secuencias, mapas mentales y cronologías entre **quince tipos de diagrama**. Combina controles visuales, formularios y código Mermaid; después exporta en PDF vectorial e inserta la figura en la memoria.
+En **Nuevo diagrama**, elige **Mermaid** o **Excalidraw**. Mermaid combina controles visuales, formularios y código entre quince tipos de diagrama, con PDF vectorial. Excalidraw ofrece dibujo libre y seis plantillas editables, funciona sin Internet y exporta PDF como imagen a 300 ppp, además de SVG. Ambos permiten insertar la figura en la memoria y conservar su fuente editable. [Uso y límites](docs/README.md#diagramas).
 
 [![Editor de diagramas con el recorrido del proyecto de demostración](docs/imagenes/diagramas.png)](docs/imagenes/diagramas.png)
 

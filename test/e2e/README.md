@@ -1,4 +1,4 @@
-# Recorridos de Biblioteca (L5)
+# Recorridos de interfaz (E2E)
 
 Pruebas con Playwright/Chromium, API real y fixtures ficticios. Cada test crea una carpeta temporal, un puerto asignado por el sistema y un contexto de navegador nuevo. Se usa `buildApp` con configuración explícita: no se leen `.env` ni ajustes del usuario. Los metadatos web están simulados; no se consultan webs públicas. La API se detiene y los temporales se borran incluso al fallar.
 
@@ -49,6 +49,8 @@ Ejemplo macOS/Linux; el contenedor tiene un puerto libre y se elimina al salir:
 
 ## Cobertura y evidencias
 
+- `file-import.spec.mjs`: destino y carpetas al soltar archivos, colisiones, reenvío, inserción en LaTeX/Markdown, Deshacer y documento cambiado durante el diálogo.
+- `library-map.spec.mjs`: jerarquía, relaciones, selección, borrado sin perder originales, borradores/conflictos e incorporación de citas, figuras, notas, enlaces y diagramas. Incluye la compilación portable con worker descrita abajo.
 - `@smoke`: añadir/buscar/consultar, adjuntos, metadatos ficticios, foco/Escape y conflicto externo que exige revisar antes de reaplicar. CI: Chromium en Linux, macOS y Windows.
 - Suite completa: lote parcialmente enviado, respuesta perdida y recibo idempotente, IndexedDB tras recarga, 401 real y reautenticación, cambio de vault, fichas movidas con adjuntos, bibliografía original y duplicados, migrar/deshacer y respaldo/restauración en otra ubicación con manifiestos. CI: Chromium/Linux.
 - `@worker`: importar bibliografía revisada, insertar cita y figura, deshacer/rehacer, guardar y compilar; comprobar el texto del PDF en el visor y recompilar una memoria trasladada sin Biblioteca. El mapa añade dos figuras reutilizadas, notas con caracteres especiales, enlace con parámetros, cita y diagrama Mermaid en ambos perfiles; exige cero diagnósticos y repite sobre copias trasladadas con Biblioteca apartada. Conserva cuatro PDFs `mapa-<perfil>-<etapa>.pdf` y sus `resultado-mapa-<perfil>-<etapa>.json` en `E2E_WORKER_OUT`. La CI reutiliza su worker aislado y mantiene la comprobación L4 de ambos perfiles sin avisos.
