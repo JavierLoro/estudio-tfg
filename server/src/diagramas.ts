@@ -6,8 +6,14 @@ import { HttpError, badRequest, notFound } from './errors.ts';
 import { atomicWrite, backup, rev, walkFiles } from './fsutil.ts';
 import { resolveSafe } from './paths.ts';
 import { stripComment } from './outline.ts';
+import { checkDiagramDestination, readMeta, withMeta } from './diagramFiles.ts';
+export { readMeta, withMeta, type DiagramaMeta } from './diagramFiles.ts';
+import { treeKey } from './fileops.ts';
+import { parseExcalidraw } from '../../shared/excalidraw.ts';
+import { checkSvg } from '../../worker/svg.mjs';
+import { instanceId } from './settings.ts';
 
-// Diagramas de la memoria (v0.8): fuente Mermaid en diagramas/<nombre>.mmd y figura
+// Diagramas de la memoria: fuente .mmd o .excalidraw en diagramas/ y figura
 // exportada en figuras/diagramas/<nombre>.{pdf,svg}. El SVG lo dibuja el navegador; el
 // motor lo convierte a PDF, o recibe la conversión del navegador. El SVG guardado lleva
 // en un <metadata> la revisión que lo generó: así se sabe si está desactualizada.
@@ -15,15 +21,8 @@ import { stripComment } from './outline.ts';
 export const DIAGRAMAS_DIR = 'diagramas';
 export const FIGURAS_DIR = 'figuras/diagramas';
 export const MAX_SVG_BYTES = 5 * 1024 * 1024;
-const META_ID = 'estudio-tfg-diagrama';
 
 export type EstadoDiagrama = 'sin-exportar' | 'exportado' | 'desactualizado';
-
-export interface DiagramaMeta {
-  fuente: string;
-  rev: string;
-  exportadoEn: string;
-}
 
 export interface EstadoResponse {
   estado: EstadoDiagrama;
@@ -33,7 +32,8 @@ export interface EstadoResponse {
 }
 
 export interface EstadoItem extends EstadoResponse {
-  /** Ruta del .mmd. */
+  formato: 'mermaid' | 'excalidraw';
+  /** Ruta de la fuente editable. */
   path: string;
   /** `diagramas/<nombre>` sin extensión: lo que va en \includegraphics. */
   nombre: string;
@@ -41,50 +41,17 @@ export interface EstadoItem extends EstadoResponse {
   usos: { file: string; line: number }[];
 }
 
-/** `diagramas/a/b.mmd` → `a/b`. 400 si no es un .mmd dentro de diagramas/. */
+/** Fuente bajo diagramas/ → nombre sin extensión. */
 export function diagramName(rel: string): string {
-  if (!rel.startsWith(DIAGRAMAS_DIR + '/') || !/\.mmd$/i.test(rel)) {
-    throw badRequest('El diagrama debe ser un archivo .mmd dentro de diagramas/');
+  if (!rel.startsWith(DIAGRAMAS_DIR + '/') || !/\.(mmd|excalidraw)$/i.test(rel)) {
+    throw badRequest('El diagrama debe ser un archivo .mmd o .excalidraw dentro de diagramas/');
   }
-  const name = rel.slice(DIAGRAMAS_DIR.length + 1).replace(/\.mmd$/i, '');
+  const name = rel.slice(DIAGRAMAS_DIR.length + 1).replace(/\.(mmd|excalidraw)$/i, '');
   if (!name || name.split('/').some((s) => !s || s.startsWith('.'))) throw badRequest('Nombre de diagrama no válido');
   return name;
 }
 
 export const figurePaths = (name: string) => ({ pdf: `${FIGURAS_DIR}/${name}.pdf`, svg: `${FIGURAS_DIR}/${name}.svg` });
-
-const escXml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-const unescXml = (s: string) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
-
-const META_RE = new RegExp(`<metadata\\s+id="${META_ID}"[^>]*>([\\s\\S]*?)</metadata>`, 'g');
-
-/** Registro de exportación del SVG (o null si no lo tiene). */
-export function readMeta(svg: string): DiagramaMeta | null {
-  META_RE.lastIndex = 0;
-  const m = META_RE.exec(svg);
-  if (!m) return null;
-  try {
-    const v = JSON.parse(unescXml(m[1]));
-    if (typeof v?.rev === 'string' && typeof v?.fuente === 'string') {
-      return { fuente: v.fuente, rev: v.rev, exportadoEn: typeof v.exportadoEn === 'string' ? v.exportadoEn : '' };
-    }
-  } catch {
-    /* metadatos ilegibles */
-  }
-  return null;
-}
-
-/** Inserta (o sustituye) el registro justo después de la etiqueta de apertura <svg …>. */
-export function withMeta(svg: string, meta: DiagramaMeta): string {
-  const clean = svg.replace(META_RE, '');
-  const m = /<svg[\s>][^>]*>/.exec(clean);
-  if (!m) throw badRequest('No es un SVG');
-  const tag = m[0].endsWith('/>') ? null : m[0];
-  if (!tag) throw badRequest('El SVG está vacío');
-  const el = `<metadata id="${META_ID}">${escXml(JSON.stringify(meta))}</metadata>`;
-  const at = m.index + tag.length;
-  return clean.slice(0, at) + el + clean.slice(at);
-}
 
 /** Comprobación básica (el worker hace la completa y responde 400 con el motivo). */
 export function checkSvgBasic(svg: unknown): string {
@@ -164,7 +131,7 @@ async function figureUses(ctx: Ctx): Promise<Map<string, { file: string; line: n
 /** Todos los diagramas de la memoria con su estado y dónde se usan. */
 export async function listEstados(ctx: Ctx): Promise<EstadoItem[]> {
   const files = (await walkFiles(ctx.cfg, 'memoria'))
-    .filter((f) => f.rel.startsWith(DIAGRAMAS_DIR + '/') && /\.mmd$/i.test(f.rel))
+    .filter((f) => f.rel.startsWith(DIAGRAMAS_DIR + '/') && /\.(mmd|excalidraw)$/i.test(f.rel))
     .sort((a, b) => a.rel.localeCompare(b.rel, 'es'));
   const uses = files.length ? await figureUses(ctx) : new Map();
   const items: EstadoItem[] = [];
@@ -179,7 +146,7 @@ export async function listEstados(ctx: Ctx): Promise<EstadoItem[]> {
     if (!src) continue;
     const st = await estadoDe(ctx, name, rev(src));
     const nombre = `${DIAGRAMAS_DIR}/${name}`;
-    items.push({ path: f.rel, nombre, ...st, usos: uses.get(nombre) ?? [] });
+    items.push({ path: f.rel, nombre, formato: /\.excalidraw$/i.test(f.rel) ? 'excalidraw' : 'mermaid', ...st, usos: uses.get(nombre) ?? [] });
   }
   return items;
 }
@@ -212,6 +179,11 @@ async function writeFigure(ctx: Ctx, rel: string, data: Buffer): Promise<void> {
 
 export async function exportar(ctx: Ctx, body: unknown): Promise<{ status: 200 | 409; body: Record<string, unknown> }> {
   const b = (body ?? {}) as Record<string, unknown>;
+  const live = ctx;
+  ctx = { ...ctx, cfg: { ...ctx.cfg } };
+  const destination = instanceId(ctx.cfg);
+  const check = () => { if ((b.instanceId !== undefined && b.instanceId !== destination) || instanceId(live.cfg) !== destination) throw new HttpError(409, 'El proyecto cambió durante la exportación; vuelve al destino original'); };
+  check();
   if (typeof b.rev !== 'string' || !b.rev) throw badRequest('rev es obligatorio');
   const r = await resolveSafe(ctx.cfg, 'memoria', b.path);
   const name = diagramName(r.rel);
@@ -221,19 +193,29 @@ export async function exportar(ctx: Ctx, body: unknown): Promise<{ status: 200 |
   if (!src) throw notFound('El diagrama no existe');
   const conflict = (cur: string) => ({ status: 409 as const, body: { error: 'La fuente del diagrama cambió desde que se dibujó', rev: cur } });
   if (rev(src) !== b.rev) return conflict(rev(src));
+  await checkDiagramDestination(ctx.cfg, 'memoria', r.rel);
+  const excalidraw = /\.excalidraw$/i.test(r.rel);
+  if (excalidraw) {
+    try { parseExcalidraw(src.toString('utf8')); } catch (e) { throw badRequest((e as Error).message); }
+    const error = checkSvg(svgIn);
+    if (error) throw badRequest(error);
+    if (!browserPdf) throw badRequest('El dibujo Excalidraw necesita su PDF preparado por el editor');
+  }
 
   const exportadoEn = new Date().toISOString();
   const svg = withMeta(svgIn, { fuente: r.rel, rev: b.rev, exportadoEn });
   // La conversión (lo lento) va fuera de los bloqueos; la revisión se vuelve a comprobar al escribir.
-  const pdf = await svgToPdf(ctx, svg, browserPdf);
+  const pdf = excalidraw ? browserPdf! : await svgToPdf(ctx, svg, browserPdf);
   const p = figurePaths(name);
   const { locks } = ctx;
-  return locks.run(`memoria:${r.rel}`, () =>
+  return locks.run(treeKey('memoria'), () => locks.run(`memoria:${r.rel}`, () =>
     locks.run(`memoria:${p.pdf}`, () =>
       locks.run(`memoria:${p.svg}`, async () => {
         const now = await readOrNull(r.abs);
+        check();
         if (!now) throw notFound('El diagrama no existe');
         if (rev(now) !== b.rev) return conflict(rev(now));
+        await checkDiagramDestination(ctx.cfg, 'memoria', r.rel);
         const dir = await resolveSafe(ctx.cfg, 'memoria', path.posix.dirname(p.pdf));
         await fs.mkdir(dir.abs, { recursive: true });
         // El PDF primero: el SVG (con el registro) se escribe al final, así un fallo a medias
@@ -243,5 +225,5 @@ export async function exportar(ctx: Ctx, body: unknown): Promise<{ status: 200 |
         return { status: 200 as const, body: { pdf: p.pdf, svg: p.svg, exportadoEn } };
       }),
     ),
-  );
+  ));
 }

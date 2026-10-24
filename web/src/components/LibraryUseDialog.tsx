@@ -14,29 +14,31 @@ export default function LibraryUseDialog({
   onClose,
   replaceCopy,
   updateOnly = false,
+  attachmentPath,
 }: {
   file: ResourceFile;
   kind: 'reference' | 'figure';
   onClose: () => void;
   replaceCopy?: string;
   updateOnly?: boolean;
+  attachmentPath?: string;
 }) {
   const [destination] = useState(() => ({
     libraryId: useUI.getState().status!.libraryId!,
     instanceId: useUI.getState().status!.instanceId!,
   }));
   // Las vistas antiguas de figura podían mezclar inserción y actualización.
-  const storageKey = `et:library-use:${destination.instanceId}:${file.item.id}:${kind}${kind === 'figure' ? ':v2' : ''}${replaceCopy ? `:actualizar:${replaceCopy}` : ''}`;
+  const storageKey = `et:library-use:${destination.instanceId}:${file.item.id}:${kind}${kind === 'figure' ? ':v2' : ''}${replaceCopy ? `:actualizar:${replaceCopy}` : ''}${attachmentPath ? `:adjunto:${attachmentPath}` : ''}`;
   const saved = load<{ preview: IntegrationPreview; target: string } | null>(storageKey, null);
   const tree = useUI((s) => s.trees.memoria),
     paths = flattenTree(tree).filter((p) => p.endsWith('.tex'));
   const [target, setTarget] = useState(() => saved?.target ?? paths.find((p) => p.startsWith('1-capitulos/')) ?? paths[0] ?? '');
   const [attachment, setAttachment] = useState(
-    () => file.attachments.find((a) => a.path && /\.(png|jpe?g|pdf)$/i.test(a.path))?.path ?? '',
+    () => attachmentPath ?? file.attachments.find((a) => a.path && /\.(png|jpe?g|pdf)$/i.test(a.path))?.path ?? '',
   );
   const [caption, setCaption] = useState(file.item.title),
     [credit, setCredit] = useState('');
-  const [label, setLabel] = useState(`fig:biblioteca-${file.item.id}`),
+  const [label, setLabel] = useState(() => `fig:biblioteca-${crypto.randomUUID()}`),
     [width, setWidth] = useState(80);
   const [preview, setPreview] = useState<IntegrationPreview | null>(saved?.preview ?? null),
     [busy, setBusy] = useState(false),

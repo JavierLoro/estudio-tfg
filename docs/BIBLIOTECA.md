@@ -75,6 +75,16 @@ Los usos se reconstruyen de los `.tex` guardados y los registros/copias del proy
 
 La CI verifica citas/figuras en ambos perfiles y otra compilación después de copiar cada memoria y retirar su biblioteca original. El comando reproducible está en contrato v0.25; siempre utiliza fixtures y un worker/output temporales propios.
 
+## Organizar contenidos en un mapa
+
+«Mapa de contenidos» permite crear temas con nodos internos y vincular fichas existentes. Una ficha puede aparecer en varios lugares, conservando un único original y sus adjuntos. Las relaciones etiquetadas conectan contenidos de distintas ramas. La jerarquía y el dibujo con distribución automática permiten seleccionar el mismo nodo; el lateral muestra sus contenidos y acciones para incorporarlos a la memoria.
+
+Las citas y figuras reutilizan la integración con revisión, copias portables y borradores de L3/L4. Los enlaces y notas se revisan antes de insertarlos en un `.tex`, con Deshacer y sin guardado automático; las notas se incorporan como texto plano. Los diagramas Mermaid y Excalidraw adjuntos se copian primero a Diagramas, conservando el original. Quitar una rama del mapa conserva los archivos originales y las copias incorporadas.
+
+Los `.excalidraw` se abren en su editor visual; en Biblioteca y Notas son de consulta y «Crear diagrama en Memoria» genera una copia editable. Las imágenes deben estar incrustadas en la escena como PNG/JPG/WebP/GIF. Una escena dañada o mayor de 10 MiB conserva su archivo original y permite descargarlo. Desde Diagramas se exporta el PDF a 300 ppp y un SVG con fuentes incrustadas; «Insertar en la memoria» incorpora la figura al apartado elegido. La memoria trasladada conserva la figura y la escena editable sin depender de Biblioteca. El texto del PDF es imagen; el JSON sigue siendo editable.
+
+El mapa vive en `<Recursos>/.mapa.json`; incluye este archivo oculto al copiar o respaldar Notas. No tiene base de datos. Las escrituras comprueban identidad/revisión y dejan historial. Los cambios pendientes se conservan por biblioteca en el navegador; un conflicto exige revisar ambas versiones y decidir explícitamente. Las ediciones externas del JSON oculto se recargan bajo demanda. Límites y API: contrato v0.69.
+
 ## Explorar por tipos
 
 El lateral reúne tipos, colecciones y revisión; Más filtros contiene etiquetas y orden. La búsqueda incluye autores, año y publicación cuando estén disponibles. Elige un recurso para consultar su ficha plegable y pulsa **Abrir** para editar o usar los visores, citas y figuras existentes. En un panel estrecho, **Volver a la lista** recupera la exploración. Las imágenes se muestran inicialmente en cuadrícula; puedes elegir Lista.

@@ -20,6 +20,7 @@ import type { FileParams } from '../state/workspace';
 
 // Lienzo editable (Visimer + Mermaid): en diferido, no entra en el bundle inicial.
 const DiagramCanvas = lazy(() => import('./DiagramCanvas'));
+const ExcalidrawPanel = lazy(() => import('./ExcalidrawPanel'));
 
 const CODE_KEY = 'et:diagram:code';
 const CODE_RATIO_KEY = 'et:diagram:code-ratio';
@@ -76,7 +77,13 @@ function usePreview(content: string | undefined, seed: string) {
   return { result, good, rendering };
 }
 
-export function DiagramPanel({ params, api }: IDockviewPanelProps<FileParams>) {
+export function DiagramPanel(props: IDockviewPanelProps<FileParams>) {
+  return /\.excalidraw$/i.test(props.params.path)
+    ? <Suspense fallback={<Spinner />}><ExcalidrawPanel {...props} /></Suspense>
+    : <MermaidPanel {...props} />;
+}
+
+function MermaidPanel({ params, api }: IDockviewPanelProps<FileParams>) {
   const { root, path } = params;
   const key = docKey(root, path);
   const name = diagramName(path);

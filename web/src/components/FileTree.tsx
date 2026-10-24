@@ -13,6 +13,8 @@ import { openNewDiagram, refreshDiagramasSoon, useDiagramas } from '../state/dia
 import { openContextMenu, type MenuItem } from './ContextMenu';
 import { fold, highlight } from './SearchView';
 import { openMoveDialog } from './MoveDialog';
+import { hasDroppedFiles } from '../lib/fileImport';
+import { openDroppedFiles } from './FileImportDialog';
 import { Empty, Spinner, cx } from './ui';
 
 function iconFor(path: string) {
@@ -138,6 +140,9 @@ export function FileTree({ root, filter }: { root: Root; filter: string }) {
   };
   /** Fija el destino del arrastre; devuelve si es válido. */
   const over = (e: React.DragEvent, dir: string, collapsedFolder = false): boolean => {
+    if (hasDroppedFiles(e.dataTransfer)) {
+      e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'copy'; setDropTarget(dir); return true;
+    }
     if (!dragged || dragged.root !== root || !canMoveInto(dragged.path, dir)) return false;
     e.preventDefault();
     e.stopPropagation();
@@ -155,6 +160,9 @@ export function FileTree({ root, filter }: { root: Root; filter: string }) {
     if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node | null)) setDropTarget(null);
   };
   const drop = (e: React.DragEvent, dir: string) => {
+    if (hasDroppedFiles(e.dataTransfer)) {
+      e.preventDefault(); e.stopPropagation(); dragEnd(); openDroppedFiles(e.dataTransfer, { root, directory: dir }); return;
+    }
     const d = dragged;
     dragEnd();
     if (!d || d.root !== root || !canMoveInto(d.path, dir)) return;

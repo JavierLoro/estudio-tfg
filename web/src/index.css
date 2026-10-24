@@ -5,6 +5,15 @@
 @import '@fontsource/source-sans-3/latin-600.css';
 @import '@fontsource/source-sans-3/latin-ext-600.css';
 
+.et-excalidraw .excalidraw {
+  --color-primary: var(--et-accent);
+  --color-surface-lowest: var(--et-bg);
+  --island-bg-color: var(--et-bg-soft);
+  --text-primary-color: var(--et-fg);
+}
+.et-excalidraw .excalidraw .HintViewer,
+.et-excalidraw .excalidraw .sidebar-trigger__label-element:has(.default-sidebar-trigger) { display: none; }
+
 /* ---------- Tokens de color (claro / oscuro según el sistema) ---------- */
 :root {
   color-scheme: light;
