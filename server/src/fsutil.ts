@@ -9,7 +9,7 @@ import { isIgnoredName } from './ignore.ts';
 import { isInside, resolveSafe, rootDir, type RootName } from './paths.ts';
 
 export const TEXT_EXTS = new Set([
-  '.md', '.tex', '.bib', '.sty', '.cls', '.txt', '.mmd', '.bst', '.json', '.yml', '.yaml',
+  '.md', '.tex', '.bib', '.sty', '.cls', '.txt', '.mmd', '.excalidraw', '.bst', '.json', '.yml', '.yaml',
   '.c', '.py', '.ts', '.js', '.csv',
 ]);
 

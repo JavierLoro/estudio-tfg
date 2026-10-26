@@ -1,12 +1,13 @@
 import { create } from 'zustand';
 import { api, ApiError, ConflictError, errorMessage, type ChangeEvent, type Root } from '../api';
 import { docKey } from '../lib/paths';
-import { draftStorageKey, renameDraft } from '../lib/instance';
+import { draftStorageKey, getInstance, renameDraft } from '../lib/instance';
 import { load, remove, save } from '../lib/storage';
 import { toast } from './ui';
 import { useCompile } from './compile';
 import { refreshOutlineSoon } from './outline';
 import { useCursor } from './cursor';
+import { diagramDrafts } from '../lib/diagramDrafts';
 
 export interface Conflict {
   content: string;
@@ -51,6 +52,9 @@ export interface Doc {
   /** Se incrementa cuando el contenido se reemplaza desde fuera del editor. */
   extVersion: number;
   lastSavedAt?: number;
+  draftId?: string;
+  draftError?: string;
+  instanceId?: string;
 }
 
 export type DocIndicator = 'guardado' | 'sin guardar' | 'conflicto' | 'guardando' | 'cargando' | 'error';
@@ -93,6 +97,14 @@ function writeDraftNow(key: string) {
   draftTimers.delete(key);
   const d = get().docs[key];
   if (!d || d.status !== 'ready') return;
+  if (d.draftId) {
+    const draft = isDirty(d) ? { content: d.content, baseRev: d.rev, savedAt: Date.now() } : null;
+    void diagramDrafts.write(d.draftId, draft).then(() => patch(key, { draftError: undefined }), e => {
+      const message = `No se pudo conservar el borrador: ${errorMessage(e)}. Guarda el dibujo o descarga una copia antes de cerrar.`;
+      patch(key, { draftError: message }); toast({ kind: 'error', text: message });
+    });
+    return;
+  }
   if (d.content === d.savedContent && !d.deleted && !d.formDraft && d.pendingVisual == null) {
     remove(draftKey(key));
     return;
@@ -102,6 +114,7 @@ function writeDraftNow(key: string) {
 }
 
 function scheduleDraft(key: string) {
+  if (get().docs[key]?.draftId) { writeDraftNow(key); return; }
   const t = draftTimers.get(key);
   if (t) clearTimeout(t);
   draftTimers.set(key, setTimeout(() => writeDraftNow(key), 350));
@@ -137,6 +150,7 @@ export function ensureDoc(root: Root, path: string): Promise<void> {
 
 export function loadDoc(root: Root, path: string): Promise<void> {
   const key = docKey(root, path);
+  const draftId = /\.excalidraw$/i.test(path) ? draftKey(key) : undefined;
   const prev = get().docs[key];
   if (!prev || prev.status === 'error') {
     useDocs.setState({
@@ -144,7 +158,7 @@ export function loadDoc(root: Root, path: string): Promise<void> {
         ...get().docs,
         [key]: {
           key, root, path, status: 'loading', content: '', savedContent: '', rev: '', saving: false,
-          conflict: null, deleted: false, draftOffer: null, extVersion: 0,
+          conflict: null, deleted: false, draftOffer: null, extVersion: 0, draftId, instanceId: draftId ? getInstance() ?? undefined : undefined,
         },
       },
     });
@@ -152,19 +166,25 @@ export function loadDoc(root: Root, path: string): Promise<void> {
   const p = (async () => {
     try {
       const f = await api.readFile(root, path);
-      const draft = readDraft(root, path);
+      let draft: Draft | null;
+      let draftError: string | undefined;
+      try { draft = draftId ? await diagramDrafts.read(draftId) : readDraft(root, path); }
+      catch (e) { draft = null; draftError = `No se pudieron recuperar los borradores: ${errorMessage(e)}. Conserva este perfil del navegador.`; }
       let draftOffer: Draft | null = null;
       if (draft) {
-        if (draft.content === f.content && !draft.form) remove(draftKey(key));
+        if (draft.content === f.content && !draft.form) {
+          if (draftId) await diagramDrafts.write(draftId, null); else remove(draftKey(key));
+        }
         else draftOffer = draft;
       }
       const cur = get().docs[key];
-      if (!cur) return;
+      if (!cur || (draftId && cur.draftId !== draftId)) return;
       patch(key, {
         status: 'ready', error: undefined, content: f.content, savedContent: f.content, rev: f.rev, mtime: f.mtime,
-        draftOffer, formDraft: null, pendingVisual: null, deleted: false, extVersion: cur.extVersion + 1,
+        draftOffer, draftError, draftId, formDraft: null, pendingVisual: null, deleted: false, extVersion: cur.extVersion + 1,
       });
     } catch (e) {
+      if (draftId && get().docs[key]?.draftId !== draftId) return;
       patch(key, { status: 'error', error: e instanceof ApiError && e.status === 404 ? 'El archivo no existe' : errorMessage(e) });
     } finally {
       loading.delete(key);
@@ -213,7 +233,14 @@ export function rekeyDoc(root: Root, from: string, to: string): boolean {
     clearTimeout(t);
     writeDraftNow(oldKey);
   }
-  renameDraft(oldKey, newKey);
+  const old = get().docs[oldKey];
+  const oldId = old?.draftId ?? (/\.excalidraw$/i.test(from) ? draftKey(oldKey) : undefined);
+  const draftId = oldId ? oldId.slice(0, -oldKey.length) + newKey : undefined;
+  if (oldId && draftId) void diagramDrafts.rename(oldId, draftId).catch(e => {
+    patch(newKey, { draftError: `El borrador anterior se conserva con su nombre original: ${errorMessage(e)}` });
+    toast({ kind: 'error', text: `El borrador anterior se conserva con su nombre original: ${errorMessage(e)}` });
+  });
+  else renameDraft(oldKey, newKey);
   const cur = useCursor.getState().lines;
   if (oldKey in cur) {
     const lines = { ...cur, [newKey]: cur[oldKey] };
@@ -224,7 +251,7 @@ export function rekeyDoc(root: Root, from: string, to: string): boolean {
   if (!d) return false;
   const docs = { ...get().docs };
   delete docs[oldKey];
-  docs[newKey] = { ...d, key: newKey, path: to };
+  docs[newKey] = { ...d, key: newKey, path: to, draftId };
   const reveal = { ...get().reveal };
   delete reveal[oldKey];
   useDocs.setState({ docs, reveal });
@@ -239,6 +266,8 @@ export function dropDoc(root: Root, path: string) {
   if (t) clearTimeout(t);
   draftTimers.delete(key);
   remove(draftKey(key));
+  const draftId = get().docs[key]?.draftId ?? (/\.excalidraw$/i.test(path) ? draftKey(key) : undefined);
+  if (draftId) void diagramDrafts.write(draftId, null).catch(e => toast({ kind: 'error', text: errorMessage(e) }));
   const docs = { ...get().docs };
   delete docs[key];
   useDocs.setState({ docs });
@@ -298,6 +327,11 @@ export function restoreDraft(key: string) {
 }
 
 export function discardDraft(key: string) {
+  const id = get().docs[key]?.draftId;
+  if (id) {
+    void diagramDrafts.write(id, null).then(() => patch(key, { draftOffer: null }), e => patch(key, { draftError: errorMessage(e) }));
+    return;
+  }
   remove(draftKey(key));
   patch(key, { draftOffer: null });
 }
@@ -326,11 +360,11 @@ export async function saveDoc(key: string, opts: { quiet?: boolean } = {}): Prom
     let rev: string;
     let mtime: number | undefined;
     if (d.deleted) {
-      const r = await api.createFile(d.root, d.path, sent);
+      const r = await api.createFile(d.root, d.path, sent, d.instanceId);
       rev = r.rev;
       mtime = r.mtime;
     } else {
-      const r = await api.saveFile(d.root, d.path, sent, d.rev);
+      const r = await api.saveFile(d.root, d.path, sent, d.rev, d.instanceId);
       rev = r.rev;
       mtime = r.mtime;
     }

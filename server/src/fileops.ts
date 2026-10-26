@@ -3,6 +3,7 @@ import type { BigIntStats } from 'node:fs';
 import path from 'node:path';
 import type { Ctx } from './context.ts';
 import type { Config } from './config.ts';
+import { checkDiagramDestination, moveDiagramOwner } from './diagramFiles.ts';
 import { HttpError, badRequest, notFound } from './errors.ts';
 import { atomicWrite, backup, copyExclusive, retryFileOp, rev, tryHardLink, walkFiles } from './fsutil.ts';
 import { isIgnoredName, isIgnoredRel } from './ignore.ts';
@@ -166,6 +167,7 @@ export async function moveEntryOp(ctx: Ctx, root: RootName, fromIn: unknown, toI
     const fromEntry = { ...from, st: fromSt };
     const files = await listEntryFiles(fromEntry, root);
     const map = new Map(files.map((f) => [f, to.rel + f.slice(from.rel.length)]));
+    for (const [oldPath, newPath] of map) await checkDiagramDestination(cfg, root, newPath, oldPath);
     const moved = [...map].map(([f, t]) => ({ from: f, to: t }));
     const preFiles = updateLinks ? (await walkFiles(cfg, root)).map((f) => f.rel) : [];
 
@@ -179,13 +181,17 @@ export async function moveEntryOp(ctx: Ctx, root: RootName, fromIn: unknown, toI
     await resolveSafe(cfg, root, to.rel); // contención tras mover
 
     const result: MoveResult = { path: to.rel, moved, updated: [] };
+    if (root === 'memoria') for (const [oldPath, newPath] of map) {
+      try { await moveDiagramOwner(ctx, oldPath, newPath); }
+      catch (e) { (result.failed ??= []).push({ path: oldPath, error: (e as Error).message }); }
+    }
     if (updateLinks && map.size) {
       const postFiles = preFiles
         .map((f) => map.get(f) ?? f)
         .filter((f) => !isIgnoredRel(f, root));
       const { updated, failed } = await rewriteLinks(ctx, root, { map, preFiles, postFiles });
       result.updated = updated;
-      if (failed.length) result.failed = failed;
+      if (failed.length) result.failed = [...(result.failed ?? []), ...failed];
     }
     return result;
   });

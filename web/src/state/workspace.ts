@@ -180,6 +180,7 @@ export function closePanelsUnder(root: Root, base: string) {
  */
 export function rekeyPanels(root: Root, pairs: { from: string; to: string }[]) {
   for (const dock of docks.values()) rekeyDockPanels(dock, root, pairs);
+  flushLayoutSave();
 }
 
 function rekeyDockPanels(dock: DockviewApi, root: Root, pairs: { from: string; to: string }[]) {
@@ -241,9 +242,13 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null;
 export function scheduleLayoutSave() {
   if (restoring) return;
   if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    for (const [section, dock] of docks) save(layoutKey(section), dock.toJSON());
-  }, 300);
+  saveTimer = setTimeout(flushLayoutSave, 300);
+}
+
+function flushLayoutSave() {
+  if (!saveTimer) return;
+  clearTimeout(saveTimer); saveTimer = null;
+  for (const [section, dock] of docks) save(layoutKey(section), dock.toJSON());
 }
 
 export function restoreLayout(api: DockviewApi, section: Section): boolean {

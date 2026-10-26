@@ -68,6 +68,7 @@ interface UIState {
   settingsTab: 'general' | 'assistant';
 
   captureOpen: boolean;
+  captureFiles: File[] | null;
   setCaptureOpen: (v: boolean) => void;
   quickOpen: boolean;
   quickOpenQuery: string;
@@ -204,6 +205,7 @@ export const useUI = create<UIState>((set, get) => ({
   settingsTab: 'general',
 
   captureOpen: false,
+  captureFiles: null,
   setCaptureOpen: (v) => set({ captureOpen: v }),
   quickOpen: false,
   quickOpenQuery: '',

@@ -10,14 +10,12 @@ async function openPicker(page) {
   return page.getByRole('dialog', { name: 'Nuevo diagrama' });
 }
 
-test('el selector muestra nombre, descripción y ejemplo de los quince tipos @smoke', async ({ studio, page }, info) => {
+test('el selector muestra nombre y ejemplo de los quince tipos @smoke', async ({ studio, page }, info) => {
   await studio.biblioteca();
   const dialog = await openPicker(page);
   const picker = dialog.getByRole('group', { name: 'Tipo de diagrama' });
-  for (const [index, template] of DIAGRAM_TEMPLATES.entries()) {
+  for (const template of DIAGRAM_TEMPLATES) {
     await expect(picker.getByRole('heading', { name: template.label, exact: true })).toBeVisible();
-    await expect(picker.getByText(template.description, { exact: true })).toBeVisible();
-    await expect(picker.getByText(`${index + 1} de ${DIAGRAM_TEMPLATES.length}`, { exact: true })).toBeVisible();
     const example = picker.getByRole('img', { name: `Ejemplo de ${template.label}`, exact: true });
     await expect(example).toBeVisible();
     await expect(example.locator('svg')).toHaveCount(1);

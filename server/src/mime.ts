@@ -1,6 +1,7 @@
 import path from 'node:path';
 
 const TYPES: Record<string, string> = {
+  '.excalidraw': 'application/json; charset=utf-8',
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif',
   '.webp': 'image/webp', '.svg': 'image/svg+xml', '.avif': 'image/avif', '.bmp': 'image/bmp', '.ico': 'image/x-icon',
   '.pdf': 'application/pdf', '.eps': 'application/postscript', '.ps': 'application/postscript',

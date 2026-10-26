@@ -11,11 +11,12 @@ import { LibraryMigrationDialog } from '../components/LibraryMigrationDialog';
 import { BIB_FIELD_LABEL, KIND_LABEL, resourceKind, safeUrl } from '../lib/library';
 import { onFileChange } from '../state/events';
 import { STATUS_LABEL, useResourceEdit } from '../state/resources';
-import { useUI } from '../state/ui';
+import { toast, useUI } from '../state/ui';
 import { openFile, type FileParams } from '../state/workspace';
 import LibraryUseDialog from '../components/LibraryUseDialog';
 import { AskAssistant } from '../components/AskAssistant';
 import { textContextMenu } from '../components/TextContextMenu';
+import { copyFromNote } from '../state/diagramas';
 
 const PdfViewer = lazy(() => import('../components/PdfViewer'));
 
@@ -301,6 +302,7 @@ function Attachment({ path }: { path: string }) {
         <Paperclip size={12} /> {basename(path)}
       </a>
       {isImg && <img src={url} alt={basename(path)} className="max-h-[480px] w-full object-contain p-2" />}
+      {e === 'excalidraw' && <div className="p-2"><Button onClick={async () => { try { const source = await api.readFile('notes', path); copyFromNote(source.content, path); } catch (error) { toast({ kind: 'error', text: errorMessage(error) }); } }}>Crear diagrama en Memoria</Button></div>}
       {e === 'pdf' && (
         <div role="region" aria-label={`PDF: ${basename(path)}`} className="relative h-[520px]">
           <Suspense
