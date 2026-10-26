@@ -180,6 +180,58 @@ describe('text helpers', () => {
 });
 
 describe('GET /api/memoria/outline', () => {
+  it('conserva todos los apartados y sus títulos, numerando solo hasta el nivel elegido', async () => {
+    t = await setup({ ...memoriaFiles(), 'estilo/institucion.tex': '\\numerarHasta{secciones}\n\\indiceHasta{capitulos}\n' }, 'tfg.tex');
+    let outline = await getOutline();
+    const flatten = (items: OutlineItem[]): OutlineItem[] => items.flatMap((item) => [item, ...flatten(item.children)]);
+    let all = flatten(outline.items);
+    expect(all.find((item) => item.title === 'Contexto')?.number).toBe('1.1');
+    expect(all.find((item) => item.title === 'Detalle')?.number).toBeNull();
+    const file = path.join(t.cfg.memoriaDir, 'estilo/institucion.tex');
+    await fs.writeFile(file, '\\numerarHasta{capitulos}\n');
+    t.ctx.outline.invalidate();
+    outline = await getOutline();
+    all = flatten(outline.items);
+    expect(all.find((item) => item.title === 'Contexto')?.number).toBeNull();
+    expect(all.find((item) => item.title === 'Detalle')?.number).toBeNull();
+  });
+  for (const idioma of ['espanol', 'ingles']) {
+    it(`ordena los resúmenes en ${idioma} sin duplicados y conserva líneas con CRLF`, async () => {
+      const main = `\\input{datos}
+\\begin{document}
+\\frontmatter
+% \\iflanguage{english}{comentario sin argumentos}
+\\iflanguage{english}{%
+  \\input{0-inicio/abstract}
+  \\iflanguage{spanish}{\\input{no-existe}}{\\input{0-inicio/resumen}}
+}{%
+  \\input{0-inicio/resumen}
+  \\input{0-inicio/abstract}
+}
+\\mainmatter
+\\chapter{\\iflanguage{english}{Introduction}{Introducción}}
+Texto propio.
+\\end{document}
+`;
+      t = await setup({
+        'tfg.tex': main.replace(/\n/g, '\r\n'),
+        'datos.tex': `% \\idioma{${idioma === 'ingles' ? 'espanol' : 'ingles'}}\n\\idioma{ ${idioma} }\n`,
+        '0-inicio/resumen.tex': '\\chapter*{Resumen}\nResumen propio.\n',
+        '0-inicio/abstract.tex': '\\chapter*{Abstract}\nEnglish summary.\n',
+      }, 'tfg.tex');
+      const o = await getOutline();
+      expect(o.warnings).toEqual([]);
+      const res = o.items.filter((i: OutlineItem) => i.kind === 'frontmatter');
+      expect(res.map((i: OutlineItem) => i.title)).toEqual(idioma === 'ingles' ? ['Abstract', 'Resumen'] : ['Resumen', 'Abstract']);
+      expect(res.map((i: OutlineItem) => i.words)).toEqual([2, 2]);
+      expect(o.items.at(-1)).toMatchObject({
+        title: idioma === 'ingles' ? 'Introduction' : 'Introducción',
+        number: '1',
+        line: main.split('\n').findIndex((line) => line.startsWith('\\chapter')) + 1,
+      });
+    });
+  }
+
   it('follows the main file, numbers like the PDF and detects disabled/missing/cycles', async () => {
     t = await setup(memoriaFiles(), 'tfg.tex');
     const o = await getOutline();
@@ -328,6 +380,22 @@ describe('GET /api/search outline field', () => {
 });
 
 describe('POST /api/memoria/sections', () => {
+  it('crea subsecciones dentro de su sección y después de una subsección sin invadir la siguiente sección', async () => {
+    t = await setup(memoriaFiles(), 'tfg.tex');
+    let o = await getOutline();
+    const r = await post({ kind: 'subsection', title: 'Nuevo detalle', parent: byTitle(o.items, 'Contexto').id });
+    expect(r.statusCode).toBe(200);
+    expect(r.json().item).toMatchObject({ kind: 'subsection', number: '1.1.2' });
+    o = await getOutline();
+    expect(byTitle(o.items, 'Vacía').children).toEqual([]);
+    const second = await post({ kind: 'subsection', title: 'Entre detalles', after: byTitle(o.items, 'Detalle').id });
+    expect(second.statusCode).toBe(200);
+    o = await getOutline();
+    expect(byTitle(o.items, 'Entre detalles').number).toBe('1.1.2');
+    expect(byTitle(o.items, 'Nuevo detalle').number).toBe('1.1.3');
+    expect((await readMem(r.json().file)).match(/\\label\{sec:[^}]+\}/g)).toHaveLength(2);
+  });
+
   it('creates a chapter with the next free number and inserts its include before \\appendix', async () => {
     t = await setup(memoriaFiles(), 'tfg.tex');
     const r = await post({ kind: 'chapter', title: 'Metodología y diseño' });
@@ -431,5 +499,164 @@ describe('POST /api/memoria/sections', () => {
     expect(r.json().item.number).toBe('3');
     const main = (await readMem('main.tex')).split('\n');
     expect(main[main.indexOf('\\input{otro}') + 1]).toBe('\\input{conclusiones}');
+  });
+});
+
+describe('organizador de apartados', () => {
+  const sources = () => ({
+    'tfg.tex': '\\input{datos}\n\\begin{document}\n\\mainmatter\n\\include{a}\n\\include{b}\n\\appendix\n\\include{anexo}\n\\end{document}\n',
+    'datos.tex': '\\idioma{espanol}\n',
+    'a.tex': '\\chapter{Uno}\\label{cap:uno}\nIntroducción propia.\n\\section{Primera}\\label{sec:primera}\nTexto de la primera.\n\\subsection{Detalle A}\\label{sub:a}\nTexto A.\n\\subsection{Detalle B}\\label{sub:b}\nTexto B.\n\\section{Segunda}\\label{sec:segunda}\nTexto de la segunda con \\ref{sub:a}.\n\\section{Tercera}\\label{sec:tercera}\nTexto de la tercera.\n',
+    'b.tex': '\\chapter{Dos}\\label{cap:dos}\nTexto dos con \\ref{sec:segunda}.\n',
+    'anexo.tex': '\\chapter{Manual}\\label{cap:manual}\nTexto del anexo.\n',
+  });
+  const edit = async (title: string, action: string, extra: Record<string, unknown> = {}) => {
+    const o = await getOutline();
+    return t!.app.inject({ method: 'POST', url: '/api/memoria/sections/edit', payload: { id: byTitle(o.items, title).id, action, baseRev: o.revisions, ...extra } });
+  };
+
+  it('renombra una cabecera multilínea, actualiza su título corto y conserva etiquetas, referencias y CRLF', async () => {
+    const files = sources();
+    files['a.tex'] = files['a.tex'].replace('\\chapter{Uno}', '\\chapter[Corto]{Uno\ncon formato}').replace(/\n/g, '\r\n');
+    t = await setup(files, 'tfg.tex');
+    const before = await readMem('a.tex');
+    const r = await edit('Uno con formato', 'rename', { title: 'Diseño & evaluación' });
+    expect(r.statusCode).toBe(200);
+    expect(await readMem('a.tex')).toBe(before.replace('\\chapter[Corto]{Uno\r\ncon formato}', '\\chapter{Diseño \\& evaluación}'));
+    expect(await readMem('b.tex')).toBe(files['b.tex']);
+    expect((await fs.readdir(path.join(t.cfg.historyDir, 'memoria', 'a.tex'))).length).toBe(1);
+  });
+
+  it('mueve capítulos por sus inclusiones, mantiene el anexo y no modifica sus archivos', async () => {
+    const files = sources();
+    t = await setup(files, 'tfg.tex');
+    expect((await edit('Dos', 'up')).statusCode).toBe(200);
+    let o = await getOutline();
+    expect(o.items.filter((i: OutlineItem) => i.kind === 'chapter').map((i: OutlineItem) => [i.title, i.number])).toEqual([['Dos', '1'], ['Uno', '2']]);
+    expect(byTitle(o.items, 'Manual').number).toBe('A');
+    expect(await readMem('a.tex')).toBe(files['a.tex']);
+    expect(await readMem('b.tex')).toBe(files['b.tex']);
+    expect((await edit('Dos', 'down')).statusCode).toBe(200);
+    expect(await readMem('tfg.tex')).toBe(files['tfg.tex']);
+  });
+
+  it('desactiva y activa un capítulo sin tocar su contenido y restaura exactamente la inclusión', async () => {
+    const files = sources();
+    files['tfg.tex'] = files['tfg.tex'].replace(/\n/g, '\r\n');
+    t = await setup(files, 'tfg.tex');
+    expect((await edit('Uno', 'toggle')).statusCode).toBe(200);
+    let o = await getOutline();
+    expect(byTitle(o.items, 'Uno').enabled).toBe(false);
+    expect(byTitle(o.items, 'Dos').number).toBe('1');
+    expect(await readMem('a.tex')).toBe(files['a.tex']);
+    expect((await edit('Uno', 'toggle')).statusCode).toBe(200);
+    expect(await readMem('tfg.tex')).toBe(files['tfg.tex']);
+  });
+
+  it('mueve una sección con todas sus subsecciones y conserva cada etiqueta y texto', async () => {
+    const files = sources();
+    t = await setup(files, 'tfg.tex');
+    expect((await edit('Primera', 'down')).statusCode).toBe(200);
+    const o = await getOutline();
+    expect(byTitle(o.items, 'Uno').children.map((i) => i.title)).toEqual(['Segunda', 'Primera', 'Tercera']);
+    expect(byTitle(o.items, 'Primera').children.map((i) => [i.title, i.number])).toEqual([['Detalle A', '1.2.1'], ['Detalle B', '1.2.2']]);
+    expect((await edit('Primera', 'up')).statusCode).toBe(200);
+    expect(await readMem('a.tex')).toBe(files['a.tex']);
+  });
+
+  it('promueve una subsección sin llevarse sus hermanas y puede bajarla bajo la sección anterior', async () => {
+    t = await setup(sources(), 'tfg.tex');
+    expect((await edit('Detalle A', 'promote')).statusCode).toBe(200);
+    let o = await getOutline();
+    expect(byTitle(o.items, 'Primera').children.map((i) => i.title)).toEqual(['Detalle B']);
+    expect(byTitle(o.items, 'Uno').children.map((i) => i.title)).toEqual(['Primera', 'Detalle A', 'Segunda', 'Tercera']);
+    expect((await readMem('a.tex'))).toContain('\\section{Detalle A}\\label{sub:a}\nTexto A.');
+    expect((await edit('Detalle A', 'demote')).statusCode).toBe(200);
+    o = await getOutline();
+    expect(byTitle(o.items, 'Primera').children.map((i) => i.title)).toEqual(['Detalle B', 'Detalle A']);
+    expect(byTitle(o.items, 'Detalle A').number).toBe('1.1.2');
+    const before = await readMem('a.tex');
+    expect((await edit('Primera', 'demote')).statusCode).toBe(400);
+    expect(await readMem('a.tex')).toBe(before);
+  });
+
+  it('desactiva bloques completos con anidación y conserva el contenido al reactivarlos', async () => {
+    const files = sources();
+    files['a.tex'] = files['a.tex'].replace(/\n/g, '\r\n');
+    t = await setup(files, 'tfg.tex');
+    expect((await edit('Detalle A', 'toggle')).statusCode).toBe(200);
+    const partial = await readMem('a.tex');
+    expect((await edit('Primera', 'toggle')).statusCode).toBe(200);
+    let o = await getOutline();
+    expect(byTitle(o.items, 'Primera').enabled).toBe(false);
+    expect(byTitle(o.items, 'Segunda').number).toBe('1.1');
+    expect(flat(o.items).some((i) => i.title === 'Detalle B')).toBe(false);
+    expect((await edit('Primera', 'toggle')).statusCode).toBe(200);
+    expect(await readMem('a.tex')).toBe(partial);
+    o = await getOutline();
+    expect(byTitle(o.items, 'Detalle A').enabled).toBe(false);
+    expect((await edit('Detalle A', 'toggle')).statusCode).toBe(200);
+    expect(await readMem('a.tex')).toBe(files['a.tex']);
+  });
+
+  it('409 con una estructura obsoleta o un cambio concurrente en otra fuente, sin escribir', async () => {
+    t = await setup(sources(), 'tfg.tex');
+    const o = await getOutline();
+    await fs.appendFile(path.join(t.cfg.memoriaDir, 'b.tex'), '% cambio externo\n');
+    const original = await readMem('a.tex');
+    const r = await t.app.inject({ method: 'POST', url: '/api/memoria/sections/edit', payload: { id: byTitle(o.items, 'Uno').id, action: 'rename', title: 'Otro', baseRev: o.revisions } });
+    expect(r.statusCode).toBe(409);
+    sectionHooks.beforeCommit = async () => { await fs.appendFile(path.join(t!.cfg.memoriaDir, 'b.tex'), '% otra edición\n'); };
+    expect((await edit('Uno', 'rename', { title: 'Otro' })).statusCode).toBe(409);
+    expect(await readMem('a.tex')).toBe(original);
+  });
+
+  it('bloquea solo el archivo modificado, sin invertir los bloqueos de otras operaciones', async () => {
+    t = await setup(sources(), 'tfg.tex');
+    await t.ctx.locks.run('memoria:tfg.tex', async () => {
+      expect((await edit('Uno', 'rename', { title: 'Título revisado' })).statusCode).toBe(200);
+    });
+    expect(await readMem('a.tex')).toContain('\\chapter{Título revisado}\\label{cap:uno}');
+  });
+
+  it('rechaza acciones y revisiones inválidas, extremos, grupos especiales y cambios de nivel imposibles', async () => {
+    const files = sources();
+    files['a.tex'] = files['a.tex'].replace('\\section{Tercera}', '{\n\\section{Tercera}') + '}\n';
+    t = await setup(files, 'tfg.tex');
+    expect((await edit('Uno', 'inventada')).statusCode).toBe(400);
+    expect((await edit('Uno', 'rename', { title: 'Válido', baseRev: null })).statusCode).toBe(400);
+    expect((await edit('Uno', 'rename', { title: '\\input{fuera}' })).statusCode).toBe(400);
+    expect((await edit('Uno', 'up')).statusCode).toBe(400);
+    expect((await edit('Primera', 'demote')).statusCode).toBe(400);
+    expect((await edit('Tercera', 'up')).statusCode).toBe(400);
+    expect(await readMem('a.tex')).toBe(files['a.tex']);
+    expect(await readMem('tfg.tex')).toBe(files['tfg.tex']);
+  });
+
+  it('no modifica otra cabecera cuando varias comparten línea ni aplica tras retirar una fuente', async () => {
+    const files = sources();
+    files['a.tex'] = '\\chapter{Uno}\\section{Compartida}\nContenido propio.\n';
+    t = await setup(files, 'tfg.tex');
+    expect((await edit('Compartida', 'rename', { title: 'Otra' })).statusCode).toBe(400);
+    expect(await readMem('a.tex')).toBe(files['a.tex']);
+    const o = await getOutline();
+    await fs.unlink(path.join(t.cfg.memoriaDir, 'b.tex'));
+    const r = await t.app.inject({ method: 'POST', url: '/api/memoria/sections/edit', payload: { id: byTitle(o.items, 'Dos').id, action: 'toggle', baseRev: o.revisions } });
+    expect(r.statusCode).toBe(409);
+    expect(await readMem('tfg.tex')).toBe(files['tfg.tex']);
+  });
+
+  it.each(['espanol', 'ingles'])('activa y desactiva las dos inclusiones alternativas del resumen en %s', async (idioma) => {
+    const files: Record<string, string> = sources();
+    files['datos.tex'] = '\\idioma{' + idioma + '}\n';
+    files['resumen.tex'] = '\\chapter*{Resumen}\nResumen propio.\n';
+    files['abstract.tex'] = '\\chapter*{Abstract}\nEnglish summary.\n';
+    files['tfg.tex'] = files['tfg.tex'].replace('\\begin{document}\n', '\\begin{document}\n\\frontmatter\n\\iflanguage{english}{\n\\input{abstract}\n\\input{resumen}\n}{\n\\input{resumen}\n\\input{abstract}\n}\n');
+    t = await setup(files, 'tfg.tex');
+    expect((await edit('Resumen', 'toggle')).statusCode).toBe(200);
+    expect((await readMem('tfg.tex')).match(/% \\input\{resumen\}/g)).toHaveLength(2);
+    expect(byTitle((await getOutline()).items, 'Resumen').enabled).toBe(false);
+    expect((await edit('Resumen', 'toggle')).statusCode).toBe(200);
+    expect(await readMem('tfg.tex')).toBe(files['tfg.tex']);
   });
 });

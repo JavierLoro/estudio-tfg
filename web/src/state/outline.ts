@@ -3,7 +3,8 @@
 // tras guardar/compilar o cambios en disco de la memoria.
 
 import { create } from 'zustand';
-import { api, ApiError, errorMessage, type NewSectionRequest, type OutlineItem, type OutlineResponse } from '../api';
+import { api, ApiError, errorMessage, type EditSectionRequest, type NewSectionRequest, type OutlineItem, type OutlineResponse } from '../api';
+import { handleExternalChange, isDirty, useDocs } from './docs';
 
 interface OutlineState {
   data: OutlineResponse | null;
@@ -78,10 +79,29 @@ export function handleOutlineEvent(raw: string) {
 
 /** Crea un apartado. En 409 relee el índice antes de propagar el error. */
 export async function createSection(body: NewSectionRequest) {
+  requireSavedStructure();
   try {
     const r = await api.createSection(body);
     void useOutline.getState().refresh();
     return r;
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 409) await useOutline.getState().refresh();
+    throw e;
+  }
+}
+
+function requireSavedStructure() {
+  const pending = Object.values(useDocs.getState().docs).find((d) => d.root === 'memoria' && (isDirty(d) || d.conflict || d.draftOffer || d.saving));
+  if (pending) throw new Error('Guarda o resuelve los cambios de «' + pending.path + '» antes de organizar la memoria.');
+}
+
+export async function editSection(body: EditSectionRequest) {
+  requireSavedStructure();
+  try {
+    const result = await api.editSection(body);
+    useOutline.getState().setData(result.outline);
+    await handleExternalChange({ root: 'memoria', path: result.changed, kind: 'change' });
+    return result;
   } catch (e) {
     if (e instanceof ApiError && e.status === 409) await useOutline.getState().refresh();
     throw e;
@@ -109,6 +129,7 @@ function normalizeOutline(d: OutlineResponse): OutlineResponse {
     words: typeof d.words === 'number' ? d.words : 0,
     generatedAt: d.generatedAt ?? '',
     warnings: Array.isArray(d.warnings) ? d.warnings : [],
+    revisions: d.revisions,
   };
 }
 

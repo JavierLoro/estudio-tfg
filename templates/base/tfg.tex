@@ -11,8 +11,13 @@
 \portadainterior                         % portada interior con tutores
 \paginaderechos                          % créditos: autor, contacto y licencia
 \tribunal                                % hoja para el tribunal
-\input{0-inicio/resumen}                 % resumen en español
-\input{0-inicio/abstract}                % resumen en inglés
+\iflanguage{english}{%
+  \input{0-inicio/abstract}              % primero, el resumen en inglés
+  \input{0-inicio/resumen}
+}{%
+  \input{0-inicio/resumen}               % primero, el resumen en español
+  \input{0-inicio/abstract}
+}
 \input{0-inicio/agradecimientos}         % agradecimientos (opcional)
 \indices                                 % índice general y, si hay, de figuras, tablas y listados
 \input{0-inicio/acronimos}               % lista de acrónimos

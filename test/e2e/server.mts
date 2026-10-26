@@ -4,6 +4,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { buildApp } from '../../server/src/app.ts';
 import { assistantRoutes, type AssistantProvider } from '../../server/src/assistant.ts';
+import { normativaFixture } from '../normativa-fixture.ts';
 import { DIAGRAM_TEMPLATES } from '../../web/src/lib/diagramTemplates.ts';
 import { loadConfig, REPO_ROOT } from '../../server/src/config.ts';
 
@@ -53,8 +54,13 @@ const fakeProvider: AssistantProvider = {
   connect: async () => fakeProvider.view(), select: async () => fakeProvider.view(), disconnect: async () => fakeProvider.view(), cancelSignIn: async () => {},
   models: async () => [{ id: 'modelo-contexto-ficticio', name: 'Modelo de pruebas' }], subscribe: () => () => {}, close: async () => {},
   respond: async (_m, input, tools, signal, _event, options) => {
-    signal.throwIfAborted(); if (options?.purpose !== 'search') assert(tools.length === 0, 'No hay herramientas fuera del descubrimiento');
+    signal.throwIfAborted(); if (!['search', 'template'].includes(options?.purpose ?? '')) assert(tools.length === 0, 'No hay herramientas fuera de las acciones autorizadas');
     const text = input[0].content[0].text;
+    if (options?.purpose === 'template') {
+      assert(tools.length === 1 && tools[0].name === 'proponer_plantilla', 'Única herramienta de configuración de normativa');
+      const responses = JSON.parse(text.split('\nRespuestas confirmadas: ')[1]);
+      return [{ type: 'function_call', name: 'proponer_plantilla', call_id: 'normativa-ficticia', arguments: JSON.stringify(normativaFixture(!responses.margen)) }];
+    }
     if (options?.purpose === 'search') return [...response({ candidates: [{ url: 'https://example.org/fuente', title: 'Web de búsqueda ficticia', kind: 'web', description: 'Página ficticia devuelta por la herramienta' }] }), { type: 'web_search_call', action: { type: 'search', sources: [{ url: 'https://example.org/fuente', title: 'Fuente ficticia' }] } }];
     if (options?.purpose === 'review') { const candidates = JSON.parse(text.split('\nCandidatos: ')[1].split('\nContexto autorizado')[0]); return response({ candidates: candidates.map((c: any) => ({ id: c.id, purpose: 'Introducir el tema', contribution: 'Aportación inferida ficticia', usage: 'Marco teórico', limitations: 'Texto completo y calidad sin comprobar' })) }); }
     if (options?.purpose === 'diagram') {

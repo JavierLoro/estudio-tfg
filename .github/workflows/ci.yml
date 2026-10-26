@@ -150,7 +150,7 @@ jobs:
         run: node scripts/bundle-smoke.mjs --worker-url http://127.0.0.1:8097 --output-dir "$TEMPLATE_OUT"
       - name: Verificar configuraciones y límites de acceso con fuentes ficticias
         run: WORKER_SECURITY_URL=http://127.0.0.1:8097 WORKER_SECURITY_OUT="$TEMPLATE_OUT" node --test worker/security.integration.test.mjs
-      - name: Compilar todos los perfiles y exigir cero avisos
+      - name: Compilar perfiles, idiomas y fuentes sin avisos
         run: node scripts/compile-template.mjs --worker-url http://127.0.0.1:8097 --output-dir "$TEMPLATE_OUT"
       - name: Verificar citas, figuras y memoria trasladada sin biblioteca
         run: node server/node_modules/tsx/dist/cli.mjs scripts/library-compile.mts --worker-url http://127.0.0.1:8097 --output-dir "$TEMPLATE_OUT"
@@ -167,6 +167,7 @@ jobs:
               --volume "$GITHUB_WORKSPACE/server/node_modules:/repo/server/node_modules:ro" \
               --volume "$GITHUB_WORKSPACE/worker:/repo/worker:ro" \
               --volume "$GITHUB_WORKSPACE/scripts:/repo/scripts:ro" \
+              --volume "$GITHUB_WORKSPACE/shared:/repo/shared:ro" \
               --volume "$GITHUB_WORKSPACE/web/src/lib/diagramTemplates.ts:/repo/web/src/lib/diagramTemplates.ts:ro" \
               --volume "$GITHUB_WORKSPACE/templates:/repo/templates:ro" \
               --entrypoint node estudio-tfg-worker:ci --experimental-transform-types \

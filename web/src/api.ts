@@ -41,6 +41,11 @@ export interface SettingsResponse {
   allowedRoots: string[];
   checks: SettingsCheck[];
 }
+export interface ProyectoPropio {
+  archivos: { path: string; principal: boolean; compatible: boolean }[];
+  principal: string | null;
+  id?: string;
+}
 
 export interface EngineHealth {
   ok: boolean;
@@ -235,6 +240,7 @@ export interface OutlineResponse {
   generatedAt: string;
   /** Problemas de estructura (archivos que faltan, ciclos…), si el servidor los da. */
   warnings?: string[];
+  revisions?: Record<string, string>;
 }
 
 // ---- Autocompletado (v0.8): GET /api/memoria/refs ----
@@ -267,7 +273,21 @@ export interface RefsResponse {
   acronimos: RefAcronimo[];
 }
 
-export type NewSectionKind = 'chapter' | 'section' | 'appendix';
+export type NewSectionKind = 'chapter' | 'section' | 'subsection' | 'appendix';
+
+export type SectionAction = 'rename' | 'up' | 'down' | 'promote' | 'demote' | 'toggle';
+export interface EditSectionRequest {
+  id: string;
+  action: SectionAction;
+  title?: string;
+  baseRev: Record<string, string>;
+}
+export interface EditSectionResponse {
+  outline: OutlineResponse;
+  file: string;
+  line: number;
+  changed: string;
+}
 
 export interface NewSectionRequest {
   kind: NewSectionKind;
@@ -353,6 +373,10 @@ export interface DatosChanges {
   datos?: Record<string, string>;
   institucion?: Record<string, string>;
 }
+
+export interface PortadasResponse { config: import('../../shared/portadas.ts').PortadasConfig; baseRev: string }
+export type { NuevaMemoriaConfig } from '../../shared/nueva-memoria.ts';
+import type { NuevaMemoriaConfig } from '../../shared/nueva-memoria.ts';
 
 export interface Perfil {
   id: string;
@@ -670,9 +694,13 @@ export const api = {
     }
   },
 
+  editSection: (body: EditSectionRequest) => json<EditSectionResponse>('/api/memoria/sections/edit', jsonBody('POST', body)),
+
   // ---- Datos del trabajo (v0.5) ----
 
   datos: () => json<DatosResponse>('/api/memoria/datos'),
+  portadas: () => json<PortadasResponse>('/api/memoria/portadas'),
+  savePortadas: (body: PortadasResponse) => json<PortadasResponse>('/api/memoria/portadas', jsonBody('PUT', body)),
 
   /** Lanza DatosConflictError (409), FieldError (400 con `field`) o ApiError. */
   saveDatos: async (changes: DatosChanges, baseRev: { datos?: string; institucion?: string }) => {
@@ -704,6 +732,15 @@ export const api = {
   },
 
   // ---- Actualizar plantilla (v0.6) ----
+  normativaText: async (id: string) => (await request(`/api/assistant/template-generations/${encodeURIComponent(id)}/source`)).text(),
+  inspeccionarProyecto: (dir: string) => json<ProyectoPropio>('/api/templates/inspect', jsonBody('POST', { dir })),
+  subirPlantilla: (file: File) => {
+    const body = new FormData();
+    body.append('file', file);
+    return json<ProyectoPropio>('/api/templates/upload', { method: 'POST', body });
+  },
+  descartarPlantilla: (id: string) => json<{ ok: boolean }>(`/api/templates/uploads/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  usarPlantilla: (body: { dir: string; main: string; id?: string }) => json<SettingsResponse>('/api/templates/use', jsonBody('POST', body)),
 
   /** null si el servidor aún no lo ofrece (404). */
   plantilla: async (perfil?: string): Promise<PlantillaPreview | null> => {
@@ -753,9 +790,9 @@ export const api = {
   fsDirs: (path?: string) => guarded(json<FsDirsResponse>(`/api/fs/dirs?${qs({ path: path || undefined })}`)),
 
   /** 409 si la carpeta existe y no está vacía. */
-  initMemoria: async (dir: string, perfil?: string) => {
+  initMemoria: async (dir: string, perfil?: string, configuracion?: NuevaMemoriaConfig) => {
     try {
-      return await guarded(json<Partial<SettingsResponse> & { warning?: string }>('/api/settings/init-memoria', jsonBody('POST', perfil ? { dir, perfil } : { dir })));
+      return await guarded(json<Partial<SettingsResponse> & { warning?: string }>('/api/settings/init-memoria', jsonBody('POST', { dir, perfil, configuracion })));
     } catch (e) {
       if (e instanceof ApiError && e.status === 409 && !(e instanceof ConflictError)) {
         throw new ApiError(409, e.message && e.message !== 'HTTP 409' ? e.message : 'La carpeta no está vacía', e.body);

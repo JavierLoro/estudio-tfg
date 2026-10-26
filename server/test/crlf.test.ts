@@ -43,7 +43,10 @@ describe('documentos CRLF', () => {
       const buf = await fs.readFile(file);
       if (templateHash(buf, rel) === sha256(buf) && !rel.endsWith('.pdf')) await fs.writeFile(file, crlf(buf.toString('utf8')));
     }
-    expect(outlineKey((await buildOutline(env.cfg, null)).outline)).toBe(outlineKey(before.outline));
+    const after = (await buildOutline(env.cfg, null)).outline;
+    expect(outlineKey({ ...after, revisions: undefined })).toBe(outlineKey({ ...before.outline, revisions: undefined }));
+    expect(after.revisions?.['tfg.tex']).toBe(rev(await fs.readFile(path.join(env.cfg.memoriaDir, 'tfg.tex'))));
+    expect(after.revisions?.['tfg.tex']).not.toBe(before.outline.revisions?.['tfg.tex']);
     expect(await computePlan(env.cfg)).toMatchObject({ estado: 'actual', cambios: [], revisar: [] });
   });
 
