@@ -53,7 +53,7 @@ En **Nuevo diagrama**, elige el editor:
 
 Ambos permiten **insertar la figura en la memoria** eligiendo apartado, pie y ancho, y conservan la fuente editable. Los diagramas de Biblioteca se copian a Memoria sin modificar el original. [Uso, guardado y límites](docs/README.md#diagramas).
 
-[![Editor de diagramas con el recorrido del proyecto de demostración](docs/imagenes/diagramas.png)](docs/imagenes/diagramas.png)
+[![El mismo flujo en Mermaid, a la izquierda, y Excalidraw, a la derecha](docs/imagenes/comparacion-diagramas.png)](docs/imagenes/comparacion-diagramas.png)
 
 ### Encuentra fuentes y decide qué incorporar
 
