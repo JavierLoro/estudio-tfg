@@ -3,7 +3,6 @@ import type { OutlineItem } from '../api';
 import { DIAGRAM_TEMPLATES } from '../lib/diagramTemplates';
 import { basename, docKey } from '../lib/paths';
 import {
-  DIAGRAMAS_DIR,
   createDiagram,
   diagramName,
   insertFigure,
@@ -18,6 +17,8 @@ import { ensureDoc, useDocs } from '../state/docs';
 import { Button, Modal, cx } from './ui';
 import { DiagramTemplatePicker } from './DiagramTemplatePicker';
 import { useDesktop } from '../state/desktop';
+import { toast } from '../state/ui';
+import { errorMessage } from '../api';
 const DiagramAssistant = lazy(() => import('./DiagramAssistant'));
 
 const input = 'h-8 w-full rounded-md border border-line-strong bg-bg px-2 text-[13px] outline-none focus:border-accent';
@@ -27,6 +28,7 @@ export function NewDiagramDialog() {
   const req = useNewDiagram((s) => s.req);
   const desktop = useDesktop(s => !!s.info);
   const [mode, setMode] = useState<'template' | 'assistant'>('template');
+  const [format, setFormat] = useState<'mermaid' | 'excalidraw'>('mermaid');
   const [assistantSource, setAssistantSource] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [tpl, setTpl] = useState(DIAGRAM_TEMPLATES[0].id);
@@ -34,7 +36,7 @@ export function NewDiagramDialog() {
   useEffect(() => {
     if (req) {
       setName(req.name ?? ''); setMode('template'); setAssistantSource(null);
-      setTpl(DIAGRAM_TEMPLATES[0].id);
+      setFormat(req.format ?? 'mermaid'); setTpl(req.format === 'excalidraw' ? 'vacio' : DIAGRAM_TEMPLATES[0].id);
       setBusy(false);
     }
   }, [req]);
@@ -44,10 +46,13 @@ export function NewDiagramDialog() {
     if (!req || !full || busy) return;
     setBusy(true);
     if (mode === 'assistant' && !assistantSource) { setBusy(false); return; }
-    const source = (mode === 'assistant' ? assistantSource! : req.source) ?? DIAGRAM_TEMPLATES.find((t) => t.id === tpl)!.source;
-    const path = await createDiagram(full, source);
-    setBusy(false);
-    if (path) close();
+    try {
+      const source = req.source ?? (format === 'excalidraw' ? await (await import('../lib/excalidraw')).excalidrawTemplate(tpl)
+        : mode === 'assistant' ? assistantSource! : DIAGRAM_TEMPLATES.find((t) => t.id === tpl)!.source);
+      const path = await createDiagram(full, source, format, req.instanceId);
+      if (path) close();
+    } catch (e) { toast({ kind: 'error', text: errorMessage(e) }); }
+    finally { setBusy(false); }
   };
   return (
     <Modal
@@ -76,25 +81,12 @@ export function NewDiagramDialog() {
       >
         <label className="flex flex-col gap-1 text-[12px] text-muted">
           Nombre
-          <input autoFocus aria-label="Nombre" aria-describedby="et-diagram-name-help" value={name} onChange={(e) => setName(e.target.value)} placeholder="arquitectura-general" className={input} />
-          <span id="et-diagram-name-help" className="text-[11px] text-faint">
-            {full ? (
-              <>
-                Se crea <span className="font-mono">{`${DIAGRAMAS_DIR}/${full}.mmd`}</span>. La exportación posterior se guarda en{' '}
-                <span className="font-mono">{`figuras/diagramas/${full}.pdf`}</span>
-              </>
-            ) : (
-              'Letras, números, guiones y «/» para subcarpetas (sin tildes ni espacios).'
-            )}
-          </span>
+          <input autoFocus aria-label="Nombre" value={name} onChange={(e) => setName(e.target.value)} placeholder="arquitectura-general" className={input} />
         </label>
-        {!req?.source && desktop && <div role="group" aria-label="Origen del diagrama"><Button aria-pressed={mode === 'template'} onClick={() => setMode('template')}>Plantilla</Button><Button aria-pressed={mode === 'assistant'} onClick={() => setMode('assistant')}>Con asistente</Button></div>}
-        {req?.source ? (
-          <p className="text-[12px] text-muted">
-            Se copia el bloque de la nota: la nota y el diagrama quedan independientes.
-          </p>
-        ) : (
-          <><DiagramTemplatePicker value={tpl} onChange={setTpl} />{mode === 'assistant' && <Suspense fallback={<p>Cargando asistente…</p>}><DiagramAssistant name={full} type={tpl} onSource={setAssistantSource} /></Suspense>}</>
+        {!req?.source && <div role="group" aria-label="Editor del diagrama">{(['mermaid', 'excalidraw'] as const).map(value => <Button key={value} aria-pressed={format === value} onClick={() => { setFormat(value); setMode('template'); setAssistantSource(null); setTpl(value === 'excalidraw' ? 'vacio' : DIAGRAM_TEMPLATES[0].id); }}>{value === 'mermaid' ? 'Mermaid' : 'Excalidraw'}</Button>)}</div>}
+        {!req?.source && desktop && format === 'mermaid' && <div role="group" aria-label="Origen del diagrama"><Button aria-pressed={mode === 'template'} onClick={() => setMode('template')}>Plantilla</Button><Button aria-pressed={mode === 'assistant'} onClick={() => setMode('assistant')}>Con asistente</Button></div>}
+        {!req?.source && (
+          <><DiagramTemplatePicker value={tpl} onChange={setTpl} format={format} />{mode === 'assistant' && <Suspense fallback={<p>Cargando asistente…</p>}><DiagramAssistant name={full} type={tpl} onSource={setAssistantSource} /></Suspense>}</>
         )}
       </form>
     </Modal>
@@ -106,6 +98,7 @@ const DEST_KINDS = new Set<OutlineItem['kind']>(['chapter', 'section', 'subsecti
 /** «Insertar en la memoria»: destino (vista Documento), pie, etiqueta y ancho. */
 export function InsertFigureDialog() {
   const path = useInsertFigure((s) => s.path);
+  const instanceId = useInsertFigure(s => s.instanceId);
   const outline = useOutline((s) => s.data);
   const name = path ? diagramName(path) : null;
   const dests = useMemo(() => {
@@ -131,8 +124,9 @@ export function InsertFigureDialog() {
       await ensureDoc('memoria', path);
       const content = useDocs.getState().docs[docKey('memoria', path)]?.content;
       if (!content) return;
-      const { renderDiagram } = await import('../lib/diagram');
-      const r = await renderDiagram(content, name ?? 'diagrama');
+      const r = /\.excalidraw$/i.test(path)
+        ? (await import('../lib/excalidraw')).excalidrawSize(content)
+        : await (await import('../lib/diagram')).renderDiagram(content, name ?? 'diagrama');
       if (alive && r.ok) setWidth(suggestWidth(r.width, r.height));
     })();
     return () => {
@@ -150,7 +144,7 @@ export function InsertFigureDialog() {
   const submit = async () => {
     if (!path || !target || busy || !label.trim()) return;
     setBusy(true);
-    const ok = await insertFigure({ path, target, caption: caption.trim() || basename(name ?? ''), label: label.trim(), width });
+    const ok = await insertFigure({ path, instanceId, target, caption: caption.trim() || basename(name ?? ''), label: label.trim(), width });
     setBusy(false);
     if (ok) close();
   };

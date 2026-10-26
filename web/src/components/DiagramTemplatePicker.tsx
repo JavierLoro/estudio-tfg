@@ -29,31 +29,29 @@ function Example({ template }: { template: DiagramTemplate }) {
   </div>;
 }
 
-export function DiagramTemplatePicker({ value, onChange }: { value: string; onChange: (id: string) => void }) {
-  const index = Math.max(0, DIAGRAM_TEMPLATES.findIndex(t => t.id === value));
-  const template = DIAGRAM_TEMPLATES[index];
-  const hintId = useId();
-  const move = (step: number) => onChange(DIAGRAM_TEMPLATES[(index + step + DIAGRAM_TEMPLATES.length) % DIAGRAM_TEMPLATES.length].id);
-  return <div role="group" aria-roledescription="carrusel" aria-label="Tipo de diagrama" aria-describedby={hintId}
+const previews = import.meta.glob('../assets/excalidraw/*.svg', { query: '?url', import: 'default', eager: true });
+export function DiagramTemplatePicker({ value, onChange, format = 'mermaid' }: { value: string; onChange: (id: string) => void; format?: 'mermaid' | 'excalidraw' }) {
+  const templates = format === 'excalidraw' ? [{ id: 'vacio', label: 'En blanco', description: '', source: '' }, ...DIAGRAM_TEMPLATES.slice(0, 6)] : DIAGRAM_TEMPLATES;
+  const index = Math.max(0, templates.findIndex(t => t.id === value));
+  const template = templates[index];
+  const move = (step: number) => onChange(templates[(index + step + templates.length) % templates.length].id);
+  return <div role="group" aria-roledescription="carrusel" aria-label="Tipo de diagrama"
     tabIndex={0} className="rounded-lg border border-line p-2 outline-none focus-visible:ring-2 focus-visible:ring-accent"
     onKeyDown={e => {
       if (e.altKey || e.ctrlKey || e.metaKey) return;
       if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
       e.preventDefault();
-      if (e.key === 'Home') onChange(DIAGRAM_TEMPLATES[0].id);
-      else if (e.key === 'End') onChange(DIAGRAM_TEMPLATES.at(-1)!.id);
+      if (e.key === 'Home') onChange(templates[0].id);
+      else if (e.key === 'End') onChange(templates.at(-1)!.id);
       else move(e.key === 'ArrowLeft' ? -1 : 1);
     }}>
     <div className="flex items-center gap-2 pb-2">
       <IconButton label="Tipo anterior" onClick={() => move(-1)} className="h-9 w-9 border border-line-strong"><ChevronLeft size={18} /></IconButton>
       <div role="status" aria-live="polite" aria-atomic="true" className="min-w-0 flex-1 text-center">
-        <span className="text-[11px] text-faint">{index + 1} de {DIAGRAM_TEMPLATES.length}</span>
         <h3 className="text-[14px] font-semibold">{template.label}</h3>
-        <p className="min-h-8 text-[12px] text-muted">{template.description}</p>
       </div>
       <IconButton label="Tipo siguiente" onClick={() => move(1)} className="h-9 w-9 border border-line-strong"><ChevronRight size={18} /></IconButton>
     </div>
-    <Example key={template.id} template={template} />
-    <p id={hintId} className="pt-2 text-center text-[11px] text-faint">Usa las flechas ← → para cambiar de tipo; Inicio y Fin van al primero y al último.</p>
+    {format === 'mermaid' ? <Example key={template.id} template={template} /> : <div className="flex h-52 items-center justify-center rounded-md border border-line bg-white p-3">{template.id === 'vacio' ? <div role="img" aria-label="Lienzo en blanco" className="h-full w-full" /> : <img alt={`Ejemplo de ${template.label}`} src={previews[`../assets/excalidraw/${template.id}.svg`] as string} className="h-full w-full object-contain" />}</div>}
   </div>;
 }

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpen, FolderOpen, Grid2X2, List, Plus, RefreshCw } from 'lucide-react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { BookOpen, FolderOpen, Grid2X2, List, Network, Plus, RefreshCw } from 'lucide-react';
 import { api } from '../api';
 import { Button, Banner, Empty, Spinner, cx } from '../components/ui';
 import { openActions } from '../components/OpenActions';
@@ -11,6 +11,7 @@ import { useUI } from '../state/ui';
 import { useCaptureQueue } from '../state/captureQueue';
 import { openResource } from '../state/workspace';
 import BibliographyImportDialog from '../components/BibliographyImportDialog';
+const LibraryMap = lazy(() => import('../components/LibraryMap'));
 
 export default function BibliotecaPanel() {
   const resources = useUI((s) => s.resources),
@@ -24,6 +25,7 @@ export default function BibliotecaPanel() {
   const [grid, setGrid] = useState(() => load('et:library-grid', false)),
     [migration, setMigration] = useState(false);
   const [importing,setImporting]=useState(false);
+  const [mapOpen, setMapOpen] = useState(false);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const detailRef = useRef<HTMLElement>(null), previousSelection = useRef<string | null>(null);
   const rowRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -37,6 +39,7 @@ export default function BibliotecaPanel() {
   useEffect(() => {
     setFilters(load(key, DEFAULT_FILTERS));
     setSelectedPath(null);
+    setMapOpen(false);
     void useUI.getState().refreshResources();
   }, [key]);
   const filter = (name: keyof LibraryFilters, value: string) => {
@@ -49,6 +52,7 @@ export default function BibliotecaPanel() {
   const tags = [...new Set((resources ?? []).flatMap((r) => r.tags).filter((tag) => tag !== 'recurso'))].sort();
   const collections = [...new Set((resources ?? []).flatMap((r) => r.collections ?? []))].sort();
   const input = 'h-9 rounded-md border border-line bg-bg px-2 text-[12px] outline-none focus:border-accent';
+  if (mapOpen) return <Suspense fallback={<div className="p-4"><Spinner /> Cargando mapa…</div>}><LibraryMap key={status?.libraryId} onBack={() => setMapOpen(false)} /></Suspense>;
   return (
     <div className="h-full overflow-auto bg-soft p-4 @container">
       <div className="mx-auto max-w-6xl space-y-4">
@@ -60,6 +64,7 @@ export default function BibliotecaPanel() {
             <p className="mt-1 text-[12px] text-muted">Referencias, documentos, imágenes y webs para tus trabajos.</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Button onClick={() => setMapOpen(true)}><Network size={13} /> Mapa de contenidos</Button>
             <Button onClick={()=>setImporting(true)}>Importar bibliografía</Button>
             <Button onClick={() => setMigration(true)}>Formato y recuperación</Button>
             <Button onClick={() => void useUI.getState().refreshResources()} title="Recargar Biblioteca">

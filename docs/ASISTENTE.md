@@ -59,7 +59,7 @@ Las acciones del asistente preparan el mensaje y adjuntan su contexto; conserva 
 borrador anterior y no consulta nada hasta que pulses **Enviar**. La selección aún
 requiere autorizar el archivo completo, tal como indica el diálogo de permisos.
 
-En diagramas, el clic derecho sobre un bloque ofrece sus propiedades, texto,
+En diagramas Mermaid, el clic derecho sobre un bloque ofrece sus propiedades, texto,
 conexión y borrado recuperable; una conexión ofrece etiqueta y borrado, y el fondo
 permite añadir elementos. Usa Mayús+F10 con un elemento seleccionado para el mismo
 menú. Las acciones del asistente indican qué bloque o conexión quieres consultar
@@ -162,7 +162,9 @@ Antes de enviar un chat o generar un diagrama, revisa el **Contexto efectivo ant
 
 ## Diagramas con asistente
 
-En Nuevo diagrama elige **Con asistente**, nombre, uno de los quince tipos y descripción. Concede su permiso propio en Ajustes y elige un modelo disponible. **Generar propuesta** conserva código, explicación y supuestos, sin crear archivos. Puedes recuperar propuestas, detener la generación, corregir el código o pedir otra expresamente. **Crear diagrama** solo se habilita cuando la propuesta se dibuja correctamente con el renderer existente. Nunca sobrescribe un nombre ocupado. La exportación y la inserción en Memoria se realizan después; no se ofrece edición asistida de diagramas existentes.
+En Nuevo diagrama elige **Mermaid → Con asistente**, nombre, uno de los quince tipos y descripción. Concede su permiso propio en Ajustes y elige un modelo disponible. **Generar propuesta** conserva código, explicación y supuestos, sin crear archivos. Puedes recuperar propuestas, detener la generación, corregir el código o pedir otra expresamente. **Crear diagrama** solo se habilita cuando la propuesta se dibuja correctamente con el renderer existente. Nunca sobrescribe un nombre ocupado. La exportación y la inserción en Memoria se realizan después; no se ofrece edición asistida de diagramas existentes.
+
+Excalidraw permite creación y edición local con sus propias plantillas. Esta entrega no añade generación, consulta ni modificación de escenas `.excalidraw` mediante el asistente; sus fuentes no se incluyen en ese alcance por elegir el editor.
 
 ## Descubrir fuentes públicas
 

@@ -3,7 +3,8 @@
 
 import { create } from 'zustand';
 import { api, errorMessage, type Root, type SettingsResponse, type Status } from '../api';
-import { getInstance, migrateLegacyKeys, moveDraft, setInstance } from '../lib/instance';
+import { draftStorageKey, getInstance, migrateLegacyKeys, moveDraft, setInstance } from '../lib/instance';
+import { diagramDrafts } from '../lib/diagramDrafts';
 import { useCompile } from './compile';
 import { useOutline } from './outline';
 import { flushDrafts, useDocs } from './docs';
@@ -69,7 +70,15 @@ function applyTransition(prev: Status, next: Status) {
   const oldId = getInstance();
   const newId = next.instanceId ?? null;
   if (oldId !== newId) {
-    for (const key of Object.keys(useDocs.getState().docs)) moveDraft(key, oldId, newId);
+    const docs = { ...useDocs.getState().docs };
+    for (const [key, doc] of Object.entries(docs)) {
+      if (doc.draftId) {
+        const destination = draftStorageKey(key, newId);
+        void diagramDrafts.rename(doc.draftId, destination).catch(e => toast({ kind: 'error', text: `El borrador se conserva en el proyecto anterior: ${errorMessage(e)}` }));
+        docs[key] = { ...doc, draftId: destination, instanceId: newId ?? undefined };
+      } else moveDraft(key, oldId, newId);
+    }
+    useDocs.setState({ docs });
     setInstance(newId);
     useUI.getState().initSpaces();
     scheduleLayoutSave();
