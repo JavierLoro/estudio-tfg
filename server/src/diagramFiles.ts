@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { Config } from './config.ts';
 import type { Ctx } from './context.ts';
-import { atomicWrite, backup } from './fsutil.ts';
+import { atomicWrite, backup, walkFiles } from './fsutil.ts';
 import { HttpError } from './errors.ts';
 import { resolveSafe, type RootName } from './paths.ts';
 
@@ -26,18 +26,20 @@ export function withMeta(svg: string, meta: DiagramaMeta): string {
   return clean.slice(0, at) + `<metadata id="estudio-tfg-diagrama">${text}</metadata>` + clean.slice(at);
 }
 
-/** El SVG conserva su propietario cuando la fuente cambia de nombre. */
+/** Todas las figuras conservadas siguen a su fuente, también tras varios renombrados. */
 export async function moveDiagramOwner(ctx: Ctx, from: string, to: string) {
   if (!diagramSource(from) || !diagramSource(to)) return;
-  const rel = 'figuras/' + from.replace(/\.(mmd|excalidraw)$/i, '.svg');
-  const file = await resolveSafe(ctx.cfg, 'memoria', rel);
-  if (!file.exists) return;
-  await ctx.locks.run(`memoria:${rel}`, async () => {
-    const before = await fs.readFile(file.abs), meta = readMeta(before.toString('utf8'));
-    if (meta?.fuente !== from) return;
-    await backup(ctx.cfg, 'memoria', rel, before);
-    await atomicWrite(file.abs, withMeta(before.toString('utf8'), { ...meta, fuente: to }));
-  });
+  const files = await walkFiles(ctx.cfg, 'memoria', { subdir: 'figuras/diagramas', onError: (_rel, error) => { throw error; } });
+  for (const file of files) {
+    if (!/\.svg$/i.test(file.rel)) continue;
+    await ctx.locks.run(`memoria:${file.rel}`, async () => {
+      const safe = await resolveSafe(ctx.cfg, 'memoria', file.rel);
+      const before = await fs.readFile(safe.abs), meta = readMeta(before.toString('utf8'));
+      if (meta?.fuente !== from) return;
+      await backup(ctx.cfg, 'memoria', file.rel, before);
+      await atomicWrite(safe.abs, withMeta(before.toString('utf8'), { ...meta, fuente: to }));
+    });
+  }
 }
 
 /** Los dos formatos comparten la figura de LaTeX; nunca pueden apropiarse del mismo nombre. */
