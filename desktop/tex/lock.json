@@ -11,7 +11,7 @@
     "url": "https://www.cpan.org/src/5.0/perl-5.42.2.tar.gz",
     "sha256": "9384e8deb75b7b1695e5637971b752281aaecd025a3d5d4734d33c1d0adfee47"
   },
-  "packages": ["latexmk", "biber", "babel-spanish", "hyphen-spanish", "hyphen-german", "newtx", "tex-gyre", "bera", "lm", "microtype", "geometry", "setspace", "enumitem", "xcolor", "caption", "booktabs", "listings", "acronym", "tocbibind", "csquotes", "biblatex", "biblatex-ieee", "titlesec", "hyperref", "xpatch", "xstring", "xkeyval", "fontaxes", "mweights", "textcase", "anyfontsize", "ly1", "bigfoot"],
+  "packages": ["latexmk", "biber", "babel-spanish", "hyphen-spanish", "hyphen-german", "newtx", "tex-gyre", "bera", "lm", "microtype", "geometry", "setspace", "enumitem", "xcolor", "caption", "booktabs", "listings", "acronym", "tocbibind", "csquotes", "biblatex", "biblatex-ieee", "titlesec", "hyperref", "xpatch", "xstring", "xkeyval", "fontaxes", "mweights", "textcase", "anyfontsize", "ly1", "bigfoot", "fontspec", "luaotfload", "luatex", "luahbtex", "txfonts"],
   "platforms": {
     "darwin-arm64": "universal-darwin",
     "darwin-x64": "universal-darwin",

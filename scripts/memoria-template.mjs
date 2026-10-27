@@ -19,7 +19,7 @@ export const DEFAULT_PERFIL = 'esi-uclm';
  * Versión de la plantilla actual (nombre de su manifiesto). Súbela cuando cambie la
  * versión de la clase (\ProvidesClass de estilo/memoria.cls).
  */
-export const PLANTILLA_VERSION = 'v0.10';
+export const PLANTILLA_VERSION = 'v0.11';
 
 const PERFIL_ID = /^[a-z0-9][a-z0-9-]*$/;
 

@@ -22,7 +22,7 @@ export interface EngineResult {
 export interface Engine {
   type: 'docker' | 'local';
   health(): Promise<EngineHealth>;
-  compile(sources: Readable, main: string, signal?: AbortSignal): Promise<EngineResult>;
+  compile(sources: Readable, main: string, signal?: AbortSignal, options?: {preview?: boolean}): Promise<EngineResult>;
   svg2pdf(svg: string, browserPdf?: Buffer): Promise<Buffer>;
 }
 

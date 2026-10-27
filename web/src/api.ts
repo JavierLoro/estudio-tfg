@@ -1,3 +1,5 @@
+import type { StyleProfile } from '../../shared/estilo.ts';
+
 // Cliente tipado de la API (ver docs/CONTRACT.md).
 
 export type Root = 'notes' | 'memoria';
@@ -57,7 +59,7 @@ export interface EngineHealth {
 export interface EnginesResponse {
   docker: EngineHealth;
   local: EngineHealth & {
-    tools: Record<'latexmk' | 'biber' | 'pdflatex' | 'rsvg', { path: string | null; version: string | null }>;
+    tools: Record<'latexmk' | 'biber' | 'pdflatex' | 'lualatex' | 'rsvg', { path: string | null; version: string | null }>;
     warnings: string[];
   };
 }
@@ -698,6 +700,8 @@ export const api = {
 
   // ---- Datos del trabajo (v0.5) ----
 
+  estilo: () => json<StyleProfile>('/api/memoria/estilo'),
+  saveEstilo: (valores: Record<string,string>, baseRev: string) => json<DatosResponse>('/api/memoria/estilo', jsonBody('PUT', {valores,baseRev})),
   datos: () => json<DatosResponse>('/api/memoria/datos'),
   portadas: () => json<PortadasResponse>('/api/memoria/portadas'),
   savePortadas: (body: PortadasResponse) => json<PortadasResponse>('/api/memoria/portadas', jsonBody('PUT', body)),

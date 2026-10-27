@@ -52,14 +52,16 @@ const response = (value: unknown) => [{ type: 'message', content: [{ type: 'outp
 const fakeProvider: AssistantProvider = {
   view: () => ({ accounts: [{ id: 'cuenta-contexto-ficticia', label: 'Ficticia', connected: true, enabled: true }], active: 'cuenta-contexto-ficticia', pending: false, persistent: false, error: '' }),
   connect: async () => fakeProvider.view(), select: async () => fakeProvider.view(), disconnect: async () => fakeProvider.view(), cancelSignIn: async () => {},
-  models: async () => [{ id: 'modelo-contexto-ficticio', name: 'Modelo de pruebas' }], subscribe: () => () => {}, close: async () => {},
+  models: async () => [{ id: 'modelo-contexto-ficticio', name: 'Modelo de pruebas' }, { id: 'gpt-6-luna', name: 'Modelo económico ficticio' }], subscribe: () => () => {}, close: async () => {},
   respond: async (_m, input, tools, signal, _event, options) => {
     signal.throwIfAborted(); if (!['search', 'template'].includes(options?.purpose ?? '')) assert(tools.length === 0, 'No hay herramientas fuera de las acciones autorizadas');
     const text = input[0].content[0].text;
     if (options?.purpose === 'template') {
       assert(tools.length === 1 && tools[0].name === 'proponer_plantilla', 'Única herramienta de configuración de normativa');
-      const responses = JSON.parse(text.split('\nRespuestas confirmadas: ')[1]);
-      return [{ type: 'function_call', name: 'proponer_plantilla', call_id: 'normativa-ficticia', arguments: JSON.stringify(normativaFixture(!responses.margen)) }];
+      const corrections = JSON.parse(text.split('\nCorrecciones solicitadas: ')[1]);
+      const proposal = normativaFixture();
+      if (corrections.some((c: string) => c.includes('28'))) proposal.ajustes.push({ ambito: 'institucion', campo: 'margenSuperior', nombre: 'Margen superior', valor: '28mm', pagina: 1, cita: 'Corrección del usuario: 28 mm.' });
+      return [{ type: 'function_call', name: 'proponer_plantilla', call_id: 'normativa-ficticia', arguments: JSON.stringify(proposal) }];
     }
     if (options?.purpose === 'search') return [...response({ candidates: [{ url: 'https://example.org/fuente', title: 'Web de búsqueda ficticia', kind: 'web', description: 'Página ficticia devuelta por la herramienta' }] }), { type: 'web_search_call', action: { type: 'search', sources: [{ url: 'https://example.org/fuente', title: 'Fuente ficticia' }] } }];
     if (options?.purpose === 'review') { const candidates = JSON.parse(text.split('\nCandidatos: ')[1].split('\nContexto autorizado')[0]); return response({ candidates: candidates.map((c: any) => ({ id: c.id, purpose: 'Introducir el tema', contribution: 'Aportación inferida ficticia', usage: 'Marco teórico', limitations: 'Texto completo y calidad sin comprobar' })) }); }

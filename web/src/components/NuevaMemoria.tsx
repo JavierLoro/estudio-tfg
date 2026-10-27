@@ -33,13 +33,14 @@ const EXTRA: [string, string, string][] = [
 ];
 const input = 'h-9 w-full rounded-md border border-line-strong bg-bg px-2.5 text-sm outline-none focus:border-accent';
 
-export function NuevaMemoria({ settings, onClose, onCreated, configuracion, crear, titulo = 'Crear memoria desde cero' }: {
+export function NuevaMemoria({ settings, onClose, onCreated, configuracion, crear, fuentes, titulo = 'Crear memoria desde cero' }: {
   settings: SettingsResponse;
   onClose: () => void;
   onCreated: (result: Partial<SettingsResponse> & { warning?: string }) => Promise<void>;
   configuracion?: NuevaMemoriaConfig;
   crear?: (dir: string, cfg: NuevaMemoriaConfig) => Promise<Partial<SettingsResponse> & { warning?: string }>;
   titulo?: string;
+  fuentes?: [string,string][];
 }) {
   const [cfg, setCfg] = useState(() => structuredClone(configuracion ?? configuracionInicial()));
   const [paso, setPaso] = useState(0);
@@ -159,7 +160,7 @@ export function NuevaMemoria({ settings, onClose, onCreated, configuracion, crea
           </>}
           {paso === 1 && <>
             <div className="grid gap-4 sm:grid-cols-2">
-              {field('institucion', 'papel', 'Tamaño de papel', [['a4', 'A4 · 210 × 297 mm'], ['carta', 'Carta · 216 × 279 mm']])}
+              {field('institucion', 'papel', 'Tamaño de papel', [['a5', 'A5 · 148 × 210 mm'], ['personalizado', 'Personalizado'], ['a4', 'A4 · 210 × 297 mm'], ['carta', 'Carta · 216 × 279 mm']])}
               {field('institucion', 'caras', 'Preparación de las páginas', [['una', 'Una cara'], ['dos', 'Dos caras']],
                 dos ? 'Los márgenes se alternan. Cada capítulo empieza en una página derecha; puede haber páginas en blanco.' : 'Los márgenes izquierdo y derecho se mantienen en todas las páginas.')}
             </div>
@@ -176,7 +177,7 @@ export function NuevaMemoria({ settings, onClose, onCreated, configuracion, crea
             </fieldset>
           </>}
           {paso === 2 && <>
-            <Tipografia values={cfg.institucion} onChange={(key, value) => set('institucion', key, value)} />
+            <Tipografia familiasIniciales={fuentes} values={cfg.institucion} onChange={(key, value) => set('institucion', key, value)} />
             <details className="rounded-md border border-line p-3">
               <summary className="cursor-pointer text-sm font-medium">Numeración, cabeceras y pies</summary>
               <div className="mt-4"><Paginacion values={cfg.institucion} onChange={(key, value) => set('institucion', key, value)} /></div>

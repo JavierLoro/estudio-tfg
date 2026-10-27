@@ -1,6 +1,8 @@
+import { leerFuentes, importarFuentes, validarFuentes } from '../fuentes.ts';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import type { FastifyInstance } from 'fastify';
+import { CAMPOS_ESTILO, COMPORTAMIENTOS_ESTILO, VALORES_ESTILO } from '../../../shared/estilo.ts';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { Ctx } from '../context.ts';
 import { HttpError, badRequest } from '../errors.ts';
 import { atomicWrite, backup, rev } from '../fsutil.ts';
@@ -29,7 +31,7 @@ function fieldError(field: string, message: string) {
 }
 
 /** Extensión según el contenido (firma del archivo). */
-function logoExt(buf: Buffer): 'pdf' | 'png' | 'jpg' | null {
+export function logoExt(buf: Buffer): 'pdf' | 'png' | 'jpg' | null {
   if (buf.subarray(0, 4).toString('latin1') === '%PDF') return 'pdf';
   if (buf.length > 8 && buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'png';
   if (buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpg';
@@ -77,10 +79,26 @@ export default async function datosRoutes(app: FastifyInstance, { ctx }: { ctx: 
     await atomicWrite(abs, next);
   }
 
+  app.get('/api/memoria/fuentes', async () => leerFuentes(cfg));
+  app.post('/api/memoria/fuentes', async req => {
+    const files: Buffer[] = []; let baseRev: string | null | undefined;
+    for await (const part of req.parts({ limits: { fileSize: 10 * 1024 * 1024, files: 16 } })) {
+      if (part.type === 'file') { files.push(await part.toBuffer()); if (part.file.truncated) throw new HttpError(413, 'Fuente demasiado grande (máx. 10 MB)'); }
+      else if (part.fieldname === 'baseRev') baseRev = part.value === 'null' ? null : String(part.value);
+    }
+    if (baseRev === undefined) throw badRequest('Falta baseRev');
+    return importarFuentes(ctx, files, baseRev);
+  });
   app.get('/api/memoria/datos', async () => snapshot());
+  app.get('/api/memoria/estilo', async () => {
+    const current = await snapshot();
+    const cls = await resolveSafe(cfg, 'memoria', 'estilo/memoria.cls');
+    const compatible = cls.exists && /v3\.([6-9]|[1-9]\d)/.test(await fs.readFile(cls.abs, 'utf8'));
+    return { valores: { ...VALORES_ESTILO, ...Object.fromEntries(Object.entries(current.institucion).filter(([,v]) => v)) }, baseRev: current.rev.institucion, compatible, capacidades: compatible ? CAMPOS_ESTILO : [], automatico: compatible ? COMPORTAMIENTOS_ESTILO : [] };
+  });
 
-  app.put('/api/memoria/datos', async (req, reply) => {
-    const b = (req.body ?? {}) as Record<string, unknown>;
+  const guardarDatos = async (body: unknown, reply: FastifyReply) => {
+    const b = (body ?? {}) as Record<string, unknown>;
     const baseRev = (b.baseRev ?? {}) as Record<string, unknown>;
     if (typeof b.baseRev !== 'object' || b.baseRev === null) throw badRequest('baseRev es obligatorio');
     const todo: Partial<Record<DatosFile, Record<string, unknown>>> = {};
@@ -126,9 +144,28 @@ export default async function datosRoutes(app: FastifyInstance, { ctx }: { ctx: 
           throw e;
         }
       }
+      if (todo.institucion) {
+        const values = {...parseDatos(cur.institucion!.toString(),'institucion'),...todo.institucion};
+        if (values.papel === 'personalizado' || values.papel === 'a5') {
+          const mm = (value: unknown, fallback: number) => {
+            if (!value) return fallback;
+            const m = /^(\d+(?:\.\d+)?)(mm|cm|in|pt|bp|pc)$/.exec(String(value));
+            return m ? Number(m[1]) * ({mm:1,cm:10,in:25.4,pt:25.4/72.27,bp:25.4/72,pc:25.4/6}[m[2]]!) : NaN;
+          };
+          const width = values.papel === 'a5' ? 148 : mm(values.anchoPapel,210), height = values.papel === 'a5' ? 210 : mm(values.altoPapel,297);
+          if (mm(values.margenInterior,30)+mm(values.margenExterior,25)>width-80 || mm(values.margenSuperior,25)+mm(values.margenInferior,25)>height-100) throw fieldError('papel','Los márgenes dejan demasiado poco espacio para el texto');
+        }
+      }
+      await validarFuentes(cfg, todo.institucion ?? {});
       for (const file of Object.keys(todo) as DatosFile[]) await writeChanges(file, todo[file]!, cur[file]!);
       return snapshot();
     });
+  };
+  app.put('/api/memoria/datos', async (req, reply) => guardarDatos(req.body, reply));
+  app.put('/api/memoria/estilo', async (req, reply) => {
+    const b = req.body as {valores?: Record<string,unknown>;baseRev?:string};
+    if (!b?.valores || typeof b.valores !== 'object' || Array.isArray(b.valores) || typeof b.baseRev !== 'string') throw badRequest('Faltan los valores de estilo o su revisión');
+    return guardarDatos({ institucion: b.valores, baseRev: { institucion: b.baseRev } }, reply);
   });
 
   async function requireInstitucion(): Promise<Buffer> {
@@ -137,6 +174,24 @@ export default async function datosRoutes(app: FastifyInstance, { ctx }: { ctx: 
     return buf;
   }
 
+  app.post('/api/memoria/portadas/imagen', async req => {
+    const parts = req.parts({ limits: {fileSize: MAX_LOGO, files: 1} });
+    let data: Buffer | undefined, expected: unknown;
+    for await (const part of parts) {
+      if (part.type === 'file') { data = await part.toBuffer(); if (part.file.truncated) throw new HttpError(413, 'Imagen demasiado grande (máx. 5 MB)'); }
+      else if (part.fieldname === 'baseRev') expected = part.value;
+    }
+    if (!data || expected !== 'null') throw badRequest('Falta la imagen o su revisión inicial');
+    const ext = logoExt(data); if (!ext) throw badRequest('Selecciona una imagen PNG, JPG o PDF');
+    const rel = `estilo/imagenes/${rev(data)}.${ext}`;
+    return locks.run('memoria:' + rel, async () => {
+      const r = await resolveSafe(cfg, 'memoria', rel);
+      await fs.mkdir(path.dirname(r.abs), {recursive:true}); await resolveSafe(cfg, 'memoria', rel);
+      if (r.exists && !data!.equals(await fs.readFile(r.abs))) throw new HttpError(409, 'La imagen existente ha cambiado');
+      if (!r.exists) await atomicWrite(r.abs, data!);
+      return {recurso: rel};
+    });
+  });
   app.post('/api/memoria/logo', async (req) => {
     if (!req.isMultipart()) throw badRequest('Se esperaba multipart/form-data con el campo «file»');
     const part = await req.file({ limits: { fileSize: MAX_LOGO } });

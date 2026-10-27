@@ -120,9 +120,15 @@ test('separa propósitos y solo descubrimiento recibe búsqueda web, sin campos 
     return new Response('data: ' + JSON.stringify({ type: 'response.completed', response: { output: [{ type: 'message', content: [{ type: 'output_text', text: '{}' }] }] } }) + '\n\n', { headers: { 'content-type': 'text/event-stream' } });
   };
   const signal = new AbortController().signal;
-  for (const purpose of ['chat', 'context', 'diagram', 'review', 'template', 'search']) await f.client.respond('modelo-ficticio', [], purpose === 'search' ? [{ type: 'web_search' }] : [], signal, () => {}, { purpose });
+  for (const purpose of ['chat', 'context', 'diagram', 'review', 'template', 'search']) {
+    const tools = purpose === 'search' ? [{ type: 'web_search' }] : purpose === 'template' ? [{ type: 'function', name: 'proponer_plantilla' }] : [];
+    await f.client.respond('modelo-ficticio', [], tools, signal, () => {}, { purpose });
+  }
   for (const body of bodies) { assert.equal(body.store, false); assert.equal(body.stream, true); assert.equal('multi_agent' in body, false); assert.equal('max_tool_calls' in body, false); }
   assert.deepEqual(bodies.at(-1).tools, [{ type: 'web_search' }]); assert.ok(bodies.at(-1).include.includes('web_search_call.action.sources'));
-  assert.ok(bodies.slice(0, -1).every(b => b.tools.length === 0));
+  assert.ok(bodies.slice(0, 4).every(b => b.tools.length === 0));
+  assert.equal(bodies[4].tools[0].name, 'proponer_plantilla');
+  assert.deepEqual(bodies[4].tool_choice, { type: 'function', name: 'proponer_plantilla' });
+  assert.ok(bodies.filter((_, i) => i !== 4).every(b => !b.tool_choice));
   await assert.rejects(f.client.respond('modelo-ficticio', [], [{ type: 'web_search' }], signal, () => {}, { purpose: 'chat' }), /solo está permitida/);
 });

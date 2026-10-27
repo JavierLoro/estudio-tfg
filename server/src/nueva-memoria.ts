@@ -4,6 +4,7 @@ import { applyChanges, escapeTex, FieldInvalid } from './datos.ts';
 import { HttpError } from './errors.ts';
 import { generarPortadas, PORTADAS_REL } from './portadas.ts';
 import { portadasIniciales } from '../../shared/portadas.ts';
+import { ESTILO_DEFAULTS } from '../../shared/estilo.ts';
 import { TIPOGRAFIA_DEFAULTS } from '../../shared/tipografia.ts';
 import { PAGINACION_DEFAULTS } from '../../shared/paginacion.ts';
 import { INDICES_DEFAULTS, TIPOS_INDICE } from '../../shared/indices.ts';
@@ -28,7 +29,7 @@ export function nuevaMemoria(raw: unknown, templatesDir?: string): Map<string, s
     if (typeof value !== 'string' || !/^\d+(\.\d+)?mm$/.test(value) || parseFloat(value) > 80) throw error(key, 'Usa un margen entre 0 y 80 milímetros');
     return parseFloat(value);
   });
-  const [width, height] = institucion.papel === 'carta' ? [215.9, 279.4] : [210, 297];
+  const [width, height] = institucion.papel === 'personalizado' ? [parseFloat(String(institucion.anchoPapel ?? '210')), parseFloat(String(institucion.altoPapel ?? '297'))] : institucion.papel === 'a5' ? [148, 210] : institucion.papel === 'carta' ? [215.9, 279.4] : [210, 297];
   if (margins[0] + margins[1] > width - 80 || margins[2] + margins[3] > height - 100) throw error('margenes', 'Los márgenes dejan demasiado poco espacio para el texto');
   for (const [key, value] of Object.entries(apartados)) {
     if (!(EXTRAS as readonly string[]).includes(key) || typeof value !== 'boolean') throw error('apartados', 'Selecciona apartados válidos');
@@ -56,7 +57,7 @@ export function nuevaMemoria(raw: unknown, templatesDir?: string): Map<string, s
     archivos.set('datos.tex', applyChanges(defaults, 'datos', datos));
     const file = templateFiles('generico', templatesDir).get('estilo/institucion.tex')!;
     const source = fs.readFileSync(file, 'utf8');
-    archivos.set('estilo/institucion.tex', applyChanges(source, 'institucion', { ...TIPOGRAFIA_DEFAULTS, ...PAGINACION_DEFAULTS, ...INDICES_DEFAULTS,
+    archivos.set('estilo/institucion.tex', applyChanges(source, 'institucion', { ...ESTILO_DEFAULTS, ...TIPOGRAFIA_DEFAULTS, ...PAGINACION_DEFAULTS, ...INDICES_DEFAULTS,
       ...(!apartados.indices ? Object.fromEntries(TIPOS_INDICE.map(([key]) => [key, 'no'])) : {}),
       papel: 'a4', caras: 'una',
       margenInterior: '25mm', margenExterior: '25mm', ...institucion,

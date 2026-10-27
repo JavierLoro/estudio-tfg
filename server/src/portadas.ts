@@ -19,9 +19,12 @@ export function validarPortadas(raw: unknown): PortadasConfig {
     for (const block of blocks) {
       if (!block || typeof block !== 'object' || typeof block.id !== 'string' || !/^[a-z][a-z0-9-]{0,40}$/.test(block.id) || ids.has(block.id) ||
         !ZONAS.includes(block.zona) || (block.tipo !== 'texto' && !ELEMENTOS_PORTADA.some(([key]) => key === block.tipo)) ||
-        Object.keys(block).some((key) => !['id', 'tipo', 'zona', 'texto'].includes(key)) ||
+        Object.keys(block).some((key) => !['id', 'tipo', 'zona', 'texto', 'alineacion', 'espacio', 'recurso'].includes(key)) ||
         (block.tipo === 'texto' && (typeof block.texto !== 'string' || !block.texto.trim() || block.texto.length > 500)) ||
-        (block.tipo !== 'texto' && block.texto !== undefined)) throw new HttpError(400, 'Hay un elemento de portada no válido');
+        (block.tipo !== 'texto' && block.texto !== undefined) ||
+        (block.alineacion !== undefined && !['izquierda', 'centro', 'derecha'].includes(block.alineacion)) ||
+        (block.espacio !== undefined && (!Number.isFinite(block.espacio) || block.espacio < 0 || block.espacio > 50)) ||
+        (block.tipo === 'imagen' ? typeof block.recurso !== 'string' || !/^estilo\/imagenes\/[a-f0-9]{16}\.(png|jpg|pdf)$/.test(block.recurso) : block.recurso !== undefined)) throw new HttpError(400, 'Hay un elemento de portada no válido');
       ids.add(block.id);
     }
     for (const zona of ZONAS) if (blocks.filter((b) => b.zona === zona).length > 10) throw new HttpError(400, 'Coloca como máximo 10 elementos en cada zona');
@@ -40,7 +43,12 @@ export function generarPortadas(raw: unknown): string {
     for (const zona of ZONAS) {
       if (zona !== 'superior') lines.push('\\vfill');
       for (const block of cfg[side].filter((b) => b.zona === zona)) {
-        if (block.tipo === 'texto') lines.push(`{\\normalsize ${escapeTex(block.texto!.trim()).replace(/\r?\n/g, '\\\\')}\\par}\\vspace{4mm}`);
+        const align = block.alineacion;
+        if (align) lines.push('\\begingroup\\' + ({ izquierda: 'raggedright', centro: 'centering', derecha: 'raggedleft' }[align]));
+        const start = lines.length;
+        if (block.tipo === 'imagen') lines.push(`\\includegraphics[width=35mm,height=25mm,keepaspectratio]{${block.recurso}}\\par\\vspace{4mm}`);
+        else if (block.tipo === 'firma') lines.push('\\vspace{10mm}\\rule{50mm}{0.4pt}\\par\\vspace{4mm}');
+        else if (block.tipo === 'texto') lines.push(`{\\normalsize ${escapeTex(block.texto!.trim()).replace(/\r?\n/g, '\\\\')}\\par}\\vspace{4mm}`);
         else if (block.tipo === 'logo') lines.push(String.raw`\ifcsempty{mem@logo}{}{\IfFileExists{estilo/\dato{logo}}{\includegraphics[width=35mm,height=25mm,keepaspectratio]{estilo/\dato{logo}}\par\vspace{4mm}}{}}`);
         else {
           const key = field[block.tipo];
@@ -48,6 +56,8 @@ export function generarPortadas(raw: unknown): string {
           const label = block.tipo === 'tutor' || block.tipo === 'cotutor' ? `\\dato{${block.tipo}texto}: ` : '';
           lines.push(`\\ifcsempty{mem@${key}}{}{{${size} ${label}\\dato{${key}}\\par}\\vspace{4mm}}`);
         }
+        if (block.espacio !== undefined) for (let i = start; i < lines.length; i++) lines[i] = lines[i].replaceAll('vspace{4mm}', `vspace{${block.espacio}mm}`);
+        if (align) lines.push('\\par\\endgroup');
       }
     }
     lines.push('\\par\\endgroup', '\\cleardoublepage', '}');
@@ -71,6 +81,10 @@ export async function guardarPortadas(ctx: Ctx, raw: unknown) {
   const body = raw as { config?: unknown; baseRev?: unknown };
   if (!body || typeof body.baseRev !== 'string') throw new HttpError(400, 'Falta la revisión de las portadas');
   const next = generarPortadas(body.config);
+  for (const blocks of Object.values(validarPortadas(body.config))) for (const block of blocks) if (block.recurso) {
+    const asset = await resolveSafe(ctx.cfg, 'memoria', block.recurso);
+    if (!asset.exists || !(await fs.stat(asset.abs)).isFile()) throw new HttpError(400, 'La imagen de portada ya no está disponible');
+  }
   return ctx.locks.run('memoria:' + PORTADAS_REL, async () => {
     const current = await leerPortadas(ctx);
     if (current.baseRev !== body.baseRev) throw new HttpError(409, 'Las portadas han cambiado; vuelve a abrir el editor para revisarlas');

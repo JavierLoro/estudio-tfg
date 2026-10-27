@@ -27,6 +27,7 @@ import { Paginacion } from '../components/Paginacion';
 import { Indices } from '../components/Indices';
 import { INDICES_DEFAULTS, INDICES_KEYS, TIPOS_INDICE } from '../../../shared/indices';
 import { PAGINACION_DEFAULTS, PAGINACION_KEYS, POSICIONES_PAGINA } from '../../../shared/paginacion';
+import { CAMPOS_ESTILO, ESTILO_DEFAULTS } from '../../../shared/estilo';
 import { TIPOGRAFIA_DEFAULTS, TIPOGRAFIA_KEYS, NIVELES_TITULOS } from '../../../shared/tipografia';
 import { useCompile, isPdfOutdated } from '../state/compile';
 import { handleExternalChange, isDirty, saveAll, useDocs } from '../state/docs';
@@ -76,6 +77,9 @@ const TRABAJO: FieldSpec[] = [
   { key: 'intensificacion', label: 'Especialidad / tecnología específica', placeholder: '(opcional)', list: ESPECIALIDADES },
   { key: 'fechaMes', label: 'Mes de entrega', kind: 'month', help: 'Si lo dejas vacío se usa la fecha actual.' },
   { key: 'fechaAnio', label: 'Año de entrega', kind: 'year', placeholder: '2026' },
+  { key: 'cursoAcademico', label: 'Curso académico' },
+  { key: 'convocatoria', label: 'Convocatoria' },
+  { key: 'fechaDefensa', label: 'Fecha de defensa' },
   { key: 'ciudad', label: 'Ciudad', placeholder: '(opcional)' },
 ];
 
@@ -166,7 +170,7 @@ const MARGENES: FieldSpec[] = [
   { key: 'margenInferior', label: 'Inferior', placeholder: '25mm', mono: true },
 ];
 const PAGINA: FieldSpec[] = [
-  { key: 'papel', label: 'Tamaño de papel', kind: 'select', def: 'a4', options: [['a4', 'A4 (210 × 297 mm)'], ['carta', 'Carta (216 × 279 mm)']] },
+  { key: 'papel', label: 'Tamaño de papel', kind: 'select', def: 'a4', options: [['a5', 'A5 · 148 × 210 mm'], ['personalizado', 'Personalizado'], ['a4', 'A4 (210 × 297 mm)'], ['carta', 'Carta (216 × 279 mm)']] },
   { key: 'caras', label: 'Preparación de las páginas', kind: 'select', def: 'automatico', options: [['automatico', 'Según el formato del documento'], ['una', 'Una cara'], ['dos', 'Dos caras']],
     help: 'Una elección explícita conserva tus márgenes. A dos caras se alternan interior y exterior; los capítulos empiezan en página derecha.' },
   ...([
@@ -178,9 +182,10 @@ const PAGINA: FieldSpec[] = [
     help: 'Se aplica si el documento principal incluye esta página.' })),
 ];
 
-const INST_KEYS = new Set([...INSTITUCION, ...MARGENES, ...PAGINA].map((f) => f.key).concat('logo', ...TIPOGRAFIA_KEYS, ...PAGINACION_KEYS, ...INDICES_KEYS));
-const ALL_KEYS = [...TRABAJO, ...RESUMEN, ...DOCUMENTO, ...INSTITUCION, ...MARGENES, ...PAGINA].map((f) => f.key).concat('logo', ...TIPOGRAFIA_KEYS, ...PAGINACION_KEYS, ...INDICES_KEYS);
+const INST_KEYS = new Set([...INSTITUCION, ...MARGENES, ...PAGINA].map((f) => f.key).concat('logo', ...Object.keys(ESTILO_DEFAULTS), ...TIPOGRAFIA_KEYS, ...PAGINACION_KEYS, ...INDICES_KEYS));
+const ALL_KEYS = [...TRABAJO, ...RESUMEN, ...DOCUMENTO, ...INSTITUCION, ...MARGENES, ...PAGINA].map((f) => f.key).concat('logo', ...Object.keys(ESTILO_DEFAULTS), ...TIPOGRAFIA_KEYS, ...PAGINACION_KEYS, ...INDICES_KEYS);
 const LABEL = Object.fromEntries([...TRABAJO, ...RESUMEN, ...DOCUMENTO, ...INSTITUCION, ...MARGENES, ...PAGINA].map((f) => [f.key, f.label]));
+Object.assign(LABEL, Object.fromEntries(CAMPOS_ESTILO.map(f => [f.key, f.label])), { fuenteCodigo: 'Fuente del código' });
 Object.assign(LABEL, { fuenteTexto: 'Fuente del texto', fuenteTitulos: 'Fuente de los títulos' });
 for (const [nivel, nombre] of NIVELES_TITULOS) {
   for (const [prefijo, texto] of [['fuente', 'Fuente de'], ['tamano', 'Tamaño de'], ['negrita', 'Negrita en'], ['mayusculas', 'Mayúsculas de']]) {
@@ -194,6 +199,7 @@ for (const [key, label] of POSICIONES_PAGINA) { LABEL[key] = label; LABEL[key + 
 Object.assign(LABEL, Object.fromEntries(TIPOS_INDICE), { numerarHasta: 'Numerar los títulos hasta', indiceHasta: 'Mostrar en el índice general hasta' });
 
 const flat = (d: DatosResponse): Record<string, string> => ({ ...d.datos, ...d.institucion,
+  ...Object.fromEntries(CAMPOS_ESTILO.map(f => [f.key, d.institucion[f.key] || f.defecto])),
   ...Object.fromEntries(TIPOGRAFIA_KEYS.map((key) => [key, d.institucion[key] || TIPOGRAFIA_DEFAULTS[key]])),
   ...Object.fromEntries(PAGINACION_KEYS.map((key) => [key, d.institucion[key] ?? PAGINACION_DEFAULTS[key]])),
   ...Object.fromEntries(INDICES_KEYS.map((key) => [key, d.institucion[key] || INDICES_DEFAULTS[key]])) });
@@ -482,7 +488,8 @@ export function DatosPanel() {
   const phase: Phase = saving ? 'saving' : general || Object.values(errors).some(Boolean) ? 'error' : data && dirtyKeysFor(data, form) ? 'dirty' : 'ok';
 
   const hasInst = data ? data.rev.institucion !== null : false;
-  const indicesDisponibles = hasInst && !!plantilla && plantilla.versionMemoria === plantilla.versionPlantilla;
+  const estiloDisponible = hasInst && plantilla?.versionMemoria === 'v0.11';
+  const indicesDisponibles = estiloDisponible || hasInst && plantilla?.versionMemoria === 'v0.10';
   const paginacionDisponible = indicesDisponibles || (hasInst && plantilla?.versionMemoria === 'v0.9');
   const tipografiaDisponible = paginacionDisponible || (hasInst && plantilla?.versionMemoria === 'v0.8');
   const paginaDisponible = tipografiaDisponible || plantilla?.versionMemoria === 'v0.7';
@@ -496,6 +503,7 @@ export function DatosPanel() {
     let control: React.ReactNode;
     if (f.kind === 'select' || f.kind === 'month') {
       let opts: Option[] = f.kind === 'month' ? [['', '(mes actual)'], ...MESES.map((m): Option => [m, m[0].toUpperCase() + m.slice(1)])] : f.options!;
+      if (f.key === 'papel' && !estiloDisponible) opts = opts.filter(([v]) => ['a4','carta'].includes(v));
       let value = raw || f.def || '';
       if (f.key === 'estiloBibliografia') value = BIB_LEGACY[value] ?? value;
       if (f.kind === 'month') value = MESES.find((m) => m === raw.toLowerCase()) ?? raw;
@@ -688,11 +696,11 @@ export function DatosPanel() {
           </section>
         ) : (
           <div className="mx-auto flex max-w-3xl flex-col gap-3">
-            <Section title="Trabajo">{TRABAJO.map(renderField)}</Section>
+            <Section title="Trabajo">{TRABAJO.filter(f => estiloDisponible || !['cursoAcademico','convocatoria','fechaDefensa'].includes(f.key)).map(renderField)}</Section>
             <Section title="Resumen">{RESUMEN.map(renderField)}</Section>
             <Section title="Documento">{DOCUMENTO.map(renderField)}</Section>
             {tipografiaDisponible && <Section title="Texto y títulos">
-              <div className="sm:col-span-2"><Tipografia values={form} onChange={setValue} onBlur={queueSave} errors={errors} /></div>
+              <div className="sm:col-span-2"><Tipografia avanzada={estiloDisponible} propias values={form} onChange={setValue} onBlur={queueSave} errors={errors} /></div>
             </Section>}
             {paginacionDisponible && <Section title="Numeración, cabeceras y pies">
               <div className="sm:col-span-2"><Paginacion values={form} onChange={setValue} onBlur={queueSave} errors={errors} /></div>
@@ -834,7 +842,7 @@ export function DatosPanel() {
           onApply={aplicarPlantilla}
         />
       )}
-      {composicion && <PortadasDialog initial={composicion.config} datos={form} institucion={form} onClose={() => setComposicion(null)}
+      {composicion && <PortadasDialog imagenes initial={composicion.config} datos={form} institucion={form} onClose={() => setComposicion(null)}
         onSave={async (config) => {
           const pending = useDocs.getState().docs[docKey('memoria', 'estilo/portadas.tex')];
           if (pending && (isDirty(pending) || pending.conflict || pending.draftOffer || pending.saving)) throw new Error('Guarda o resuelve los cambios del archivo de portadas antes de usar el editor visual.');

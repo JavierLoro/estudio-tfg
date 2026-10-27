@@ -152,3 +152,17 @@ test('SVG compartido rechaza una salida que no sea PDF', async (t) => {
   assert.equal(result.status, 500);
   assert.match(result.error, /PDF válido/);
 });
+
+test('fuentes propias activan LuaLaTeX con caché privada y los motores antiguos no cambian de familia', async t => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'shared-lua-'));
+  t.after(() => fs.rm(dir, {recursive:true,force:true}));
+  const sources=path.join(dir,'sources');await fs.mkdir(path.join(sources,'estilo'),{recursive:true});
+  await fs.writeFile(path.join(sources,'main.tex'),'Ficticio');
+  await fs.writeFile(path.join(sources,'estilo/institucion.tex'),'\\fuenteTitulos{propia-aaaaaaaaaaaaaaaa}\n');
+  const legacy=await compile({main:'main.tex',workDir:sources,outDir:path.join(dir,'legacy'),buildId:'ficticio',tools:{latexmk:'/opt/latexmk'}});
+  assert.equal(legacy.ok,false);assert.match(legacy.diagnostics[0].message,/LuaLaTeX/);
+  mock.method(process,'kill',()=>{});
+  const calls=fakeSpawn(t,async ({options,child})=>{await fs.writeFile(path.join(options.cwd,'main.pdf'),'%PDF-1.7\nFicticio');await fs.writeFile(path.join(options.cwd,'main.log'),'This is LuaHBTeX\n');child.emit('close',0,null);});
+  const result=await compile({main:'main.tex',workDir:sources,outDir:path.join(dir,'out'),buildId:'ficticio',tools:{latexmk:'/opt/latexmk',lualatex:'/opt/lualatex'}});
+  assert.equal(result.ok,true);assert.ok(calls[0].args.includes('-lualatex'));assert.ok(calls[0].args.includes('-no-shell-escape'));assert.match(calls[0].options.env.TEXMFCACHE,/^et-font-cache-[a-f0-9]+$/);
+});

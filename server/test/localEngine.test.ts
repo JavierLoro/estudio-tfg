@@ -20,7 +20,7 @@ let biberOutput: string | undefined;
 let biberExitCode = 0;
 type Call = { cmd: string; args: string[]; options: any; child: EventEmitter & { pid: number }; canonicalCwd?: string };
 let calls: Call[];
-const versions: Record<string, string> = { latexmk: 'Latexmk, Version 4.88', biber: 'biber version: 2.22', pdflatex: 'pdfTeX 1.40.29 (TeX Live 2026)', 'rsvg-convert': 'rsvg-convert 2.60' };
+const versions: Record<string, string> = { latexmk: 'Latexmk, Version 4.88', biber: 'biber version: 2.22', pdflatex: 'pdfTeX 1.40.29 (TeX Live 2026)', lualatex: 'LuaHBTeX 1.24.0 (TeX Live 2026)', 'rsvg-convert': 'rsvg-convert 2.60' };
 
 async function binaries(dir: string, names = Object.keys(versions)) {
   await fs.mkdir(dir, { recursive: true });
@@ -345,7 +345,7 @@ it('incluye el auxiliar Perl detectado sin heredar otras carpetas de PATH', asyn
   vi.stubEnv('PATH', [internalPerl, bin, unrelated, perlBin].join(path.delimiter));
   const health = await detectLocal(t.cfg, true);
   expect(health.ok).toBe(true);
-  expect(Object.keys(health.tools)).toEqual(['latexmk', 'biber', 'pdflatex', 'rsvg']);
+  expect(Object.keys(health.tools)).toEqual(['latexmk', 'biber', 'pdflatex', 'lualatex', 'rsvg']);
   expect((await compile()).ok).toBe(true);
   for (const call of calls) {
     const dirs = call.options.env.PATH.split(path.delimiter);
