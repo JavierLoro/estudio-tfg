@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle2, CloudOff, Inbox, Plus, ServerCrash } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, CloudOff, Inbox, Plus, ServerCrash, Upload } from 'lucide-react';
 import { saveAll, useGlobalSaveState } from '../state/docs';
 import { useCaptureQueue } from '../state/captureQueue';
 import { useConnection } from '../state/events';
@@ -10,8 +10,10 @@ import { Button, Modal, Spinner, cx } from './ui';
 import { Rail } from './Rail';
 import { openSettings } from '../state/workspace';
 import { useDesktop } from '../state/desktop';
+import { openFileImport } from './FileImportDialog';
 
 export function Header() {
+  const importInput = useRef<HTMLInputElement>(null);
   const setCaptureOpen = useUI((s) => s.setCaptureOpen);
   const status = useUI((s) => s.status);
   const statusError = useUI((s) => s.statusError);
@@ -79,6 +81,10 @@ export function Header() {
             </button>
           )}
 
+          <Button aria-label="Importar archivos" onClick={() => importInput.current?.click()} title="Importar archivos y elegir destino" className="h-7!">
+            <Upload size={13} /> <span className="hidden sm:inline">Importar archivos</span>
+          </Button>
+          <input ref={importInput} type="file" multiple className="sr-only" tabIndex={-1} aria-label="Archivos para importar" onChange={e => { openFileImport(Array.from(e.target.files ?? [])); e.target.value = ''; }} />
           <SyncConflicts list={status?.syncConflicts ?? []} />
           {status?.watcher === 'error' && (
             <span role="status" className="flex items-center gap-1 text-[12px] text-warn" title={status.watcherMessage}>

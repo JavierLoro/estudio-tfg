@@ -22,6 +22,7 @@ import diagramasRoutes from './routes/diagramas.ts';
 import compileRoutes from './routes/compile.ts';
 import eventsRoutes from './routes/events.ts';
 import filesRoutes from './routes/files.ts';
+import importRoutes from './routes/import.ts';
 import fileopsRoutes from './routes/fileops.ts';
 import memoriaRoutes from './routes/memoria.ts';
 import notesRoutes from './routes/notes.ts';
@@ -54,7 +55,7 @@ const pickRoot = (v: unknown): RootName[] | null => (v === 'notes' || v === 'mem
 /** Roots a request needs to exist (null = route does not touch the roots). */
 function rootsFor(method: string, url: string, query: any, body: any): RootName[] | null {
   const p = url.split('?')[0];
-  if (p === '/api/tree' || p === '/api/file' || p === '/api/raw') return pickRoot(query?.root ?? body?.root) ?? [];
+  if (p === '/api/tree' || p === '/api/file' || p === '/api/raw' || p === '/api/files/import') return pickRoot(query?.root ?? body?.root) ?? [];
   if(p.startsWith('/api/library/integration/'))return ['notes','memoria'];
   if (p.startsWith('/api/notes/') || p.startsWith('/api/resources') || p.startsWith('/api/library/') || p === '/api/capture') return ['notes'];
   if (p === '/api/dir' || p === '/api/move' || p === '/api/trash/restore') return pickRoot(body?.root) ?? [];
@@ -128,7 +129,7 @@ export async function buildApp(cfg: Config, opts: BuildOptions = {}): Promise<{ 
     reply.code(status).send({ error: message });
   });
 
-  for (const plugin of [statusRoutes, filesRoutes, fileopsRoutes, notesRoutes, resourcesRoutes, libraryRoutes, searchRoutes, compileRoutes, synctexRoutes, memoriaRoutes, refsRoutes, diagramasRoutes, datosRoutes, estiloRoutes, personalesRoutes, plantillaRoutes, eventsRoutes, settingsRoutes, plantillaPropiaRoutes]) {
+  for (const plugin of [statusRoutes, filesRoutes, importRoutes, fileopsRoutes, notesRoutes, resourcesRoutes, libraryRoutes, searchRoutes, compileRoutes, synctexRoutes, memoriaRoutes, refsRoutes, diagramasRoutes, datosRoutes, estiloRoutes, personalesRoutes, plantillaRoutes, eventsRoutes, settingsRoutes, plantillaPropiaRoutes]) {
     await app.register(plugin, { ctx });
   }
   await opts.configure?.(app, ctx);

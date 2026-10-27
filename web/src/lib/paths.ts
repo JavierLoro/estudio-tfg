@@ -1,7 +1,7 @@
 import type { Root } from '../api';
 
 export const TEXT_EXTS = new Set([
-  'md', 'tex', 'bib', 'sty', 'cls', 'txt', 'mmd', 'bst', 'json', 'yml', 'yaml', 'c', 'py', 'ts', 'js', 'csv',
+  'md', 'tex', 'bib', 'sty', 'cls', 'txt', 'mmd', 'excalidraw', 'bst', 'json', 'yml', 'yaml', 'c', 'py', 'ts', 'js', 'csv',
 ]);
 
 export function ext(path: string): string {
@@ -49,8 +49,8 @@ export type PanelKind = 'latex' | 'note' | 'diagram' | 'external';
 /** Qué panel abre un archivo según raíz y extensión. */
 export function panelKindFor(root: Root, path: string): PanelKind {
   if (!isText(path)) return 'external';
-  // v0.8: los .mmd de la memoria son diagramas (fuente + vista previa + exportar).
-  if (root === 'memoria' && ext(path) === 'mmd') return 'diagram';
+  // Excalidraw tiene visor propio en ambas raíces; Mermaid lo mantiene en Memoria.
+  if (ext(path) === 'excalidraw' || (root === 'memoria' && ext(path) === 'mmd')) return 'diagram';
   if (root === 'memoria') return 'latex';
   return 'note';
 }

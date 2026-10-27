@@ -45,6 +45,7 @@ export async function validateScope(ctx: Ctx, value: any): Promise<AssistantScop
 }
 
 export function permitted(ctx: Ctx, scope: AssistantScope, root: RootName, rel: string) {
+  if (/\.excalidraw$/i.test(rel)) return false;
   if (rel.split('/').some(p => p.startsWith('.'))) return false;
   if (scope.documents?.some(d => d.root === root && d.path === rel)) return true;
   if (root === 'memoria' && /\.mmd$/i.test(rel)) return scope.diagrams === true;

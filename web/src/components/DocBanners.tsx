@@ -72,6 +72,7 @@ export function DocBanners({ docKey, lang }: { docKey: string; lang: EditorLang 
 
   return (
     <>
+      {doc.draftError && <Banner kind="danger">{doc.draftError}</Banner>}
       {doc.status === 'error' && (
         <Banner kind="danger" actions={<Button onClick={() => loadDoc(doc.root, doc.path)}>Reintentar</Button>}>
           No se pudo abrir «{doc.path}»: {doc.error}

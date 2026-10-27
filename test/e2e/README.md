@@ -1,4 +1,4 @@
-# Recorridos de Biblioteca (L5)
+# Recorridos de interfaz (E2E)
 
 Pruebas con Playwright/Chromium, API real y fixtures ficticios. Cada test crea una carpeta temporal, un puerto asignado por el sistema y un contexto de navegador nuevo. Se usa `buildApp` con configuración explícita: no se leen `.env` ni ajustes del usuario. Los metadatos web están simulados; no se consultan webs públicas. La API se detiene y los temporales se borran incluso al fallar.
 
@@ -15,9 +15,17 @@ npm run test:e2e -- --grep "@smoke"
 
 En Linux, instalar también las bibliotecas del navegador: desde `test/e2e`, `npx playwright install --with-deps chromium`. Se prueba la web construida, servida por la propia API; reconstruirla tras cambiar la interfaz.
 
+## Excalidraw
+
+`npm test --prefix test/e2e -- excalidraw.spec.mjs diagram-picker.spec.mjs` comprueba elección de editor y plantillas, guardado/reapertura, Deshacer/Rehacer, imágenes incrustadas, copia desde Biblioteca, conflictos y recuperación del borrador. Simula también cuota agotada y verifica que «Descargar copia» conserva la edición actual sin cambiar el original.
+
+Para el escritorio real, ejecutar antes `npm run bundle --prefix server` y `npm run build --prefix web`, y después `E2E_DESKTOP=1 npm test --prefix test/e2e -- excalidraw-desktop.spec.mjs`. Usa perfil y carpetas temporales; comprueba la CSP, la exportación a SVG/PDF y que todas las fuentes se cargan localmente. No necesita un motor LaTeX instalado.
+
+Con `E2E_EXCALIDRAW_OUT` se conservan las seis exportaciones de plantilla. El recorrido Excalidraw `@worker` inserta una escena con imagen en ambos perfiles, exige cero diagnósticos y recompila tras trasladar la memoria sin Biblioteca. Guarda `excalidraw-*.pdf` y `resultado-excalidraw-*.json` en `E2E_WORKER_OUT`.
+
 ## Compilación real
 
-El recorrido `@worker` exige `E2E_WORKER_URL` y `E2E_WORKER_OUT` (loopback y carpeta temporal montada en `/out`). **Usar un worker dedicado**, sin compartir datos ni puerto con una instancia personal. Sin esas variables, solo ese recorrido se marca omitido. No se simula un PDF ni se da por comprobada la compilación.
+Los recorridos `@worker` exigen `E2E_WORKER_URL` y `E2E_WORKER_OUT` (loopback y carpeta temporal montada en `/out`). **Usar un worker dedicado**, sin compartir datos ni puerto con una instancia personal. Sin esas variables, esos recorridos se marcan omitidos. No se simula un PDF ni se da por comprobada la compilación.
 
 Ejemplo macOS/Linux; el contenedor tiene un puerto libre y se elimina al salir:
 
@@ -41,9 +49,11 @@ Ejemplo macOS/Linux; el contenedor tiene un puerto libre y se elimina al salir:
 
 ## Cobertura y evidencias
 
+- `file-import.spec.mjs`: destino y carpetas al soltar archivos, colisiones, reenvío, inserción en LaTeX/Markdown, Deshacer y documento cambiado durante el diálogo.
+- `library-map.spec.mjs`: jerarquía, relaciones, selección, borrado sin perder originales, borradores/conflictos e incorporación de citas, figuras, notas, enlaces y diagramas. Incluye la compilación portable con worker descrita abajo.
 - `@smoke`: añadir/buscar/consultar, adjuntos, metadatos ficticios, foco/Escape y conflicto externo que exige revisar antes de reaplicar. CI: Chromium en Linux, macOS y Windows.
 - Suite completa: lote parcialmente enviado, respuesta perdida y recibo idempotente, IndexedDB tras recarga, 401 real y reautenticación, cambio de vault, fichas movidas con adjuntos, bibliografía original y duplicados, migrar/deshacer y respaldo/restauración en otra ubicación con manifiestos. CI: Chromium/Linux.
-- `@worker`: importar bibliografía revisada, insertar cita y figura, deshacer/rehacer, guardar y compilar; comprobar el texto del PDF en el visor y recompilar una memoria trasladada sin Biblioteca. La CI reutiliza su worker aislado y mantiene la comprobación L4 de ambos perfiles sin avisos.
+- `@worker`: importar bibliografía revisada, insertar cita y figura, deshacer/rehacer, guardar y compilar; comprobar el texto del PDF en el visor y recompilar una memoria trasladada sin Biblioteca. El mapa añade dos figuras reutilizadas, notas con caracteres especiales, enlace con parámetros, cita y diagrama Mermaid en ambos perfiles; exige cero diagnósticos y repite sobre copias trasladadas con Biblioteca apartada. Conserva cuatro PDFs `mapa-<perfil>-<etapa>.pdf` y sus `resultado-mapa-<perfil>-<etapa>.json` en `E2E_WORKER_OUT`. La CI reutiliza su worker aislado y mantiene la comprobación L4 de ambos perfiles sin avisos.
 
 Sin reintentos automáticos que oculten inestabilidad. Al fallar se conservan trazas, pantallas y logs de la API en `test/e2e/test-results/`, además del informe HTML en `playwright-report/`; la CI los publica durante siete días. Son evidencias de fixtures, nunca contenido personal. Abrir una traza desde `test/e2e` con `npx playwright show-trace <ruta/trace.zip>`.
 

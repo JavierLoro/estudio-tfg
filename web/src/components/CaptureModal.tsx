@@ -15,6 +15,7 @@ export function CaptureModal() {
   const open = useUI((s) => s.captureOpen),
     setOpen = useUI((s) => s.setCaptureOpen);
   const pending = useCaptureQueue((s) => s.items);
+  const incomingFiles = useUI(s => s.captureFiles);
   const [url, setUrl] = useState(''),
     [title, setTitle] = useState(''),
     [note, setNote] = useState('');
@@ -35,6 +36,12 @@ export function CaptureModal() {
       setReport([]);
     }
   }, [open]);
+  useEffect(() => {
+    if (!open || !incomingFiles) return;
+    setFiles(previous => [...previous, ...incomingFiles]);
+    setTab('manual');
+    useUI.setState({ captureFiles: null });
+  }, [open, incomingFiles]);
   const canSave = !!(url.trim() || title.trim() || note.trim() || files.length) && !busy;
   const take = (next: File[]) => {
     setFiles((previous) => [...previous, ...next]);

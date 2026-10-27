@@ -103,6 +103,24 @@ export interface SaveResponse {
   mtime: number;
 }
 
+export interface ImportedFile {
+  root: Root;
+  path: string;
+  rev: string;
+  reused: boolean;
+}
+
+export interface LibraryMapNode {
+  id: string;
+  parent: string | null;
+  title: string;
+  note: string;
+  resourceId?: string;
+}
+export interface LibraryMapLink { id: string; from: string; to: string; label: string }
+export interface LibraryMap { version: 1; nodes: LibraryMapNode[]; links: LibraryMapLink[] }
+export interface LibraryMapResponse { libraryId: string; map: LibraryMap; rev: string; exists: boolean }
+
 export interface Backlink {
   path: string;
   title: string;
@@ -582,11 +600,17 @@ export const api = {
   readFile: (root: Root, path: string) => json<FileResponse>(`/api/file?${qs({ root, path })}`),
 
   /** Lanza ConflictError en 409. */
-  saveFile: (root: Root, path: string, content: string, baseRev: string) =>
-    json<SaveResponse>('/api/file', jsonBody('PUT', { root, path, content, baseRev })),
+  saveFile: (root: Root, path: string, content: string, baseRev: string, instanceId?: string) =>
+    json<SaveResponse>('/api/file', jsonBody('PUT', { root, path, content, baseRev, instanceId })),
 
-  createFile: (root: Root, path: string, content: string) =>
-    json<SaveResponse>('/api/file', jsonBody('POST', { root, path, content })),
+  createFile: (root: Root, path: string, content: string, instanceId?: string) =>
+    json<SaveResponse>('/api/file', jsonBody('POST', { root, path, content, instanceId })),
+
+  importFile: (root: Root, directory: string, instanceId: string, file: File) => {
+    const body = new FormData();
+    body.set('file', file, file.name);
+    return json<ImportedFile>(`/api/files/import?${qs({ root, directory, instanceId })}`, { method: 'POST', body });
+  },
 
   /** v0.7: crea una carpeta (con intermedias). 409 si ya existe. */
   createDir: (root: Root, path: string) => json<{ path: string }>('/api/dir', jsonBody('POST', { root, path })),
@@ -610,6 +634,10 @@ export const api = {
   backlinks: (path: string) => json<{ items: Backlink[] }>(`/api/notes/backlinks?${qs({ path })}`),
 
   capture: (form: FormData) => json<{ path: string; title: string; id?: string; warning?: string }>('/api/capture', { method: 'POST', body: form }),
+
+  libraryMap: () => json<LibraryMapResponse>('/api/library/map'),
+  saveLibraryMap: (libraryId: string, baseRev: string, map: LibraryMap) =>
+    json<LibraryMapResponse>('/api/library/map', jsonBody('PUT', { libraryId, baseRev, map })),
 
   captureOperation: (operationId: string, libraryId: string) =>
     json<{ state: 'unknown' | 'prepared' | 'done' }>(`/api/capture/operation?${qs({ operationId, libraryId })}`),
@@ -806,6 +834,7 @@ export interface DiagramaEstado {
 
 /** Elemento de GET /api/diagramas/estado sin `path`. */
 export interface DiagramaItem extends DiagramaEstado {
+  formato: 'mermaid' | 'excalidraw';
   path: string;
   /** `diagramas/<nombre>` (lo que va en \includegraphics). */
   nombre: string;
@@ -816,6 +845,6 @@ export const diagramasApi = {
   estado: (path: string) => json<DiagramaEstado>(`/api/diagramas/estado?${qs({ path })}`),
   lista: () => json<{ items: DiagramaItem[] }>('/api/diagramas/estado'),
   /** ApiError 409 si la fuente cambió desde `rev` (body.rev = la actual). */
-  exportar: (path: string, svg: string, rev: string, pdf?: string) =>
-    json<{ pdf: string; svg: string; exportadoEn: string }>('/api/diagramas/exportar', jsonBody('POST', { path, svg, rev, pdf })),
+  exportar: (path: string, svg: string, rev: string, pdf?: string, instanceId?: string) =>
+    json<{ pdf: string; svg: string; exportadoEn: string }>('/api/diagramas/exportar', jsonBody('POST', { path, svg, rev, pdf, instanceId })),
 };

@@ -5,6 +5,7 @@ import { registerTokenPrompt, type Status } from './api';
 import { CaptureQueueDialog } from './components/CaptureQueueDialog';
 import { ResourceConflictDialog } from './components/ResourceConflictDialog';
 import { CaptureModal } from './components/CaptureModal';
+import { FileImportDialog } from './components/FileImportDialog';
 import { ContextMenuHost } from './components/ContextMenu';
 import { Header } from './components/Header';
 import { MoveDialog } from './components/MoveDialog';
@@ -192,6 +193,7 @@ export function App() {
       {ready && assistantOpened && <Suspense fallback={null}><AssistantWindow /></Suspense>}
       {ready && settingsOpened && <Suspense fallback={null}><SettingsWindow /></Suspense>}
       <CaptureModal />
+      <FileImportDialog />
       <CaptureQueueDialog />
       <ResourceConflictDialog />
       <QuickOpen />

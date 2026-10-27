@@ -152,8 +152,8 @@ export function buildResourceMarkdown(o: {
 }
 
 /** Stream an upload to a hidden temp file in the attachments dir. */
-export async function receiveUpload(cfg: Config, stream: Readable): Promise<string> {
-  const dir = await attachmentsDir(cfg);
+export async function receiveUpload(cfg: Config, stream: Readable, directory?: string): Promise<string> {
+  const dir = directory ?? await attachmentsDir(cfg);
   const tmp = path.join(dir, `.upload-${crypto.randomBytes(8).toString('hex')}.tmp`);
   try {
     await pipeline(stream, createWriteStream(tmp, { flags: 'wx' }));

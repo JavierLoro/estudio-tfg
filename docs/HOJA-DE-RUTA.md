@@ -1029,3 +1029,9 @@ Cada bloque actualiza contrato, guías y respaldo; verifica tests sin consumo de
 | B3 · Búsqueda y revisión | [#85](https://github.com/JavierLoro/estudio-tfg/issues/85) | [#88](https://github.com/JavierLoro/estudio-tfg/pull/88) | Implementado y probado; depende de B2 |
 
 Las ramas nacieron de develop y se encadenaron mediante dependencias locales para conservar ambas documentaciones y resolver su integración sin modificar develop. Orden de revisión/integración: #86 → #87 → #88; no se ha fusionado ningún PR. Se conservan las modificaciones documentales preparadas antes del encargo. La integración pasa scripts, servidor, tipos, build y los recorridos apropiados con proveedores ficticios; Crossref se comprobó también con HTTP real y términos genéricos. Sigue pendiente el ensayo real de ChatGPT (Rápida, Ampliada, contexto seleccionado y diagrama) en un perfil aislado con una cuenta conectada.
+
+### Importación, mapa de contenidos y Excalidraw
+
+Encargo directo implementado en `hoja/importacion-mapa`, [PR #94 hacia develop](https://github.com/JavierLoro/estudio-tfg/pull/94), pendiente de fusión. Incluye arrastrar archivos y elegir destino, mapa con nodos internos y referencias reutilizables, incorporación a la memoria y elección entre Mermaid/Excalidraw. El PDF Excalidraw se exporta como imagen a 300 ppp; quedan fuera la IA y la conversión Mermaid arbitraria para ese editor.
+
+Comportamiento y API: contrato [v0.68](CONTRACT.md#arrastrar-archivos-y-elegir-destino-v068)–[v0.71](CONTRACT.md#segundo-editor-de-diagramas-excalidraw-v071). Uso: [guía técnica](README.md#qué-puedes-hacer) y [Biblioteca](BIBLIOTECA.md#organizar-contenidos-en-un-mapa). Recuperación: [Respaldo](RESPALDO.md). Validación reproducible: [E2E](../test/e2e/README.md), incluidos ambos perfiles y memorias trasladadas sin Biblioteca. Esta entrega no amplía los permisos del asistente.

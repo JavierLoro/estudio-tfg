@@ -3,9 +3,12 @@ import type { Ctx } from '../context.ts';
 import { migrate, migrationPreview, resumeMigration } from '../libraryMigration.ts';
 import { importApply, importOperations, importPreview } from '../libraryImport.ts';
 import { integrationApply, integrationOperation, integrationPreview, libraryUses } from '../libraryIntegration.ts';
+import { readLibraryMap, writeLibraryMap } from '../libraryMap.ts';
 
 export default async function libraryRoutes(app: FastifyInstance, { ctx }: { ctx: Ctx }) {
   const snapshot = () => ({ ...ctx, cfg: { ...ctx.cfg } });
+  app.get('/api/library/map', async () => readLibraryMap(snapshot()));
+  app.put('/api/library/map', async req => writeLibraryMap(snapshot(), req.body));
   app.get('/api/library/migration', async () => migrationPreview(snapshot()));
   app.post('/api/library/migration', async (req) => {
     const body = (req.body ?? {}) as any;

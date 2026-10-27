@@ -180,6 +180,7 @@ jobs:
           E2E_WORKER_URL: http://127.0.0.1:8097
           E2E_WORKER_OUT: ${{ env.TEMPLATE_OUT }}
           E2E_DIAGRAM_OUT: ${{ env.TEMPLATE_OUT }}/diagramas-browser
+          E2E_EXCALIDRAW_OUT: ${{ env.TEMPLATE_OUT }}/excalidraw
       - name: Compilar las figuras del navegador en ambos perfiles
         run: node server/node_modules/tsx/dist/cli.mjs scripts/library-compile.mts --worker-url http://127.0.0.1:8097 --output-dir "$TEMPLATE_OUT" --diagrams-dir "$TEMPLATE_OUT/diagramas-browser"
       - name: Conservar evidencias E2E al fallar
@@ -206,6 +207,9 @@ jobs:
           name: plantilla-diagnosticos
           path: |
             ${{ env.TEMPLATE_OUT }}/resultado-*.json
+            ${{ env.TEMPLATE_OUT }}/mapa-*.pdf
+            ${{ env.TEMPLATE_OUT }}/excalidraw-*.pdf
+            ${{ env.TEMPLATE_OUT }}/excalidraw/*.pdf
             ${{ env.TEMPLATE_OUT }}/**/*.log
             ${{ env.TEMPLATE_OUT }}/**/latexmk.txt
             ${{ env.TEMPLATE_OUT }}/native/**/resultado-*.json
