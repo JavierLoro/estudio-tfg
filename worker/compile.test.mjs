@@ -171,3 +171,15 @@ test('la cola admite cuatro trabajos incluyendo subidas y vuelve a aceptar tras 
   const next = await compile({ '../fuera.tex': 'No escribir' });
   assert.equal(next.status, 400);
 });
+
+test('las comparaciones se guardan y limpian aparte sin borrar el PDF de la memoria', async t => {
+  fakeEngine(t);
+  const normal=await (await compile()).json(), current=fs.readFileSync(path.join(process.env.OUT_DIR,normal.pdf));
+  for(let i=0;i<12;i++) {
+    const response=await fetch(url,{method:'POST',headers:{'content-type':'application/x-tar','x-preview':'1'},body:tarFiles({'main.tex':'Muestra ficticia'})});
+    const preview=await response.json();assert.equal(preview.ok,true);assert.ok(fs.existsSync(path.join(process.env.OUT_DIR,'previews',preview.pdf)));
+  }
+  assert.deepEqual(fs.readFileSync(path.join(process.env.OUT_DIR,normal.pdf)),current);
+  assert.ok(fs.readdirSync(path.join(process.env.OUT_DIR,'previews')).length<=10);
+  const bad=await fetch(url,{method:'POST',headers:{'content-type':'application/x-tar','x-preview':'../escape'},body:tarFiles({'main.tex':'Muestra ficticia'})});assert.equal(bad.status,400);
+});

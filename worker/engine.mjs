@@ -33,6 +33,7 @@ export function compileEnvironment(runtimeDir, { tools = {}, platform = process.
     TEXMFVAR: join(runtimeDir, 'texmf-var'),
     TEXMFCONFIG: join(runtimeDir, 'texmf-config'),
     TEXMFCACHE: join(runtimeDir, 'texmf-cache'),
+    TEXMFOUTPUT: runtimeDir,
     // Shell/Xpdf resuelve AppData desde USERPROFILE; conservar la estructura del perfil privado.
     ...(platform === 'win32' ? { SystemRoot: windowsRoot, WINDIR: windowsRoot, APPDATA: join(runtimeDir, 'home', 'AppData', 'Roaming'), LOCALAPPDATA: join(runtimeDir, 'home', 'AppData', 'Local') } : {}),
     // Kpathsea limita escrituras; openin_any ya no protege lecturas en TeX Live 2026.
@@ -128,7 +129,7 @@ async function copySynctex(from, to, workDir) {
   await fs.writeFile(to, await gzip(Buffer.from(fixed, 'utf8')));
 }
 
-function latexmkArgs(main, tools) {
+function latexmkArgs(main, tools, lua = false) {
   const args = ['-norc', '-e'];
   // Dos niveles de comillas: constante Perl y comando del auxiliar, nunca fuentes del proyecto.
   const perl = (value) => value.replaceAll('\\', '\\\\').replaceAll('"', '\\"').replaceAll('$', '\\$').replaceAll('@', '\\@');
@@ -139,17 +140,24 @@ function latexmkArgs(main, tools) {
   const biber = tools.biber ? command(tools.biber) : 'biber';
   args.push(`$biber = "${perl(biber)} --noconf %O %B";`);
   if (tools.pdflatex) args.push('-e', `$pdflatex = "${perl(command(tools.pdflatex))} %O %S";`);
-  return [...args, '-pdf', '-interaction=nonstopmode', '-file-line-error', '-synctex=1', '-no-shell-escape', main];
+  if (lua && tools.lualatex) args.push('-e', `$lualatex = "${perl(command(tools.lualatex))} %O %S";`);
+  return [...args, lua ? '-lualatex' : '-pdf', '-interaction=nonstopmode', '-file-line-error', '-synctex=1', '-no-shell-escape', main];
 }
 
-export async function pruneBuilds(root, keep = 10) {
+export async function pruneBuilds(root, keep = 10, currentId) {
   const dirs = (await fs.readdir(root, { withFileTypes: true }))
     .filter((e) => e.isDirectory() && BUILD_ID_RE.test(e.name))
     .map((e) => e.name)
     .sort();
-  for (const name of dirs.slice(0, Math.max(0, dirs.length - keep))) {
+  for (const name of dirs.filter(name => name !== currentId).slice(0, Math.max(0, dirs.length - keep))) {
     await fs.rm(path.join(root, name), { recursive: true, force: true });
   }
+}
+
+export async function needsLua(workDir) {
+  const file = path.join(workDir, 'estilo', 'institucion.tex');
+  const src = await fs.readFile(file, 'utf8').catch(e => { if (e.code === 'ENOENT') return ''; throw e; });
+  return /^\s*\\fuente(?:Texto|Titulos|Capitulo|Seccion|Subseccion|Codigo)\{propia-[a-f0-9]{16}\}/m.test(src.replace(/%[^\n]*/g, ''));
 }
 
 /** Compila `main` dentro de `workDir` (fuentes ya extraídas). */
@@ -169,11 +177,18 @@ export async function compile({ main, workDir, outDir, buildId, started = Date.n
       return { ok, buildId, durationMs: Date.now() - started, pdf, log: `${buildId}/main.log`, diagnostics };
     }
 
+    const lua = await needsLua(workDir);
+    if (lua && Object.keys(tools).length && !tools.lualatex) throw new Error('Esta memoria usa fuentes propias. Prepara un motor con LuaLaTeX desde Ajustes.');
     const env = compileEnvironment(runtimeDir, { tools });
+    if (lua) {
+      // Lua respeta openout_any=p: su caché debe ser relativa al directorio aislado.
+      env.TEXMFCACHE = 'et-font-cache-' + crypto.randomBytes(6).toString('hex');
+      await fs.mkdir(path.join(workDir, env.TEXMFCACHE));
+    }
     await Promise.all(Object.values(env).filter((value) => value.startsWith(runtimeDir + path.sep)).map((dir) => fs.mkdir(dir, { recursive: true })));
     const res = await run(
       tools.latexmk || 'latexmk',
-      latexmkArgs(main, tools),
+      latexmkArgs(main, tools, lua),
       {
         cwd: workDir,
         timeoutMs,

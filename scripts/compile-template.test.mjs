@@ -60,25 +60,25 @@ for (const warnings of [false, true]) {
       const tar = Buffer.concat(chunks);
       assert.ok(tar.includes(Buffer.from('tfg.tex')));
       assert.ok(tar.includes(Buffer.from('estilo/memoria.cls')));
-      if (requests >= 4 && requests < 8) {
-        const font = ['times', 'latinmodern', 'palatino', 'heros'][requests - 4];
-        const title = { times: 'palatino', latinmodern: 'times', palatino: 'latinmodern', heros: 'heros' }[font];
+      if (requests >= 4 && requests < 11) {
+        const font = ['times', 'latinmodern', 'palatino', 'heros', 'schola', 'bonum', 'adventor'][requests - 4];
+        const title = { times: 'palatino', latinmodern: 'times', palatino: 'latinmodern', heros: 'heros' }[font] || font;
         assert.ok(tar.includes(Buffer.from(`\\fuenteTexto{${font}}\n\\fuenteTitulos{${title}}`)));
       }
-      if (requests >= 8 && requests < 12) {
-        const numeracion = requests < 10 ? 'romanos' : 'continua';
-        const reflejo = requests % 2 === 0 ? 'si' : 'no';
+      if (requests >= 11 && requests < 15) {
+        const numeracion = requests < 13 ? 'romanos' : 'continua';
+        const reflejo = (requests - 11) % 2 === 0 ? 'si' : 'no';
         assert.ok(tar.includes(Buffer.from(`\\numeracionPaginas{${numeracion}}\n\\estiloPagina{personalizado}`)));
         assert.ok(tar.includes(Buffer.from(`\\reflejarCabeceras{${reflejo}}`)));
         assert.ok(tar.includes(Buffer.from(String.raw`\cabeceraIzquierdaTexto{Cabecera propia \& prueba}`)));
       }
-      if (requests >= 12) {
+      if (requests >= 15 && requests < 20) {
         assert.ok(tar.includes(Buffer.from('\\indiceGeneral{')));
-        if (requests === 14) {
+        if (requests === 17) {
           assert.ok(tar.includes(Buffer.from('\\numerarHasta{secciones}')));
           assert.ok(tar.includes(Buffer.from('\\indiceHasta{subsecciones}')));
         }
-        if (requests === 16) assert.ok(tar.includes(Buffer.from('Prueba de índices vacíos')));
+        if (requests === 19) assert.ok(tar.includes(Buffer.from('Prueba de índices vacíos')));
       }
       idiomas.push(/^\\idioma\{(espanol|ingles)\}/m.exec(tar.toString())?.[1]);
       requests++;
@@ -90,11 +90,11 @@ for (const warnings of [false, true]) {
     const options = { outputDir: dir, workerUrl: `http://127.0.0.1:${server.address().port}` };
     if (warnings) await assert.rejects(compileTemplates(options), /se exigen 0/);
     else await compileTemplates(options);
-    assert.equal(requests, 17);
-    assert.deepEqual(idiomas, ['espanol', 'ingles', 'espanol', 'ingles', ...Array(13).fill('espanol')]);
-    for (const perfil of ['esi-uclm', 'esi-uclm-ingles', 'generico', 'generico-ingles', ...['times', 'latinmodern', 'palatino', 'heros'].map((font) => 'generico-fuente-' + font),
+    assert.equal(requests, 23);
+    assert.deepEqual(idiomas, ['espanol', 'ingles', 'espanol', 'ingles', ...Array(19).fill('espanol')]);
+    for (const perfil of ['esi-uclm', 'esi-uclm-ingles', 'generico', 'generico-ingles', ...['times', 'latinmodern', 'palatino', 'heros', 'schola', 'bonum', 'adventor'].map((font) => 'generico-fuente-' + font),
       ...['romanos', 'continua'].flatMap((n) => ['si', 'no'].map((r) => `generico-paginas-${n}-reflejo-${r}`)),
-      ...['capitulos', 'secciones', 'subsecciones', 'sin-indices', 'vacios'].map((i) => 'generico-indices-' + i)]) {
+      ...['capitulos', 'secciones', 'subsecciones', 'sin-indices', 'vacios'].map((i) => 'generico-indices-' + i), ...['a5','personalizado','fuentes-propias'].map(s => 'generico-estilo-' + s)]) {
       const result = JSON.parse(await fs.readFile(path.join(dir, `resultado-${perfil}.json`), 'utf8'));
       assert.equal(result.ok, true);
       assert.equal(result.diagnostics.length, warnings ? 1 : 0);

@@ -3,6 +3,7 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { woffToSfnt } from '../worker/woff2sfnt.mjs';
 import { Readable } from 'node:stream';
 import { setTimeout as delay } from 'node:timers/promises';
 import { parseArgs } from 'node:util';
@@ -15,6 +16,10 @@ const { loadConfig } = await tsImport('../server/src/config.ts', import.meta.url
 const { createSourceTar, isValidBuildId } = await tsImport('../server/src/compile.ts', import.meta.url);
 const { applyChanges } = await tsImport('../server/src/datos.ts', import.meta.url);
 const { FUENTES_TEXTO } = await tsImport('../shared/tipografia.ts', import.meta.url);
+const { muestraEstilo } = await tsImport('../server/src/styleProposals.ts', import.meta.url);
+const { generarFuentes, inspeccionarFuente } = await tsImport('../server/src/fuentes.ts', import.meta.url);
+const { rev } = await tsImport('../server/src/fsutil.ts', import.meta.url);
+const { configuracionInicial } = await tsImport('../shared/nueva-memoria.ts', import.meta.url);
 const { nuevaMemoria } = await tsImport('../server/src/nueva-memoria.ts', import.meta.url);
 
 export async function checkTemplateResult(body, outputDir) {
@@ -50,9 +55,10 @@ export async function compileTemplates({ workerUrl, outputDir }) {
       ...FUENTES_TEXTO.map(([fuente]) => ({ id: 'generico', ingles: false, fuente })),
       ...['romanos', 'continua'].flatMap((numeracion) => ['si', 'no'].map((reflejo) => ({ id: 'generico', ingles: false, numeracion, reflejo }))),
       ...['capitulos', 'secciones', 'subsecciones', 'sin-indices', 'vacios'].map((indices) => ({ id: 'generico', ingles: false, indices })),
+      ...['a5', 'personalizado', 'fuentes-propias'].map(estilo => ({id:'generico',ingles:false,estilo})),
     ];
-    for (const { id, ingles, fuente, numeracion, reflejo, indices } of variantes) {
-      const nombre = indices ? `${id}-indices-${indices}` : numeracion ? `${id}-paginas-${numeracion}-reflejo-${reflejo}`
+    for (const { id, ingles, fuente, numeracion, reflejo, indices, estilo } of variantes) {
+      const nombre = estilo ? `${id}-estilo-${estilo}` : indices ? `${id}-indices-${indices}` : numeracion ? `${id}-paginas-${numeracion}-reflejo-${reflejo}`
         : fuente ? `${id}-fuente-${fuente}` : ingles ? `${id}-ingles` : id;
       const memoria = path.join(scratch, nombre);
       await fs.mkdir(memoria);
@@ -98,7 +104,7 @@ Página ficticia para comprobar las posiciones en la siguiente página impar.
         const inst = path.join(memoria, 'estilo/institucion.tex');
         const titulos = { times: 'palatino', latinmodern: 'times', palatino: 'latinmodern', heros: 'heros' };
         await fs.writeFile(inst, applyChanges(await fs.readFile(inst, 'utf8'), 'institucion', {
-          fuenteTexto: fuente, fuenteTitulos: titulos[fuente], fuenteSeccion: 'sans',
+          fuenteTexto: fuente, fuenteTitulos: titulos[fuente] || fuente, fuenteSeccion: 'sans',
           tamanoCapitulo: '24', tamanoSeccion: '17.5', tamanoSubseccion: '12',
           negritaSubseccion: 'no', mayusculasCapitulo: 'no', mayusculasSeccion: 'no', mayusculasSubseccion: 'si',
         }));
@@ -106,6 +112,25 @@ Página ficticia para comprobar las posiciones en la siguiente página impar.
       if (ingles) {
         const datos = path.join(memoria, 'datos.tex');
         await fs.writeFile(datos, (await fs.readFile(datos, 'utf8')).replace(/^\\idioma\{espanol\}/m, '\\idioma{ingles}'));
+      }
+      if (estilo) {
+        const configuration = configuracionInicial();
+        Object.assign(configuration.institucion, { papel: estilo === 'a5' ? 'a5' : 'personalizado', anchoPapel:'180mm', altoPapel:'250mm',
+          alineacionParrafo:'izquierda', sangriaParrafo:'0em', espacioParrafo:'4pt', antesCapitulo:'4mm', despuesCapitulo:'8mm', alineacionCapitulo:'centro',
+          alineacionSeccion:'derecha', marcaLista:'cuadrado', marcaEnumeracion:'letra', espacioLista:'3pt', fuenteCodigo:estilo === 'a5' ? 'latinmodernmono' : 'cursor',
+          fuenteLeyendaFigura:'sans', alineacionLeyendaFigura:'izquierda', fuenteLeyendaTabla:'codigo', alineacionLeyendaTabla:'derecha',
+          fuenteLeyendaCodigo:'sans', alineacionLeyendaCodigo:'centro' });
+        configuration.datos.cursoAcademico='2026–2027';
+        configuration.portadas.interior.push({id:'curso',tipo:'cursoAcademico',zona:'inferior',alineacion:'derecha',espacio:2},{id:'firma',tipo:'firma',zona:'inferior'});
+        const files = muestraEstilo(configuration);
+        if (estilo === 'fuentes-propias') {
+          const data = woffToSfnt(await fs.readFile(new URL('../web/node_modules/@fontsource/source-sans-3/files/source-sans-3-latin-400-normal.woff', import.meta.url)));
+          const info = inspeccionarFuente(data), key = 'propia-' + rev(info.nombre.normalize('NFKC').toLowerCase()), filename = rev(data) + '.ttf';
+          const registro = {familias:[{id:key,nombre:info.nombre,licencia:info.licencia,archivos:{regular:filename}}]};
+          files.set('estilo/fuentes/' + filename,data); files.set('estilo/fuentes.tex',generarFuentes(registro));
+          files.set('estilo/institucion.tex',applyChanges(files.get('estilo/institucion.tex').toString(),'institucion',{fuenteTitulos:key}));
+        }
+        for (const [rel,data] of files) { await fs.mkdir(path.dirname(path.join(memoria,rel)),{recursive:true}); await fs.writeFile(path.join(memoria,rel),data); }
       }
       const cfg = loadConfig({ MEMORIA_DIR: memoria, NOTES_DIR: scratch, BUILD_DIR: outputDir, ALLOWED_ROOTS: scratch }, scratch);
       let body;

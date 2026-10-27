@@ -14,6 +14,7 @@ import {
   type SettingsValues,
 } from '../api';
 import { DirPicker } from '../components/DirPicker';
+import { PlantillasPersonales } from '../components/PlantillasPersonales';
 import { NuevaMemoria } from '../components/NuevaMemoria';
 import { PlantillaPropia } from '../components/PlantillaPropia';
 import { Normativa } from '../components/Normativa';
@@ -537,6 +538,10 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
                   <Button onClick={() => setPropia(true)}>Usar una plantilla propia…</Button>
                   {desktop && <Button onClick={() => setNormativa(true)}>Crear desde normativa…</Button>}
                 </div>
+                {data && <PlantillasPersonales settings={data} onCreated={async result => {
+                  await notifySettingsChanged(result.values && result.sources ? result as SettingsResponse : undefined);
+                  openFile('memoria', result.values?.memoriaMain ?? 'tfg.tex'); onClose();
+                }} />}
                 <fieldset className="rounded-md border border-line p-3">
                   <legend className="px-1 text-[12px] font-medium">Plantilla incluida</legend>
                   <div className="flex flex-wrap items-end gap-3">

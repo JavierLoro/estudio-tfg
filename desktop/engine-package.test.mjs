@@ -98,3 +98,11 @@ test('espacio insuficiente se informa sin descargar ni publicar', () => fixture(
     assert.equal(engine.view().phase, 'error'); assert.match(engine.view().message, /espacio/); assert.equal(fetched, false);
   } finally { fs.statfs = statfs; }
 }));
+
+test('un paquete que declara LuaLaTeX debe contener su ejecutable; los anteriores siguen válidos', () => fixture(async dataDir => {
+  const missing = await install(dataDir, valid(), {capabilities:{lualatex:true}});
+  assert.equal(missing.view().phase, 'error');assert.equal(missing.paths,null);
+  const raw = tar(...['latexmk','biber','pdflatex','lualatex','perl'].map(name => tarEntry('bin/'+name)));
+  const full = await install(dataDir, raw, {capabilities:{lualatex:true}});
+  assert.equal(full.view().phase, 'ready');assert.equal(full.view().current,true);
+}));

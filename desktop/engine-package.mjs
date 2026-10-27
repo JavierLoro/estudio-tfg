@@ -60,7 +60,7 @@ export class EnginePackage {
     if (marker.sha256 !== manifest.sha256 || marker.id !== manifest.id) throw problem('La instalación TeX no coincide con el manifiesto');
     const extension = this.platform.startsWith('win32-') ? '.exe' : '';
     for (const rel of [manifest.binDir + '/latexmk' + extension, manifest.binDir + '/biber' + extension,
-      manifest.binDir + '/pdflatex' + extension, manifest.perlDir + '/perl' + extension]) {
+      manifest.binDir + '/pdflatex' + extension, ...(manifest.capabilities?.lualatex ? [manifest.binDir + '/lualatex' + extension] : []), manifest.perlDir + '/perl' + extension]) {
       const file = await fs.realpath(path.join(root, ...rel.split('/')));
       if (!inside(await fs.realpath(root), file) || !(await fs.stat(file)).isFile()) throw problem('Herramienta TeX fuera del paquete');
     }

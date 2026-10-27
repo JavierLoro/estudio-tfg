@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import { _electron } from '../test/e2e/node_modules/playwright/index.mjs';
 import { expect } from '../test/e2e/node_modules/@playwright/test/index.mjs';
 import { DIAGRAM_TEMPLATES } from '../web/src/lib/diagramTemplates.ts';
+import { woffToSfnt } from '../worker/woff2sfnt.mjs';
 import { command } from './desktop-tex.mjs';
 
 const repo = path.resolve(import.meta.dirname, '..');
@@ -219,6 +220,23 @@ try {
   const esi = await json(restarted, '/api/compile', 'POST');
   assert.equal(esi.ok, true); assert.deepEqual(esi.diagnostics, []);
   results.push({ variant, perfil: 'esi-uclm', reinicio: true, diagnostics: esi.diagnostics });
+  assert((await json(restarted, '/api/engines')).local.tools.lualatex?.version, 'El paquete debe incluir LuaLaTeX');
+  const customFont = woffToSfnt(await fs.readFile(path.join(repo, 'web/node_modules/@fontsource/source-sans-3/files/source-sans-3-latin-400-normal.woff')));
+  const imported = await restarted.evaluate(async bytes => {
+    const data = new FormData(); data.append('baseRev','null'); data.append('file',new Blob([new Uint8Array(bytes)]),'muestra.ttf');
+    const response = await fetch('/api/memoria/fuentes',{method:'POST',body:data}), value = await response.json();
+    if (!response.ok) throw new Error(value.error); return value;
+  }, [...customFont]);
+  assert(imported.avisos.some(a => a.includes('sin simular')));
+  const own = imported.registro.familias[0].id, previous = await json(restarted,'/api/memoria/datos');
+  await json(restarted,'/api/memoria/datos','PUT',{baseRev:{institucion:previous.rev.institucion},institucion:{fuenteTexto:own,fuenteTitulos:own,fuenteCodigo:own}});
+  const lua = await json(restarted,'/api/compile','POST'); assert.equal(lua.ok,true); assert.deepEqual(lua.diagnostics,[]);
+  const luaLog = await fs.readFile(path.join(dataDir,'builds',lua.buildId,'main.log'),'utf8');
+  assert.match(luaLog,/LuaHBTeX/);assert.doesNotMatch(luaLog,/LaTeX Font Warning:|Missing character:/);
+  results.push({variant,perfil:'fuentes-propias',motor:'LuaLaTeX',diagnostics:lua.diagnostics});
+  const after = await json(restarted,'/api/memoria/datos');
+  await json(restarted,'/api/memoria/datos','PUT',{baseRev:{institucion:after.rev.institucion},institucion:{fuenteTexto:previous.institucion.fuenteTexto || 'times',fuenteTitulos:previous.institucion.fuenteTitulos || 'sans',fuenteCodigo:previous.institucion.fuenteCodigo || 'bera'}});
+
   await electron.evaluate(({ app }) => app.quit()); await electron.close(); electron = undefined;
   // Citas/figuras y copias trasladadas usan el motor extraído del paquete final.
   const current = JSON.parse(await fs.readFile(path.join(dataDir, 'engines/current.json'), 'utf8'));

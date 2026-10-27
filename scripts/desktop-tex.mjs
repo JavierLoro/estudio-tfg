@@ -175,6 +175,7 @@ export async function buildTex(output, releaseTag) {
     await command(path.join(tree, binDir, process.platform === 'win32' ? 'mktexlsr.exe' : 'mktexlsr'), [], tree, environment);
     await command(path.join(tree, binDir, process.platform === 'win32' ? 'updmap-sys.exe' : 'updmap-sys'), [], tree, environment);
     await command(path.join(tree, binDir, process.platform === 'win32' ? 'fmtutil-sys.exe' : 'fmtutil-sys'), ['--byfmt', 'pdflatex'], tree, environment);
+    await command(path.join(tree, binDir, process.platform === 'win32' ? 'fmtutil-sys.exe' : 'fmtutil-sys'), ['--byfmt', 'lualatex'], tree, environment);
     const inventory = packages.map(([name, entry]) => ({ name, revision: Number(entry.revision?.[0] ?? 0), sha512: entry.containerchecksum?.[0] ?? null,
       license: entry['catalogue-license']?.[0] ?? 'TeX Live: ver LICENSE.TL', source: entry['catalogue-ctan']?.[0] ? `https://mirrors.ctan.org${entry['catalogue-ctan'][0]}` : 'https://tug.org/texlive/svn/' }));
     await fs.writeFile(path.join(tree, 'COMPONENTS.json'), JSON.stringify({ snapshot: lock.repository, databaseSha256: lock.databaseSha256, packages: inventory, perl: process.platform === 'win32' ? { version: '5.42.0', source: 'https://github.com/Perl/perl5/tree/v5.42.0', snapshot: lock.repository } : lock.perl }, null, 2));
@@ -199,7 +200,7 @@ export async function buildTex(output, releaseTag) {
     await packTex(tree, archive);
     let unpackedBytes = 0;
     await pipeline(createReadStream(archive), createGunzip(), new Writable({ write(chunk, _encoding, callback) { unpackedBytes += chunk.length; callback(); } }));
-    const manifest = { schema: 1, id: lock.id, platform, url: assetUrl(distributionTag(releaseTag), name),
+    const manifest = { schema: 1, capabilities: { lualatex: true }, id: lock.id, platform, url: assetUrl(distributionTag(releaseTag), name),
       sha256: await digest(archive), bytes: (await fs.stat(archive)).size, unpackedBytes, binDir, perlDir,
       versions: { texlive: 2026, latexmk: '4.88', biber: '2.22', pdftex: '1.40.29', perl: process.platform === 'win32' ? '5.42.0' : lock.perl.version },
       snapshot: lock.repository, packages: inventory };

@@ -1,20 +1,21 @@
 import { useState } from 'react';
 import { ArrowDown, ArrowUp, GripVertical, Plus, Trash2 } from 'lucide-react';
 import { ELEMENTOS_PORTADA, ZONAS, type BloquePortada, type PortadasConfig, type ZonaPortada } from '../../../shared/portadas';
-import { errorMessage } from '../api';
+import { api, json, errorMessage } from '../api';
 import { Button, Modal, Spinner } from './ui';
 
 const LABEL = Object.fromEntries(ELEMENTOS_PORTADA);
 const ZONA = { superior: 'Parte superior', central: 'Parte central', inferior: 'Parte inferior' };
 const control = 'h-8 rounded border border-line-strong bg-bg px-2 text-xs outline-none focus:border-accent';
 
-export function PortadasDialog({ initial, datos, institucion, onSave, onClose, saveLabel = 'Guardar portadas' }: {
+export function PortadasDialog({ initial, datos, institucion, onSave, onClose, imagenes = false, saveLabel = 'Guardar portadas' }: {
   initial: PortadasConfig;
   datos: Record<string, string>;
   institucion: Record<string, string>;
   onSave: (config: PortadasConfig) => Promise<void>;
   onClose: () => void;
   saveLabel?: string;
+  imagenes?: boolean;
 }) {
   const [cfg, setCfg] = useState(initial);
   const [side, setSide] = useState<'exterior' | 'interior'>('interior');
@@ -56,6 +57,8 @@ export function PortadasDialog({ initial, datos, institucion, onSave, onClose, s
   };
   const preview = (b: BloquePortada) => {
     if (b.tipo === 'texto') return b.texto!;
+    if (b.tipo === 'imagen') return b.recurso?.endsWith('.pdf') ? <object data={api.rawUrl('memoria', b.recurso)} type="application/pdf" className="mx-auto h-24 w-full" aria-label="Imagen de portada">Imagen PDF</object> : <img src={api.rawUrl('memoria', b.recurso!)} alt="Imagen de portada" className="inline-block max-h-24 max-w-full" />;
+    if (b.tipo === 'firma') return '________________';
     if (b.tipo === 'fecha') return datos.fechaMes || datos.fechaAnio ? [datos.fechaMes, datos.fechaAnio].filter(Boolean).join(' ') : 'Fecha de entrega';
     if (b.tipo === 'tipo') {
       const en = institucion.idiomaPortadas === 'ingles' || (institucion.idiomaPortadas !== 'espanol' && datos.idioma === 'ingles');
@@ -80,7 +83,6 @@ export function PortadasDialog({ initial, datos, institucion, onSave, onClose, s
     <Button size="md" variant="primary" disabled={busy} onClick={() => void save()}>{busy && <Spinner />}{saveLabel}</Button>
   </>}>
     <div className="flex h-[65vh] min-h-0 flex-col gap-4 p-4">
-      <p className="text-sm text-muted">Arrastra los elementos entre zonas o usa sus controles. Los datos vacíos se omiten en el PDF.</p>
       <div className="flex flex-wrap gap-2" aria-label="Portada que estás componiendo">
         <Button size="md" variant={side === 'interior' ? 'primary' : 'default'} aria-pressed={side === 'interior'} onClick={() => setSide('interior')}>Portada con datos</Button>
         <Button size="md" variant={side === 'exterior' ? 'primary' : 'default'} aria-pressed={side === 'exterior'} onClick={() => setSide('exterior')}>Portada exterior</Button>
@@ -90,7 +92,7 @@ export function PortadasDialog({ initial, datos, institucion, onSave, onClose, s
           <fieldset>
             <legend className="mb-2 text-sm font-semibold">Elementos de esta portada</legend>
             <div className="space-y-2">
-              {ELEMENTOS_PORTADA.map(([tipo, label]) => <label className="flex items-center gap-2 text-sm" key={tipo}>
+              {ELEMENTOS_PORTADA.filter(([t]) => t !== 'imagen').map(([tipo, label]) => <label className="flex items-center gap-2 text-sm" key={tipo}>
                 <input type="checkbox" checked={blocks.some((b) => b.tipo === tipo)} onChange={(e) => {
                   if (!e.target.checked) update(blocks.filter((b) => b.tipo !== tipo));
                   else if (blocks.length < 20) update([...blocks, { id: tipo, tipo, zona: 'central' }]);
@@ -99,13 +101,17 @@ export function PortadasDialog({ initial, datos, institucion, onSave, onClose, s
               </label>)}
             </div>
           </fieldset>
+          {imagenes && <label className="block text-sm">Añadir imagen<input type="file" accept=".png,.jpg,.jpeg,.pdf" className="mt-2 block w-full text-xs" disabled={busy} onChange={e => {
+            const file = e.target.files?.[0]; e.target.value = ''; if (!file) return;
+            const data = new FormData(); data.append('baseRev','null'); data.append('file',file); setBusy(true); setError(null);
+            void json<{recurso:string}>('/api/memoria/portadas/imagen', {method:'POST',body:data}).then(({recurso}) => update([...blocks, {id:'imagen-' + crypto.randomUUID().replaceAll('-',''), tipo:'imagen', zona:'superior', recurso}])).catch(e => setError(errorMessage(e))).finally(() => setBusy(false));
+          }} /></label>}
           <div className="space-y-2">
             <label htmlFor="portada-texto" className="block text-sm font-semibold">Añadir un texto propio</label>
             <textarea id="portada-texto" rows={3} maxLength={500} className="w-full resize-y rounded border border-line-strong bg-bg p-2 text-sm outline-none focus:border-accent"
               placeholder="Por ejemplo: convocatoria, curso académico o nombre del programa" value={custom} onChange={(e) => setCustom(e.target.value)} />
             <Button onClick={addText}><Plus size={13} />Añadir texto</Button>
           </div>
-          <p className="text-xs text-muted">La vista muestra la composición. El PDF compilado permite comprobar los saltos de línea y el espacio real.</p>
         </div>
         <div className="overflow-auto rounded-lg border border-line bg-soft p-3">
           <div className="mb-2 text-center text-xs text-muted">Vista de composición · {side === 'interior' ? 'portada con datos' : 'portada exterior'}</div>
@@ -123,7 +129,7 @@ export function PortadasDialog({ initial, datos, institucion, onSave, onClose, s
                     <button type="button" aria-pressed={selected === block.id} aria-label={'Seleccionar ' + (LABEL[block.tipo] || block.texto)}
                       className="flex w-full items-start gap-1.5 rounded outline-none focus-visible:ring-2 focus-visible:ring-accent" onClick={() => setSelected(block.id)}>
                       <GripVertical size={14} className="mt-1 shrink-0 text-muted" aria-hidden />
-                      <p className={'min-w-0 flex-1 whitespace-pre-wrap break-words text-center ' + (block.tipo === 'titulo' ? 'text-lg font-semibold' : 'text-sm')}>{preview(block)}</p>
+                      <span style={{ display: 'block', textAlign: block.alineacion === 'izquierda' ? 'left' : block.alineacion === 'derecha' ? 'right' : 'center', marginBottom: (block.espacio ?? 4) * 2 }} className={'min-w-0 flex-1 whitespace-pre-wrap break-words ' + (block.tipo === 'titulo' ? 'text-lg font-semibold' : 'text-sm')}>{preview(block)}</span>
                     </button>
                     {selected === block.id && block.tipo === 'texto' && <label className="mt-2 block text-xs text-muted">Editar texto
                       <textarea value={block.texto} maxLength={500} rows={2} className="mt-1 w-full rounded border border-line-strong bg-bg p-1.5 text-sm text-fg"
@@ -134,6 +140,8 @@ export function PortadasDialog({ initial, datos, institucion, onSave, onClose, s
                         value={zona} onChange={(e) => move(block.id, e.target.value as ZonaPortada)}>
                         {ZONAS.map((z) => <option key={z} value={z}>{ZONA[z]}</option>)}
                       </select>
+                      <select aria-label="Alineación del elemento" className={control} value={block.alineacion || 'centro'} onChange={e => update(blocks.map(b => b.id === block.id ? { ...b, alineacion: e.target.value as BloquePortada['alineacion'] } : b))}>{[['izquierda', 'Izquierda'], ['centro', 'Centro'], ['derecha', 'Derecha']].map(([v,t]) => <option key={v} value={v}>{t}</option>)}</select>
+                      <label className="text-xs">Espacio (mm)<input aria-label="Espacio después del elemento (mm)" className={control + ' w-16'} type="number" min={0} max={50} value={block.espacio ?? 4} onChange={e => update(blocks.map(b => b.id === block.id ? { ...b, espacio: Number(e.target.value) } : b))} /></label>
                       <Button aria-label={'Subir elemento ' + (LABEL[block.tipo] || block.texto)} disabled={idx === 0} onClick={() => reorder(block, -1)}><ArrowUp size={13} /></Button>
                       <Button aria-label={'Bajar elemento ' + (LABEL[block.tipo] || block.texto)} disabled={idx === group.length - 1} onClick={() => reorder(block, 1)}><ArrowDown size={13} /></Button>
                       <Button aria-label={'Quitar elemento ' + (LABEL[block.tipo] || block.texto)} onClick={() => update(blocks.filter((b) => b.id !== block.id))}><Trash2 size={13} /></Button>

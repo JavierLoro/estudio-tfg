@@ -323,7 +323,7 @@ export class Settings {
   }
 
   /** Crea una memoria solo en una carpeta vacía y la selecciona. */
-  initMemoria(body: unknown, authorize?: () => void): Promise<SettingsView & { warning?: string }> {
+  initMemoria(body: unknown, authorize?: () => void, prepared?: Map<string, string | Buffer>): Promise<SettingsView & { warning?: string }> {
     return this.serial(async () => {
       const { dir: raw, perfil: rawPerfil, configuracion } = (body as { dir?: unknown; perfil?: unknown; configuracion?: unknown } | null) ?? {};
       if (configuracion !== undefined && rawPerfil !== undefined && rawPerfil !== 'generico') throw fieldError('perfil', 'La configuración desde cero usa la base genérica');
@@ -334,7 +334,7 @@ export class Settings {
       const dir = normalizeDir(this.cfg, 'dir', raw, false);
       if (fss.existsSync(dir) && !isDirSync(dir)) throw fieldError('dir', `No es una carpeta: ${dir}`);
       if (!isEmptyDir(dir)) throw new HttpError(409, `La carpeta no está vacía: ${dir}`, { field: 'dir' });
-      const archivos = configuracion === undefined ? undefined : nuevaMemoria(configuracion, this.cfg.templatesDir);
+      const archivos = prepared ?? (configuracion === undefined ? undefined : nuevaMemoria(configuracion, this.cfg.templatesDir));
       authorize?.();
       let warning: string | undefined;
       try {

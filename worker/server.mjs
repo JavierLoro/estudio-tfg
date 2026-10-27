@@ -66,6 +66,9 @@ export async function handleCompile(req, res) {
   try { mainRaw = decodeURIComponent(String(mainRaw)); } catch { mainRaw = null; }
   const main = validateMain(mainRaw);
   if (!main) return reject(req, res, 400, 'Cabecera "X-Main" inválida');
+  const preview = req.headers['x-preview'];
+  if (preview !== undefined && preview !== '1') return reject(req,res,400,'Cabecera X-Preview inválida');
+  const outputRoot = preview === '1' ? path.join(OUT_DIR,'previews') : OUT_DIR;
   const len = Number(req.headers['content-length']);
   if (Number.isFinite(len) && len > MAX_TAR_BYTES) {
     return reject(req, res, 413, `El tar supera el máximo de ${Math.round(MAX_TAR_BYTES / 1024 / 1024)} MB`);
@@ -73,6 +76,9 @@ export async function handleCompile(req, res) {
   if (pendingCompiles >= MAX_PENDING_COMPILES) return reject(req, res, 503, 'El worker está ocupado; vuelve a intentarlo');
   pendingCompiles++;
   const started = Date.now();
+  const controller = new AbortController();
+  const disconnected = () => { if (!res.writableEnded) controller.abort(); };
+  res.on('close',disconnected);
   let jobDir;
   let result;
   try {
@@ -82,8 +88,8 @@ export async function handleCompile(req, res) {
     await extractTar(req, workDir, { maxBytes: MAX_TAR_BYTES });
     result = await enqueue(async () => {
       const buildId = newBuildId();
-      const result = await compile({ main, workDir, outDir: path.join(OUT_DIR, buildId), buildId, started, timeoutMs: TIMEOUT_MS, toolchain });
-      await pruneBuilds(OUT_DIR, KEEP_BUILDS).catch((e) => console.error(`[worker] prune: ${e.message}`));
+      const result = await compile({ main, workDir, outDir: path.join(outputRoot, buildId), buildId, started, timeoutMs: TIMEOUT_MS, toolchain, signal: controller.signal });
+      await pruneBuilds(outputRoot, KEEP_BUILDS, buildId).catch((e) => console.error(`[worker] prune: ${e.message}`));
       return result;
     });
   } catch (err) {
@@ -92,9 +98,10 @@ export async function handleCompile(req, res) {
   } finally {
     if (jobDir) await fs.rm(jobDir, { recursive: true, force: true }).catch(() => {});
     pendingCompiles--;
+    res.off('close',disconnected);
   }
   console.log(`[worker] ${result.buildId} ok=${result.ok} ${result.durationMs} ms, ${result.diagnostics.length} diagnósticos`);
-  return send(res, 200, result);
+  if (!res.destroyed) return send(res, 200, result);
 }
 
 /** Lee el cuerpo entero con límite; null si lo supera. */
@@ -144,7 +151,7 @@ export const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://worker');
   try {
     if (url.pathname === '/health' && (req.method === 'GET' || req.method === 'HEAD')) {
-      return send(res, 200, { ok: true, version: toolchain.trim(), capacidades: { compile: true, svg2pdf: true } });
+      return send(res, 200, { ok: true, version: toolchain.trim(), capacidades: { compile: true, svg2pdf: true, comparacion: true, lualatex: true } });
     }
     if (url.pathname === '/compile') {
       if (req.method !== 'POST') return send(res, 405, { error: 'Método no permitido' });

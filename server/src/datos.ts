@@ -1,5 +1,6 @@
 import { eolOf } from './sections.ts';
-import { FUENTES_TEXTO, FUENTES_TITULOS, NIVELES_TITULOS } from '../../shared/tipografia.ts';
+import { CAMPOS_ESTILO } from '../../shared/estilo.ts';
+import { FUENTES_PERSONALES_KEYS, FUENTES_CODIGO, FUENTES_TEXTO, FUENTES_TITULOS, NIVELES_TITULOS } from '../../shared/tipografia.ts';
 import { CONTENIDOS_PAGINA, NUMERACION_PAGINAS, POSICIONES_PAGINA } from '../../shared/paginacion.ts';
 import { TIPOS_INDICE, NIVELES_APARTADOS } from '../../shared/indices.ts';
 
@@ -41,6 +42,7 @@ export const FIELDS: FieldDef[] = [
   text('datos', 'email'),
   text('datos', 'tutor'),
   text('datos', 'cotutor'),
+  ...['cursoAcademico', 'convocatoria', 'fechaDefensa'].map(key => text('datos', key)),
   text('datos', 'departamento'),
   text('datos', 'intensificacion'),
   { key: 'fechaMes', cmd: 'fecha', file: 'datos', kind: 'text', arg: 0, nargs: 2 },
@@ -64,13 +66,15 @@ export const FIELDS: FieldDef[] = [
   text('institucion', 'etiquetaEspecialidad'),
   en('institucion', 'idiomaPortadas', ['espanol', 'ingles', 'documento']),
   en('institucion', 'tamanoLetra', ['10pt', '11pt', '12pt']),
-  en('institucion', 'papel', ['a4', 'carta']),
+  en('institucion', 'papel', ['a4', 'a5', 'carta', 'personalizado']),
   en('institucion', 'caras', ['automatico', 'una', 'dos']),
   ...['mostrarPortada', 'mostrarPortadaInterior', 'mostrarDerechos', 'mostrarTribunal'].map((key) => en('institucion', key, ['si', 'no'])),
   ...(['margenInterior', 'margenExterior', 'margenSuperior', 'margenInferior'] as const).map(
     (key, arg): FieldDef => ({ key, cmd: 'margenes', file: 'institucion', kind: 'length', arg, nargs: 4 }),
   ),
   en('institucion', 'interlineado', ['1', '1.15', '1.25', '1.5', '2']),
+  ...CAMPOS_ESTILO.map((f): FieldDef => f.opciones ? en('institucion', f.key, f.opciones.map(([v]) => v)) : { key: f.key, cmd: f.key, file: 'institucion', kind: 'length' }),
+  en('institucion', 'fuenteCodigo', FUENTES_CODIGO.map(([v]) => v)),
   en('institucion', 'fuenteTexto', FUENTES_TEXTO.map(([value]) => value)),
   en('institucion', 'fuenteTitulos', FUENTES_TITULOS.map(([value]) => value)),
   ...NIVELES_TITULOS.flatMap(([nivel]) => [
@@ -230,9 +234,15 @@ export function encodeValue(f: FieldDef, value: unknown): string {
       if (v.length > MAX_TEXT) throw new FieldInvalid(f.key, `${f.key}: demasiado largo (máx. ${MAX_TEXT} caracteres)`);
       return escapeTex(v);
     case 'enum':
-      if (!f.values!.includes(v)) throw new FieldInvalid(f.key, `${f.key}: valor no válido «${v}» (permitidos: ${f.values!.join(', ')})`);
+      if (!(FUENTES_PERSONALES_KEYS.includes(f.key) && /^propia-[a-f0-9]{16}$/.test(v)) && !f.values!.includes(v)) throw new FieldInvalid(f.key, `${f.key}: valor no válido «${v}» (permitidos: ${f.values!.join(', ')})`);
       return v;
     case 'length':
+      const style = CAMPOS_ESTILO.find(c => c.key === f.key);
+      if (style?.unidad) {
+        const n = Number(v.slice(0, -style.unidad.length));
+        if (!/^-?\d+(\.\d+)?(mm|pt|em)$/.test(v) || !v.endsWith(style.unidad) || !Number.isFinite(n) || n < style.min! || n > style.max!) throw new FieldInvalid(f.key, `${style.label}: usa un valor entre ${style.min} y ${style.max}`);
+        return v;
+      }
       if (!LENGTH_RE.test(v)) throw new FieldInvalid(f.key, `${f.key}: longitud no válida «${v}» (p. ej. 35mm)`);
       return v;
     case 'points':

@@ -1,14 +1,15 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { setup, multipart, type TestEnv } from './helpers.ts';
 import { assistantRoutes, type AssistantProvider } from '../src/assistant.ts';
-import { interpretarNormativa } from '../src/normativa.ts';
+import { HERRAMIENTA_NORMATIVA, interpretarNormativa } from '../src/normativa.ts';
 import { normativaFixture } from '../../test/normativa-fixture.ts';
+import * as estilo from '../src/styleProposals.ts';
 import { parseDatos } from '../src/datos.ts';
 
 let env: TestEnv | undefined;
-afterEach(async () => { await env?.close(); env = undefined; });
+afterEach(async () => { vi.restoreAllMocks(); await env?.close(); env = undefined; });
 const result = (raw = normativaFixture()) => [{ type: 'function_call', name: 'proponer_plantilla', arguments: JSON.stringify(raw), call_id: 'plantilla-ficticia' }];
 function provider(respond: AssistantProvider['respond'] = async () => result()) {
   let id = 'cuenta-normativa-a', connected = true;
@@ -17,7 +18,7 @@ function provider(respond: AssistantProvider['respond'] = async () => result()) 
   return {
     view, connect: async () => view(), select: async (next: string) => { id = next; for (const fn of listeners) fn(); return view(); },
     disconnect: async () => { connected = false; for (const fn of listeners) fn(); return view(); }, cancelSignIn: async () => {},
-    models: async () => [{ id: 'modelo-normativa', name: 'Modelo ficticio' }], respond,
+    models: async () => [{ id: 'gpt-6-luna', name: 'Modelo ficticio' }], respond,
     subscribe: (fn: () => void) => { listeners.add(fn); return () => { listeners.delete(fn); }; }, close: async () => {},
   } satisfies AssistantProvider;
 }
@@ -30,7 +31,7 @@ const post = (url: string, payload: unknown) => env!.app.inject({ method: 'POST'
 const body = (r: any) => ({ account: r.account, project: r.project, baseRev: r.rev });
 async function upload(overrides: Record<string, unknown> = {}, name = 'normativa.txt', bytes = Buffer.from('Normativa ficticia. Interior 35 mm. Exterior 20 o 25 mm.')) {
   const view = await list(), fd = new FormData();
-  fd.append('metadata', JSON.stringify({ account: view.account, project: view.project, consent: true, model: 'modelo-normativa', ...overrides }));
+  fd.append('metadata', JSON.stringify({ account: view.account, project: view.project, consent: true, ...overrides }));
   fd.append('file', new Blob([new Uint8Array(bytes)]), name);
   return env!.app.inject({ method: 'POST', url: '/api/assistant/template-generations', ...(await multipart(fd)) });
 }
@@ -53,15 +54,25 @@ it('interpreta ajustes documentados sin admitir macros, campos inventados ni fue
     { ambito: 'institucion', campo: 'logo', valor: '../privado.pdf' },
     { ambito: 'institucion', campo: 'fuenteTexto', valor: 'arial' },
     { ambito: 'datos', campo: 'autor', valor: 'Inventado' },
+    { ambito: 'datos', campo: 'universidad', valor: 'Universidad ficticia' },
     { ambito: 'institucion', campo: 'margenInterior', valor: '\\input{secreto}' },
   ]) expect(() => interpretarNormativa({ ...raw, ajustes: [{ ...raw.ajustes[0], ...adjustment }] })).toThrow();
   expect(() => interpretarNormativa({ ...raw, ajustes: [raw.ajustes[0], raw.ajustes[0]] })).toThrow();
-  expect(() => interpretarNormativa({ ...raw, dudas: [{ id: '../fuera', pregunta: 'Duda', opciones: [], pagina: 1, cita: 'Origen' }] })).toThrow();
+  expect(() => interpretarNormativa({ ...raw, supuestos: [42] })).toThrow();
 });
-it('exige consentimiento y modelo válido; la revisión no crea ni cambia la memoria', async () => {
+it('el esquema impide mezclar campos de institución, datos y apartados', () => {
+  const schema = HERRAMIENTA_NORMATIVA.parameters as any;
+  const branches = schema.properties.ajustes.items.anyOf;
+  const fields = (scope: string) => branches.find((b: any) => b.properties.ambito.enum[0] === scope).properties.campo.enum;
+  expect(fields('datos')).toContain('idioma'); expect(fields('datos')).not.toContain('universidad');
+  expect(fields('institucion')).toContain('universidad'); expect(fields('institucion')).not.toContain('idioma');
+  expect(fields('apartados')).toContain('resumen'); expect(fields('apartados')).not.toContain('margenInterior');
+});
+it('exige consentimiento y decide el modelo en la app; la revisión no crea ni cambia la memoria', async () => {
   let calls = 0;
   const t = await fixture(provider(async (_model, input, tools, _signal, _event, options) => {
     calls++;
+    expect(_model).toBe('gpt-6-luna');
     expect(options?.purpose).toBe('template');
     expect(tools[0].name).toBe('proponer_plantilla');
     expect(input[0].content).toHaveLength(2);
@@ -71,7 +82,6 @@ it('exige consentimiento y modelo válido; la revisión no crea ni cambia la mem
   }));
   const before = await fs.readFile(path.join(t.cfg.memoriaDir, 'tfg.tex'), 'utf8');
   expect((await upload({ consent: false })).statusCode).toBe(403);
-  expect((await upload({ model: 'modelo-inexistente' })).statusCode).toBe(400);
   expect(calls).toBe(0);
   const r = await upload();
   expect(r.statusCode, r.body).toBe(200);
@@ -95,31 +105,47 @@ it('lee el PDF únicamente como adjunto autorizado y rechaza formatos o cabecera
   expect(r.statusCode).toBe(200);
   expect((await finished(r.json().id)).state).toBe('prepared');
 });
-it('bloquea dudas, conserva las respuestas y exige aceptar las limitaciones antes de crear', async () => {
+it('genera sin preguntas, descarta avisos y aplica correcciones conservando el resto de la plantilla', async () => {
   let calls = 0;
   const t = await fixture(provider(async (_m, input) => {
     calls++;
-    if (calls > 1) expect(input[0].content[0].text).toContain('"margen":"20 mm"');
-    return result(normativaFixture(calls === 1));
+    const raw = normativaFixture();
+    if (calls > 1) {
+      expect(input[0].content[0].text).toContain('Pon el margen superior a 28 mm');
+      expect(input[0].content[0].text).toContain('"fuenteTexto":"latinmodern"');
+      raw.ajustes = [{ ambito: 'institucion', campo: 'margenSuperior', nombre: 'Margen superior', valor: '28mm', pagina: 1, cita: 'Corrección del usuario.' }];
+      raw.capitulos = [];
+    }
+    return result(raw);
   }));
-  const current = t.cfg.memoriaDir;
-  const r = await upload(), id = r.json().id;
-  let ready = await finished(id);
+  const original = t.cfg.memoriaDir;
+  const initial = await finished((await upload()).json().id);
+  expect(initial.state).toBe('prepared'); expect(initial.dudas).toEqual([]);
+  expect(initial.avisos).toHaveLength(2);
+  expect(initial.config.institucion.margenExterior).toBe('20mm');
+  const dismissed = await post('/' + initial.id + '/dismiss', { ...body(initial), noticeId: initial.avisos[0].id });
+  expect(dismissed.statusCode, dismissed.body).toBe(200);
+  let ready = dismissed.json();
+  expect(ready.avisos[0].descartado).toBe(true);
+  expect((await post('/' + initial.id + '/dismiss', { ...body(initial), noticeId: initial.avisos[0].id })).statusCode).toBe(409);
+  expect((await post('/' + ready.id + '/correct', { ...body(ready), text: '' })).statusCode).toBe(400);
+  const corrected = await post('/' + ready.id + '/correct', { ...body(ready), text: 'Pon el margen superior a 28 mm' });
+  expect(corrected.statusCode, corrected.body).toBe(200);
+  ready = await finished(ready.id);
+  expect(ready.config.institucion).toMatchObject({ margenSuperior: '28mm', margenInterior: '35mm', margenExterior: '20mm', fuenteTexto: 'latinmodern' });
+  expect(ready.avisos[0].descartado).toBe(true);
+  expect(ready.correcciones).toEqual(['Pon el margen superior a 28 mm']);
+  expect(ready.config.capitulos).toEqual(initial.config.capitulos);
+  expect(t.cfg.memoriaDir).toBe(original);
   const dir = path.join(t.dir, 'desde-normativa');
-  expect((await post('/' + id + '/create', { ...body(ready), dir, configuracion: ready.config, acceptLimitations: true })).statusCode).toBe(409);
-  const sent = await post('/' + id + '/answers', { ...body(ready), answers: { margen: '20 mm' } });
-  expect(sent.statusCode, sent.body).toBe(200);
-  ready = await finished(id);
-  expect(ready.dudas).toEqual([]);
-  expect(ready.config.institucion.margenExterior).toBe('20mm');
-  expect(t.cfg.memoriaDir).toBe(current);
-  expect((await post('/' + id + '/create', { ...body(ready), dir, configuracion: ready.config })).statusCode).toBe(403);
-  const edited = structuredClone(ready.config); edited.datos.titulo = 'Memoria ficticia revisada';
-  const create = await post('/' + id + '/create', { ...body(ready), dir, configuracion: edited, acceptLimitations: true });
-  expect(create.statusCode, create.body).toBe(200);
+  expect((await post('/' + ready.id + '/create', { ...body(ready), dir })).statusCode).toBe(409);
+  vi.spyOn(estilo, 'compararEstilo').mockResolvedValue({id:'00000000-0000-4000-8000-000000000000',rev:'0000000000000000',ok:true,diagnostics:[],actual:null,propuesta:null});
+  ready = (await post('/' + ready.id + '/preview', body(ready))).json();
+  ready = (await post('/' + ready.id + '/apply', body(ready))).json();
+  const created = await post('/' + ready.id + '/create', { ...body(ready), dir });
+  expect(created.statusCode, created.body).toBe(200);
   expect(t.cfg.memoriaDir).toBe(dir);
-  expect(parseDatos(await fs.readFile(path.join(dir, 'datos.tex'), 'utf8'), 'datos').titulo).toBe('Memoria ficticia revisada');
-  expect(parseDatos(await fs.readFile(path.join(dir, 'estilo/institucion.tex'), 'utf8'), 'institucion').margenExterior).toBe('20mm');
+  expect(parseDatos(await fs.readFile(path.join(dir, 'estilo/institucion.tex'), 'utf8'), 'institucion').margenSuperior).toBe('28mm');
   expect(await fs.readdir(path.join(dir, '1-capitulos'))).toHaveLength(3);
   expect(calls).toBe(2);
 });
@@ -176,15 +202,14 @@ it('detener descarta la respuesta tardía y permite repetir solo por una acción
   release(result());
   let current = await finished(id);
   expect(current.state).toBe('cancelled'); expect(current.config).toBeNull(); expect(calls).toBe(1);
-  expect((await post('/' + id + '/answers', { ...body(current), answers: {} })).statusCode).toBe(200);
+  expect((await post('/' + id + '/correct', { ...body(current), text: 'Repite la adaptación' })).statusCode).toBe(200);
   current = await finished(id);
   expect(current.state).toBe('prepared'); expect(calls).toBe(2);
   while (current.calls < 5) {
-    const answers = Object.fromEntries(current.dudas.map((q: any) => [q.id, '20 mm']));
-    expect((await post('/' + id + '/answers', { ...body(current), answers })).statusCode).toBe(200);
+    expect((await post('/' + id + '/correct', { ...body(current), text: 'Usa 20 mm de margen exterior' })).statusCode).toBe(200);
     current = await finished(id);
   }
-  expect((await post('/' + id + '/answers', { ...body(current), answers: { margen: '20 mm' } })).statusCode).toBe(400);
+  expect((await post('/' + id + '/correct', { ...body(current), text: 'Usa 20 mm de margen exterior' })).statusCode).toBe(400);
   expect(calls).toBe(5);
 });
 it('cambiar los ajustes del proyecto cancela el análisis sin aplicar una respuesta antigua', async () => {
@@ -195,4 +220,68 @@ it('cambiar los ajustes del proyecto cancela el análisis sin aplicar una respue
   const current = await finished(sent.json().id);
   expect(current.state).toBe('cancelled'); expect(current.config).toBeNull();
   expect(t.cfg.memoriaDir).toBe(path.join(t.dir, 'fixtures/memoria'));
+});
+it('elige el modelo económico de la app sin obedecer el modelo enviado por un cliente', async () => {
+  let selected = '';
+  const p = provider(async model => { selected = model; return result(); });
+  p.models = async () => [{ id: 'gpt-6-astra', name: 'Superior' }, { id: 'gpt-5.6-luna', name: 'Anterior' }, { id: 'gpt-6-luna', name: 'Económico' }];
+  await fixture(p);
+  const response = await upload({ model: 'gpt-6-astra' });
+  expect(response.statusCode).toBe(200);
+  expect((await finished(response.json().id)).model).toBe('gpt-6-luna');
+  expect(selected).toBe('gpt-6-luna');
+});
+it('admite la alternativa económica aprobada y no escala a una superior al dejar de estar disponible', async () => {
+  let calls = 0;
+  const p = provider(async model => { calls++; expect(model).toBe('gpt-5.6-luna'); return result(); });
+  p.models = async () => [{ id: 'gpt-5.6-luna', name: 'Económico anterior' }];
+  await fixture(p);
+  const ready = await finished((await upload()).json().id);
+  p.models = async () => [{ id: 'gpt-6-astra', name: 'Superior' }];
+  expect((await upload()).statusCode).toBe(503);
+  expect((await post('/' + ready.id + '/correct', { ...body(ready), text: 'Repite la adaptación' })).statusCode).toBe(503);
+  expect((await list()).items[0].rev).toBe(ready.rev);
+  expect(calls).toBe(1);
+});
+it('una compilación fallida bloquea aplicar y crear sin cambiar la memoria', async () => {
+  const t=await fixture(), original=await fs.readFile(path.join(t.cfg.memoriaDir,'estilo/institucion.tex'));
+  let ready=await finished((await upload()).json().id);
+  vi.spyOn(estilo,'compararEstilo').mockResolvedValue({id:'00000000-0000-4000-8000-000000000000',rev:'0000000000000000',ok:false,diagnostics:[{severity:'error',message:'Error ficticio de compilación'}],actual:null,propuesta:null});
+  const preview=await post('/'+ready.id+'/preview',body(ready));expect(preview.statusCode,preview.body).toBe(200);ready=preview.json();
+  expect((await post('/'+ready.id+'/apply',body(ready))).statusCode).toBe(409);
+  expect((await post('/'+ready.id+'/create',{...body(ready),dir:path.join(t.dir,'no-creada')})).statusCode).toBe(409);
+  expect(await fs.readFile(path.join(t.cfg.memoriaDir,'estilo/institucion.tex'))).toEqual(original);
+});
+it('la normativa parte de una plantilla personal y conserva los valores no modificados', async () => {
+  const t=await fixture(provider(async (_model,input) => {
+    expect(JSON.stringify(input)).toContain('schola');const raw=normativaFixture();raw.ajustes=[];raw.capitulos=[];return result(raw);
+  }));
+  const file=path.join(t.cfg.memoriaDir,'estilo/institucion.tex');await fs.appendFile(file,'\n\\fuenteTexto{schola}\n');
+  const {baseRev}=(await t.app.inject('/api/memoria/estilo/revision')).json();
+  const saved=await t.app.inject({method:'POST',url:'/api/templates/personal',payload:{nombre:'Referencia ficticia',baseRev}});expect(saved.statusCode,saved.body).toBe(200);
+  const ready=await finished((await upload({referenciaId:saved.json().id,referenciaRev:saved.json().rev})).json().id);
+  expect(ready.state).toBe('prepared');expect(ready.config.institucion.fuenteTexto).toBe('schola');
+});
+it('descartar una corrección recupera valores, evidencias y correcciones aceptadas', async () => {
+  await fixture();let ready=await finished((await upload()).json().id);
+  vi.spyOn(estilo,'compararEstilo').mockResolvedValue({id:'00000000-0000-4000-8000-000000000000',rev:'0000000000000000',ok:true,diagnostics:[],actual:null,propuesta:null});
+  ready=(await post('/'+ready.id+'/preview',body(ready))).json();ready=(await post('/'+ready.id+'/apply',body(ready))).json();
+  const accepted=structuredClone(ready);
+  await post('/'+ready.id+'/correct',{...body(ready),text:'Corrección ficticia descartada'});ready=await finished(ready.id);expect(ready.correcciones).toContain('Corrección ficticia descartada');
+  const restored=(await post('/'+ready.id+'/discard',body(ready))).json();
+  expect(restored.config).toEqual(accepted.config);expect(restored.requisitos).toEqual(accepted.requisitos);expect(restored.correcciones).toEqual(accepted.correcciones);expect(restored.appliedRev).toBeUndefined();
+});
+
+it('las portadas ofrecidas al modelo siempre tienen los datos necesarios para el generador', () => {
+  const schema=HERRAMIENTA_NORMATIVA.parameters as any;
+  const [metadata,custom]=schema.properties.portadas.anyOf[1].properties.interior.items.anyOf;
+  expect(metadata.properties.texto.type).toBe('null');
+  expect(metadata.properties.tipo.enum).not.toContain('imagen');
+  expect(metadata.properties.tipo.enum).not.toContain('texto');
+  expect(custom.properties.tipo.enum).toEqual(['texto']);expect(custom.properties.texto).toMatchObject({type:'string',minLength:1,maxLength:500});
+  for(const tipo of [...metadata.properties.tipo.enum,'texto']) {
+    const raw=normativaFixture();
+    raw.portadas={interior:[{tipo,zona:'central',texto:tipo==='texto'?'Texto propio':null}],exterior:[],pagina:6,cita:'Modelo de portada ficticio.'} as any;
+    expect(()=>interpretarNormativa(raw)).not.toThrow();
+  }
 });
