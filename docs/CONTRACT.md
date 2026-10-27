@@ -1118,3 +1118,10 @@ La integración conserva las bases de contexto una sola vez por revisión en `pr
 
 - La muestra de comparación completa únicamente sus datos vacíos de portada con título, autoría, tutoría, departamento, especialidad y fecha ficticios. Lo hace sobre una copia: no rellena la configuración propuesta ni la memoria que se crea.
 - El catálogo que recibe el modelo aclara que la profundidad de numeración afecta a los títulos, que los contadores de figuras/tablas/código son independientes y que Resumen/Abstract se ordenan automáticamente según el idioma. Los datos pendientes de completar y los espacios para firmas no se describen como incompatibilidades.
+
+## Disponibilidad de LuaLaTeX y verificación integrada (v0.87)
+
+- Ajustes muestra la ruta y versión de `lualatex` junto a las demás herramientas detectadas, o su ausencia. LuaLaTeX sigue siendo necesario solo para memorias con fuentes propias; su ausencia no impide compilar documentos con pdfLaTeX.
+- CI usa el límite de producción de 120 segundos por compilación, incluida la creación de la caché privada de fuentes de LuaLaTeX, y mantiene PDF válido y cero diagnósticos como requisitos. Los recorridos del motor local ejecutan las fuentes TypeScript con el mismo cargador `tsx` que el servidor, sin cambiar su aislamiento.
+- Las lecturas de una propuesta terminada esperan a que su análisis complete el guardado y libere el trabajo en curso. No se anuncia como preparada mientras sus acciones todavía puedan rechazarse por ese mismo análisis.
+- La misma garantía se aplica a las búsquedas de Biblioteca terminadas o con resultados parciales: su lectura espera al guardado final y a la liberación del trabajo antes de permitir otra búsqueda o un reintento.

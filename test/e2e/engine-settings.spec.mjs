@@ -161,13 +161,13 @@ test('si no hay herramientas, Ajustes explica qué falta y advierte de la compil
   await page.route('**/api/engines', (route) => route.fulfill({ json: {
     docker: { ok: false, version: null, capabilities: { compile: false, svg2pdf: false } },
     local: { ok: false, version: null, capabilities: { compile: false, svg2pdf: false },
-      tools: Object.fromEntries(['latexmk', 'biber', 'pdflatex', 'rsvg'].map((key) => [key, { path: null, version: null }])),
+      tools: Object.fromEntries(['latexmk', 'biber', 'pdflatex', 'lualatex', 'rsvg'].map((key) => [key, { path: null, version: null }])),
       warnings: [], message: 'Falta latexmk en PATH; no se puede compilar con TeX del sistema.' },
   } }));
   await ajustes(page, studio.server.url);
   const engines = page.getByRole('region', { name: 'Disponibilidad de compilación' });
   await expect(engines.getByText('Falta latexmk en PATH; no se puede compilar con TeX del sistema.')).toBeVisible();
-  await expect(engines.getByRole('listitem').filter({ hasText: 'No encontrado en PATH' })).toHaveCount(4);
+  await expect(engines.getByRole('listitem').filter({ hasText: 'No encontrado en PATH' })).toHaveCount(5);
   await page.getByLabel('Motor de compilación', { exact: true }).selectOption('auto');
   await expect(engines.getByText(/no es un sandbox/)).toBeVisible();
   await page.getByLabel('Motor de compilación', { exact: true }).selectOption('local');

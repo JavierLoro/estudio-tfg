@@ -256,7 +256,7 @@ it('separa configuraciones intercaladas, conserva sus detecciones y permite refr
   expect(calls.filter(call => call.args.includes('--noconf'))).toHaveLength(3);
 });
 
-it('explica herramientas ausentes antes de ejecutar y rsvg es opcional para compilar', async () => {
+it('explica herramientas ausentes y permite compilar con pdfLaTeX sin LuaLaTeX ni rsvg', async () => {
   await fs.rm(path.join(bin, 'latexmk' + (process.platform === 'win32' ? '.exe' : '')));
   const health = await detectLocal(t.cfg, true);
   expect(health).toMatchObject({ ok: false, capabilities: { compile: false, svg2pdf: true } });
@@ -266,8 +266,10 @@ it('explica herramientas ausentes antes de ejecutar y rsvg es opcional para comp
   stream.destroy();
   expect(compiles()).toHaveLength(0);
   await binaries(bin, ['latexmk']);
+  await fs.rm(path.join(bin, 'lualatex' + (process.platform === 'win32' ? '.exe' : '')));
   await fs.rm(path.join(bin, 'rsvg-convert' + (process.platform === 'win32' ? '.exe' : '')));
   expect(await detectLocal(t.cfg, true)).toMatchObject({ ok: true, capabilities: { compile: true, svg2pdf: true } });
+  expect((await compile()).ok).toBe(true);
   const svg = '<svg xmlns="http://www.w3.org/2000/svg"></svg>';
   await expect(localEngine(t.cfg).svg2pdf(svg)).rejects.toMatchObject({ statusCode: 422, body: { code: 'PDF_BROWSER_REQUIRED' } });
   const pdf = Buffer.from('%PDF-1.7\nFicticio\n%%EOF\n');

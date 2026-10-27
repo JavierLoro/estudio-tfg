@@ -6,6 +6,7 @@ import { assistantRoutes, type AssistantProvider } from '../src/assistant.ts';
 import { HERRAMIENTA_NORMATIVA, interpretarNormativa } from '../src/normativa.ts';
 import { normativaFixture } from '../../test/normativa-fixture.ts';
 import * as estilo from '../src/styleProposals.ts';
+import * as records from '../src/assistantChanges.ts';
 import { parseDatos } from '../src/datos.ts';
 
 let env: TestEnv | undefined;
@@ -39,10 +40,35 @@ async function finished(id: string) {
   let r: any;
   await expect.poll(async () => {
     r = (await list()).items.find((item: any) => item.id === id);
-    return r?.state;
-  }, { timeout: 10_000 }).not.toBe('running');
+    return !!r && r.state !== 'running';
+  }, { timeout: 10_000 }).toBe(true);
   return r;
 }
+
+it('no publica una propuesta terminada antes de liberar el análisis que la guarda', async () => {
+  let complete!: (value: ReturnType<typeof result>) => void, markSaved!: () => void, release!: () => void;
+  const model = new Promise<ReturnType<typeof result>>(resolve => { complete = resolve; });
+  await fixture(provider(async () => model));
+  const sent = (await upload()).json();
+  const published = new Promise<void>(resolve => { markSaved = resolve; }), gate = new Promise<void>(resolve => { release = resolve; });
+  const write = records.privateJson;
+  vi.spyOn(records, 'privateJson').mockImplementation(async (file, value: any) => {
+    await write(file, value);
+    if (path.basename(file) === sent.id + '.json' && value.state === 'prepared') {
+      markSaved(); await gate;
+    }
+  });
+  complete(result()); await published;
+  let ready = false;
+  const reading = list().then(value => { ready = true; return value; });
+  try {
+    await new Promise(resolve => setTimeout(resolve, 50));
+    expect(ready).toBe(false);
+  } finally { release(); await reading; }
+  const proposal = (await reading).items.find((r: any) => r.id === sent.id);
+  expect(proposal.state).toBe('prepared');
+  expect((await post('/' + sent.id + '/correct', { ...body(proposal), text: 'Corrección ficticia' })).statusCode).toBe(200);
+});
 it('interpreta ajustes documentados sin admitir macros, campos inventados ni fuentes fuera del catálogo', () => {
   const raw = normativaFixture();
   const parsed = interpretarNormativa(raw);

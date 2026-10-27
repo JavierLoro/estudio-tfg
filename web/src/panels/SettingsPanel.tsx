@@ -512,7 +512,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
                   <p>TeX del sistema: <span className={engines.local.ok ? 'text-ok' : 'text-warn'}>{engines.local.ok ? 'Disponible' : 'No disponible'}</span>{engines.local.version && ` · ${engines.local.version}`}</p>
                   {engines.local.message && <p className="text-warn">{engines.local.message}</p>}
                   <ul className="space-y-1">
-                    {(['latexmk', 'biber', 'pdflatex', 'rsvg'] as const).map((key) => {
+                    {(['latexmk', 'biber', 'pdflatex', 'lualatex', 'rsvg'] as const).map((key) => {
                       const tool = engines.local.tools[key];
                       return (
                         <li key={key} className="break-all">

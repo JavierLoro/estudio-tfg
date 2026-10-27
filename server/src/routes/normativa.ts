@@ -42,7 +42,12 @@ export async function normativaRoutes(app: FastifyInstance, ctx: Ctx, provider: 
     .map(texto => ({ id: rev(texto), texto, descartado: false }));
   const visible = (r: Stored): PropuestaNormativa => { const { consentAt, ...value } = r; return { ...value, avisos: notices(r), correcciones: r.correcciones ?? [], rev: digest(r) }; };
   const read = async (id: string): Promise<Stored> => {
-    try { const r: Stored = await readPrivate(filename(id)); check(r); return r; }
+    try {
+      let r: Stored = await readPrivate(filename(id));
+      // La escritura ya puede verse en disco mientras el análisis aún conserva su bloqueo.
+      if (r.state !== 'running' && tasks.has(id)) { await tasks.get(id); r = await readPrivate(filename(id)); }
+      check(r); return r;
+    }
     catch (e: any) { if (e.code === 'ENOENT') throw new HttpError(404, 'Propuesta de plantilla no encontrada'); throw e; }
   };
   const change = async <T>(location: string, expected: unknown, fn: (r: Stored) => T | Promise<T>) => ctx.locks.run('template-generation:' + location, async () => {
@@ -64,12 +69,12 @@ export async function normativaRoutes(app: FastifyInstance, ctx: Ctx, provider: 
     identity(body);
     if (typeof body?.baseRev !== 'string' || !/^[a-f0-9]{16}$/.test(body.baseRev)) throw badRequest('Falta la revisión de la propuesta');
   };
-  const jobs = new Map<string, AbortController>(), tasks = new Set<Promise<void>>(), creating = new Set<string>();
+  const jobs = new Map<string, AbortController>(), tasks = new Map<string, Promise<void>>(), creating = new Set<string>();
   let preparing = false;
   const cancel = () => { for (const controller of jobs.values()) controller.abort(); };
   const unsubscribe = provider.subscribe(cancel);
   ctx.bus.on('settings', cancel);
-  app.addHook('preClose', async () => { cancel(); await Promise.allSettled(tasks); });
+  app.addHook('preClose', async () => { cancel(); await Promise.allSettled(tasks.values()); });
   app.addHook('onClose', async () => { unsubscribe(); ctx.bus.off('settings', cancel); });
   const guard = (r: Stored, signal: AbortSignal) => { signal.throwIfAborted(); check(r); signal.throwIfAborted(); };
   const sourceFile = (location: string) => location.replace(/\.json$/, '.source.json');
@@ -129,8 +134,8 @@ export async function normativaRoutes(app: FastifyInstance, ctx: Ctx, provider: 
           current.error = controller.signal.aborted ? 'Análisis detenido' : e instanceof HttpError ? e.message : 'No se pudo analizar la normativa. Revisa la conexión y el uso de tu cuenta.';
         });
       }
-    })().finally(() => { jobs.delete(r.id); tasks.delete(task); });
-    tasks.add(task); void task.catch(e => app.log.error(e));
+    })().finally(() => { jobs.delete(r.id); tasks.delete(r.id); });
+    tasks.set(r.id, task); void task.catch(e => app.log.error(e));
   };
   const route = (method: 'GET' | 'POST' | 'DELETE', url: string, fn: (req: any, reply: any) => Promise<unknown>) =>
     app.route({ method, url: '/api/assistant/template-generations' + url, preHandler: async req => requireAdmin(req, ctx.cfg), handler: fn });
