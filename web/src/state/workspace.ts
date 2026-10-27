@@ -9,6 +9,7 @@ import { persistSpaces, useUI } from './ui';
 import { api as http } from '../api';
 import { SECTIONS, panelSection, sectionLayout, validLayout, type Section, type ViewPreset } from '../lib/spaces';
 import { addAssistantContext, useAssistant, type AssistantContext } from './assistant';
+import { useDesktop } from './desktop';
 
 // Tipos de panel y sus parámetros.
 export type PanelComponent = 'latex' | 'note' | 'diagram' | 'pdf' | 'resource' | 'search' | 'home' | 'settings' | 'datos' | 'assistant';
@@ -139,6 +140,7 @@ export function openHome() {
 }
 
 export function openSettings(tab: 'general' | 'assistant' = 'general') {
+  if (useDesktop.getState().open) return;
   useUI.setState({ settingsOpened: true, settingsOpen: true, settingsTab: tab });
 }
 

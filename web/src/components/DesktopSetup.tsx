@@ -35,6 +35,7 @@ export default function DesktopSetup() {
   }, [ready]);
   useEffect(() => {
     if (!open) return;
+    useUI.setState({ settingsOpen: false });
     setStep(0); setCompiled(false); setError(null);
     void useSettings.getState().load();
     void api.perfiles().then(value => setPerfiles(value ?? [])).catch(error => setError(errorMessage(error)));
