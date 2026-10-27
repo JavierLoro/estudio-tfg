@@ -4,6 +4,19 @@ import fs from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { buildConfig } from './electron-builder.mjs';
 
+test('el runtime incluye los paquetes externos de producción del servidor y su lockfile', async () => {
+  const read = async file => JSON.parse(await fs.readFile(new URL(file, import.meta.url), 'utf8'));
+  const server = await read('../server/package.json');
+  const runtime = await read('./runtime-package.json');
+  const lock = await read('./runtime-package-lock.json');
+  assert.deepEqual(lock.packages[''].dependencies, runtime.dependencies);
+  for (const name of Object.keys(server.dependencies)) {
+    if (name === 'tsx') continue; // El bundle ya no ejecuta TypeScript.
+    assert.ok(Object.hasOwn(runtime.dependencies, name), `Falta ${name} en el runtime de escritorio`);
+    assert.equal(lock.packages[`node_modules/${name}`]?.version, runtime.dependencies[name], `Revisar el lockfile de ${name}`);
+  }
+});
+
 test('ambas variantes usan iconos con transparencia y un formato específico para macOS', async () => {
   const windows = fileURLToPath(new URL('./icons/windows.png', import.meta.url));
   const macos = fileURLToPath(new URL('./icons/macos.png', import.meta.url));
