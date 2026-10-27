@@ -35,11 +35,15 @@ export function dockerEngine(url: string): Engine {
             : 'El servidor no pudo conectar con el servicio de compilación de Docker.' };
       }
     },
-    async compile(sources, main, signal) {
+    async compile(sources, main, signal, options) {
+      if (options?.preview) {
+        const health = await fetch(`${url}/health`, {signal: AbortSignal.timeout(1500)}).then(r => r.json()).catch(() => null) as any;
+        if (health?.capacidades?.comparacion !== true) throw new HttpError(503, 'Actualiza el worker para comparar estilos sin afectar al PDF de la memoria');
+      }
       let res: Response;
       try {
         res = await fetch(`${url}/compile`, {
-          method: 'POST', headers: { 'content-type': 'application/x-tar', 'x-main': encodeURIComponent(main) },
+          method: 'POST', headers: { 'content-type': 'application/x-tar', 'x-main': encodeURIComponent(main), ...(options?.preview ? {'x-preview':'1'} : {}) },
           body: Readable.toWeb(sources) as any, duplex: 'half', signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(180_000)]) : AbortSignal.timeout(180_000),
         } as RequestInit);
       } catch (e: any) {

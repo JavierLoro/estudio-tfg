@@ -83,6 +83,40 @@ test('el primer arranque sin carpetas abre Ajustes sin crear una pestaña', asyn
   await expect(page.locator('.dv-tab')).toHaveCount(0);
 });
 
+test('el asistente de escritorio conserva el foco al crear las carpetas sin superponer Ajustes @smoke', async ({ studio, page }) => {
+  let release;
+  const setupReady = new Promise(resolve => { release = resolve; });
+  await page.route('**/api/status', async route => {
+    const response = await route.fetch();
+    await route.fulfill({ response, json: { ...await response.json(), configured: false } });
+  });
+  await page.route('**/api/desktop/setup', async route => {
+    await setupReady;
+    await route.fulfill({ json: { needsSetup: true, engine: { phase: 'idle', available: true, current: false, variant: 'offline' } } });
+  });
+  try {
+    await page.goto(studio.server.url);
+    const settings = page.getByRole('dialog', { name: 'Ajustes', exact: true });
+    await expect(settings).toBeVisible(); release();
+    const wizard = page.getByRole('dialog', { name: 'Preparar Estudio TFG', exact: true });
+    await expect(wizard).toBeVisible(); await expect(settings).not.toBeVisible();
+    for (const [button, title, folder, create] of [
+      ['Crear carpeta de notas', 'Carpeta de notas', 'Notas nuevas', 'Crear notas aquí'],
+      ['Crear memoria', 'Carpeta de la memoria', 'Memoria nueva', 'Crear memoria aquí'],
+    ]) {
+      await wizard.getByRole('button', { name: button, exact: true }).click();
+      const picker = page.getByRole('dialog', { name: title, exact: true });
+      await picker.getByLabel('Nueva carpeta', { exact: true }).fill(folder);
+      await picker.getByRole('button', { name: create, exact: true }).click();
+      await expect(picker).not.toBeVisible(); await expect(settings).not.toBeVisible();
+    }
+    await wizard.getByRole('button', { name: 'Más tarde', exact: true }).click();
+    await expect(wizard).not.toBeVisible();
+    await page.getByRole('navigation', { name: 'Secciones' }).getByRole('button', { name: 'Ajustes', exact: true }).click();
+    await expect(settings).toBeVisible();
+  } finally { release(); }
+});
+
 test('la pestaña antigua de Ajustes migra a ventana sin perder el layout', async ({ studio, page }) => {
   const { instanceId } = await studio.json('/api/status');
   await page.addInitScript(({ key }) => {
@@ -161,13 +195,13 @@ test('si no hay herramientas, Ajustes explica qué falta y advierte de la compil
   await page.route('**/api/engines', (route) => route.fulfill({ json: {
     docker: { ok: false, version: null, capabilities: { compile: false, svg2pdf: false } },
     local: { ok: false, version: null, capabilities: { compile: false, svg2pdf: false },
-      tools: Object.fromEntries(['latexmk', 'biber', 'pdflatex', 'rsvg'].map((key) => [key, { path: null, version: null }])),
+      tools: Object.fromEntries(['latexmk', 'biber', 'pdflatex', 'lualatex', 'rsvg'].map((key) => [key, { path: null, version: null }])),
       warnings: [], message: 'Falta latexmk en PATH; no se puede compilar con TeX del sistema.' },
   } }));
   await ajustes(page, studio.server.url);
   const engines = page.getByRole('region', { name: 'Disponibilidad de compilación' });
   await expect(engines.getByText('Falta latexmk en PATH; no se puede compilar con TeX del sistema.')).toBeVisible();
-  await expect(engines.getByRole('listitem').filter({ hasText: 'No encontrado en PATH' })).toHaveCount(4);
+  await expect(engines.getByRole('listitem').filter({ hasText: 'No encontrado en PATH' })).toHaveCount(5);
   await page.getByLabel('Motor de compilación', { exact: true }).selectOption('auto');
   await expect(engines.getByText(/no es un sandbox/)).toBeVisible();
   await page.getByLabel('Motor de compilación', { exact: true }).selectOption('local');

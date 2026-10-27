@@ -247,8 +247,9 @@ Para trabajar sin Docker, instala una distribución TeX y comprueba que `latexmk
 sistema** en Ajustes o define `COMPILE_ENGINE=local` en `.env`, y ejecuta `npm run dev`
 sin levantar el worker. Ajustes muestra herramientas, versiones, diferencias con
 la referencia Docker y lo que falta. No necesitas `rsvg-convert` para exportar
-diagramas: si falta, la app genera el PDF vectorial en el navegador con Source Sans 3
-incrustada. Si está disponible, se conserva la conversión con rsvg.
+Mermaid: si falta, la app genera el PDF vectorial en el navegador con Source Sans 3
+incrustada. Si está disponible, se conserva la conversión con rsvg. Excalidraw exporta
+SVG y genera el PDF como imagen a 300 ppp en el navegador, sin usar ese conversor.
 MiKTeX necesita [Perl para ejecutar latexmk](https://miktex.org/kb/fix-script-engine-not-found);
 su ruta también debe estar en PATH. El entorno controlado conserva esa dependencia.
 
@@ -361,6 +362,9 @@ los requisitos de motor indicados arriba. Decisión y medidas:
 ### Notas y archivos
 
 - Árbol de archivos de las notas y de la memoria: crear carpetas y notas, renombrar en línea, arrastrar y soltar, «Mover a…» y eliminar con Deshacer. Menú ⋯ en cada elemento, igual que el clic derecho.
+- **Importar archivos** en la cabecera o soltar archivos externos abre la elección de Biblioteca, Memoria o Notas. En las dos últimas puedes elegir o crear una carpeta relativa a su raíz. Soltar sobre una carpeta la preselecciona; soltar en un editor `.tex` o `.md` ofrece insertar en ese documento. Los arrastres internos siguen moviendo archivos.
+- Importar conserva los originales, reutiliza bytes idénticos y añade un sufijo si el nombre ya está ocupado. En LaTeX, PNG/JPG/PDF generan figuras; en Markdown, imágenes o enlaces relativos. La inserción queda en el borrador, con Deshacer. Máximo veinte archivos, 50 MiB por archivo y 200 MiB por lote; no se importan carpetas completas ni se convierten formatos automáticamente.
+- **Reintentar fallidos** conserva los éxitos y su destino. La importación directa necesita acceso a la API y mantiene el lote solo mientras el diálogo está abierto; después de recargar debes seleccionar los archivos otra vez. Biblioteca conserva su cola recuperable descrita más abajo. Detalles de API y concurrencia: [contrato v0.68](CONTRACT.md#arrastrar-archivos-y-elegir-destino-v068).
 - Renombrar y mover **mantienen los enlaces** (wikilinks, enlaces Markdown y referencias LaTeX). Lo eliminado va a una papelera recuperable.
 - Notas Markdown con modo lectura y edición, wikilinks, enlaces entrantes (backlinks) y vista previa de Mermaid.
 
@@ -379,6 +383,7 @@ los requisitos de motor indicados arriba. Decisión y medidas:
 - Los lotes se guardan en la cola local antes del primer envío; resultados y reintentos por elemento.
 - **Importar bibliografía:** archivos/texto BibTeX o RIS y consultas DOI a Crossref, con revisión de campos, decisiones sobre duplicados y originales conservados. Los lotes fallidos se recuperan sin repetir éxitos.
 - **Insertar cita / figura:** revisa las copias propuestas y añádelas al cursor del editor, conservando su borrador y deshacer. Bibliografía e imágenes quedan dentro de la memoria; los .bib manuales no se sobrescriben. La ficha muestra usos guardados y permite actualizar sus copias explícitamente.
+- **Mapa de contenidos:** crea temas con nodos internos, notas y relaciones, y referencia fichas existentes por UUID. Desde cada nodo puedes incorporar citas, figuras, notas y enlaces, o copiar sus diagramas a Memoria. Quitar una rama conserva los originales y las copias. El mapa usa revisión, historial y recuperación de cambios pendientes; sus límites y almacenamiento están en [Biblioteca](BIBLIOTECA.md#organizar-contenidos-en-un-mapa).
 
 Modelo y decisiones: [docs/BIBLIOTECA.md](BIBLIOTECA.md).
 
@@ -393,8 +398,9 @@ El servidor conserva recibos y operaciones interrumpidas en `data/captures/` (ju
 ### Diagramas
 
 - Sección **Diagramas** en la barra lateral: lista con su estado y dónde se usan, crear, abrir, renombrar (actualiza las figuras que los usan) y eliminar.
+- **Nuevo diagrama** permite elegir Mermaid o Excalidraw y abre su editor correspondiente.
 - Diagramas **Mermaid** como `.mmd` en la memoria, con vista previa y **código plegable**.
-- Quince plantillas, en un selector con flechas izquierda/derecha, nombre, descripción y ejemplo dibujado. Gantt, cronología, mapa mental, C4, Kanban, requisitos, sectores, cuadrantes y Sankey tienen **formularios accesibles** para editar y añadir elementos con teclado. Pulsa **Aplicar cambios** (o Intro) y después Guarda o Exporta; los errores conservan la fuente anterior. Código permite editar toda la sintaxis. Sankey admite etiquetas sin tildes ni eñes por una limitación de Mermaid.
+- Quince plantillas Mermaid, en un selector con flechas izquierda/derecha, nombre y ejemplo dibujado. Gantt, cronología, mapa mental, C4, Kanban, requisitos, sectores, cuadrantes y Sankey tienen **formularios accesibles** para editar y añadir elementos con teclado. Pulsa **Aplicar cambios** (o Intro) y después Guarda o Exporta; los errores conservan la fuente anterior. Código permite editar toda la sintaxis. Sankey admite etiquetas sin tildes ni eñes por una limitación de Mermaid.
 - Los campos pendientes se conservan en el **borrador local**, también al cerrar o recargar. Kanban permite mover tarjetas, los mapas mentales mover ramas completas, y Gantt/cronología mover y ordenar elementos entre secciones. Gantt añade dependencias, estados e hitos; C4 y requisitos permiten eliminar nodos con sus relaciones.
 - **Editor visual** sobre el propio dibujo (con [Visimer](https://www.npmjs.com/package/@visimer/react)), sin tocar código:
   - paleta de **bloques** a la izquierda según el tipo de diagrama (flujo, secuencia, estados, clases, ER), que se arrastran al lienzo o sobre otro bloque para conectarlos;
@@ -402,7 +408,15 @@ El servidor conserva recibos y operaciones interrumpidas en `data/captures/` (ju
   - panel **Bloque seleccionado** a la derecha: selección accesible de bloques/conexiones, texto, forma, conexiones y dirección (↓ / →); en ER/clases, edición y borrado de atributos/miembros, tipos de relación y cardinalidades;
   - barra inferior con el tipo y el número de bloques y conexiones.
 - Todo se guarda en el `.mmd`, sincronizado con el código, que se puede mostrar u ocultar.
-- **Exportar a PDF vectorial** (motor Docker o local, con conversión en el navegador si falta rsvg) e **insertar en la memoria** como figura.
+- Mermaid permite **exportar a PDF vectorial** (motor Docker o local, con conversión en el navegador si falta rsvg) e **insertar en la memoria** como figura.
+
+**Excalidraw:** elige un lienzo en blanco o una de las seis escenas preparadas: flujo, secuencia, estados, arquitectura, entidades/relaciones y clases. Sus elementos se editan en el lienzo, admiten imágenes locales incrustadas y conservan Deshacer/Rehacer al guardar. En Notas/Biblioteca se abren para consulta; **Crear diagrama en Memoria** produce una copia editable y conserva el original.
+
+La fuente vive en `diagramas/<nombre>.excalidraw`; **Exportar** guarda `figuras/diagramas/<nombre>.svg` y `.pdf`. El PDF es una imagen a **300 ppp**, con texto no seleccionable. El SVG conserva elementos y fuentes incrustadas; el JSON conserva la escena editable y sus imágenes. Ambos formatos comparten el nombre de figura: no se permite crear un Mermaid y un Excalidraw con el mismo nombre. **Insertar en la memoria** propone apartado, pie, etiqueta y ancho; escapa el pie como texto plano y respeta borradores, conflictos y cambios de proyecto.
+
+El editor y sus fuentes se distribuyen con la app: no necesitan Internet ni un navegador externo cuando la app y su API están disponibles localmente. No hay asistente ni conversión Mermaid arbitraria en Excalidraw. Las escenas admiten hasta **10 MiB** e imágenes PNG/JPG/WebP/GIF incrustadas; convierte los SVG antes de añadirlos. La exportación se detiene si supera 16.384 píxeles por lado o 32 millones de píxeles. Los borradores se recuperan desde IndexedDB; si falla su almacenamiento, **Descargar copia** conserva la edición actual. No se incluyen en una copia de `MEMORIA_DIR` hasta guardarlos: consulta [Respaldo](RESPALDO.md).
+
+Para desarrollar la integración: el componente React local está en [ExcalidrawPanel.tsx](../web/src/panels/ExcalidrawPanel.tsx), la validación compartida en [shared/excalidraw.ts](../shared/excalidraw.ts) y la exportación mediante Excalidraw y jsPDF en [lib/excalidraw.ts](../web/src/lib/excalidraw.ts). [vite.config.ts](../web/vite.config.ts) empaqueta las fuentes y sustituye el fallback de CDN; revisa esa adaptación al actualizar la versión fijada del paquete. API, persistencia y límites: [contrato v0.71](CONTRACT.md#segundo-editor-de-diagramas-excalidraw-v071). Comandos y evidencias reproducibles: [pruebas Excalidraw](../test/e2e/README.md#excalidraw).
 
 ### Búsqueda
 
@@ -420,7 +434,7 @@ alternativos indicados para evitar las herramientas del navegador y AltGr.
 | ⌘⇧C (Mac) · Ctrl+Mayús+F8 (Windows/Linux) | Capturar |
 | ⌘B | Mostrar u ocultar la barra lateral (fuera del editor) |
 | ⌘S | Guardar |
-| ⌘↵ | Guardar y compilar (editor LaTeX y diagramas) |
+| ⌘↵ | Guardar y compilar (editor LaTeX y editor Mermaid) |
 | ⌘⇧J (Mac) · Ctrl+Mayús+F9 (Windows/Linux) | Ver la línea actual en el PDF |
 | ⌘clic en el PDF | Ir al código |
 | ⌘E | Alternar lectura / edición de una nota Markdown |
@@ -511,4 +525,4 @@ Estudio TFG se distribuye bajo la [GNU Affero General Public License v3.0](../LI
 
 La clase de la plantilla (`templates/base/estilo/memoria.cls`) deriva de la clase [esi-tfg](https://github.com/UCLM-ESI/esi-tfg) del grupo ARCO (UCLM-ESI), distribuida bajo GPL-2.0 o posterior; se mantiene su aviso de copyright y licencia en la clase. El logotipo de la ESI pertenece a la Universidad de Castilla-La Mancha.
 
-Componentes de terceros: la fuente Source Sans 3 (SIL OFL 1.1, vía `@fontsource/source-sans-3`) se usa en los diagramas y se instala en la imagen del worker; Visimer (MIT) da la edición visual de diagramas; jsPDF y svg2pdf.js (MIT) permiten exportar PDF en el navegador; además se usan PDF.js (Apache-2.0), Mermaid (MIT), CodeMirror, Dockview, Fastify y TeX Live, cada uno con su propia licencia. Las licencias del conversor y de su fuente se distribuyen en `web/public/licenses/`.
+Componentes de terceros: Source Sans 3 (SIL OFL 1.1, vía `@fontsource/source-sans-3`) se usa en Mermaid y se instala en el worker; Visimer (MIT) da su edición visual. Excalidraw (MIT) aporta el segundo editor y sus fuentes mantienen sus licencias originales. jsPDF y svg2pdf.js (MIT) permiten exportar PDF en el navegador; además se usan PDF.js (Apache-2.0), Mermaid (MIT), CodeMirror, Dockview, Fastify y TeX Live, cada uno con su propia licencia. Los avisos del conversor y las fuentes, incluidos Excalidraw y sus tipografías, se distribuyen en [web/public/licenses/](../web/public/licenses/).

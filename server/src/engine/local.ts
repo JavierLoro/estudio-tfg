@@ -9,7 +9,7 @@ import { extractTar } from '../../../worker/untar.mjs';
 import { checkSvg } from '../../../worker/svg.mjs';
 import type { Engine, EngineHealth } from './index.ts';
 
-const COMMANDS = { latexmk: 'latexmk', biber: 'biber', pdflatex: 'pdflatex', rsvg: 'rsvg-convert' } as const;
+const COMMANDS = { latexmk: 'latexmk', biber: 'biber', pdflatex: 'pdflatex', lualatex: 'lualatex', rsvg: 'rsvg-convert' } as const;
 type ToolName = keyof typeof COMMANDS;
 export interface LocalHealth extends EngineHealth {
   tools: Record<ToolName, { path: string | null; version: string | null }>;
@@ -96,7 +96,7 @@ export function localEngine(cfg: Config): Engine {
   return {
     type: 'local',
     health: () => detectLocal(cfg),
-    async compile(sources, main, signal) {
+    async compile(sources, main, signal, options) {
       const health = await detectLocal(cfg);
       if (!health.ok) throw new HttpError(503, health.message!);
       const timeoutMs = Number(process.env.COMPILE_TIMEOUT_MS ?? 120_000);
@@ -104,6 +104,7 @@ export function localEngine(cfg: Config): Engine {
         throw new HttpError(500, 'COMPILE_TIMEOUT_MS debe ser un entero entre 1 y 180000');
       const job = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'estudio-tfg-local-')));
       const buildId = newBuildId();
+      const outputRoot = options?.preview ? path.join(cfg.buildDir, 'previews') : cfg.buildDir;
       try {
         const workDir = path.join(job, 'sources');
         await fs.mkdir(workDir);
@@ -111,7 +112,7 @@ export function localEngine(cfg: Config): Engine {
         const tools = Object.fromEntries(Object.entries(health.tools).filter(([, tool]) => tool.path).map(([key, tool]) => [key, tool.path!])) as Tools;
         const perl = await findTool('perl', cfg);
         if (perl) tools.perl = perl;
-        const result = await compile({ main, workDir, outDir: path.join(cfg.buildDir, buildId), buildId, tools, timeoutMs, signal,
+        const result = await compile({ main, workDir, outDir: path.join(outputRoot, buildId), buildId, tools, timeoutMs, signal,
           toolchain: Object.entries(health.tools).map(([key, tool]) => `${COMMANDS[key as ToolName]}: ${tool.version ?? 'no disponible'}`).join('\n') });
         return { ...result, diagnostics: result.diagnostics.map((d) => ({ ...d, message: d.message.replace('Error interno del worker:', 'Error del motor local:') })) };
       } catch (error: any) {
@@ -120,7 +121,7 @@ export function localEngine(cfg: Config): Engine {
       } finally {
         sources.destroy();
         await fs.rm(job, { recursive: true, force: true });
-        await pruneBuilds(cfg.buildDir).catch(() => {});
+        await pruneBuilds(outputRoot, 10, buildId).catch(() => {});
       }
     },
     svg2pdf(svg, browserPdf) {

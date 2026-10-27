@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import * as records from '../src/assistantChanges.ts';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { setup, type TestEnv } from './helpers.ts';
@@ -34,6 +35,24 @@ async function start(patch = {}) {
   expect(res.statusCode, res.body).toBe(200); return res.json();
 }
 async function done(id: string) { let r: any; await expect.poll(async () => { r = await get('/searches/' + id); return r.state; }, { timeout: 10_000 }).not.toBe('running'); return r; }
+it('espera a liberar una búsqueda terminada antes de permitir la siguiente acción', async () => {
+  let markSaved!: () => void, release!: () => void;
+  const published = new Promise<void>(resolve => { markSaved = resolve; }), gate = new Promise<void>(resolve => { release = resolve; });
+  const write = records.privateJson;
+  const spy = vi.spyOn(records, 'privateJson').mockImplementation(async (file, value: any) => {
+    await write(file, value);
+    if (value.state === 'idle') { markSaved(); await gate; }
+  });
+  const initial = await start({ provider: 'crossref' }); await published;
+  let ready = false;
+  const reading = get('/searches/' + initial.id).then(value => { ready = true; return value; });
+  try {
+    await new Promise(resolve => setTimeout(resolve, 50));
+    expect(ready).toBe(false);
+  } finally { release(); await reading; spy.mockRestore(); }
+  expect((await reading).state).toBe('idle');
+  expect((await done((await start({ provider: 'crossref' })).id)).state).toBe('idle');
+});
 it('búsqueda real por herramientas, filtra referencias inventadas, conserva decisiones y no crea recursos', async () => {
   const r = await done((await start()).id); expect(r.state).toBe('idle'); expect(r.candidates).toHaveLength(2); expect(r.candidates.some((c: any) => c.title === 'Inventada')).toBe(false);
   expect(r.candidates.every((c: any) => c.explanation && c.evidence.length)).toBe(true); expect((await t.app.inject('/api/resources')).json().items).toHaveLength(0);

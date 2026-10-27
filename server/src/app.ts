@@ -15,11 +15,14 @@ import { MAX_UPLOAD } from './capture.ts';
 import { ROOTS, rootDir, type RootName } from './paths.ts';
 import { OutlineService } from './outline.ts';
 import { NOT_CONFIGURED, Settings, isDirSync } from './settings.ts';
+import personalesRoutes from './routes/plantillas-personales.ts';
+import estiloRoutes from './routes/estilo.ts';
 import datosRoutes from './routes/datos.ts';
 import diagramasRoutes from './routes/diagramas.ts';
 import compileRoutes from './routes/compile.ts';
 import eventsRoutes from './routes/events.ts';
 import filesRoutes from './routes/files.ts';
+import importRoutes from './routes/import.ts';
 import fileopsRoutes from './routes/fileops.ts';
 import memoriaRoutes from './routes/memoria.ts';
 import notesRoutes from './routes/notes.ts';
@@ -28,6 +31,7 @@ import refsRoutes from './routes/refs.ts';
 import resourcesRoutes from './routes/resources.ts';
 import searchRoutes from './routes/search.ts';
 import settingsRoutes from './routes/settings.ts';
+import plantillaPropiaRoutes from './routes/plantilla-propia.ts';
 import statusRoutes from './routes/status.ts';
 import synctexRoutes from './routes/synctex.ts';
 import libraryRoutes from './routes/library.ts';
@@ -51,7 +55,7 @@ const pickRoot = (v: unknown): RootName[] | null => (v === 'notes' || v === 'mem
 /** Roots a request needs to exist (null = route does not touch the roots). */
 function rootsFor(method: string, url: string, query: any, body: any): RootName[] | null {
   const p = url.split('?')[0];
-  if (p === '/api/tree' || p === '/api/file' || p === '/api/raw') return pickRoot(query?.root ?? body?.root) ?? [];
+  if (p === '/api/tree' || p === '/api/file' || p === '/api/raw' || p === '/api/files/import') return pickRoot(query?.root ?? body?.root) ?? [];
   if(p.startsWith('/api/library/integration/'))return ['notes','memoria'];
   if (p.startsWith('/api/notes/') || p.startsWith('/api/resources') || p.startsWith('/api/library/') || p === '/api/capture') return ['notes'];
   if (p === '/api/dir' || p === '/api/move' || p === '/api/trash/restore') return pickRoot(body?.root) ?? [];
@@ -125,7 +129,7 @@ export async function buildApp(cfg: Config, opts: BuildOptions = {}): Promise<{ 
     reply.code(status).send({ error: message });
   });
 
-  for (const plugin of [statusRoutes, filesRoutes, fileopsRoutes, notesRoutes, resourcesRoutes, libraryRoutes, searchRoutes, compileRoutes, synctexRoutes, memoriaRoutes, refsRoutes, diagramasRoutes, datosRoutes, plantillaRoutes, eventsRoutes, settingsRoutes]) {
+  for (const plugin of [statusRoutes, filesRoutes, importRoutes, fileopsRoutes, notesRoutes, resourcesRoutes, libraryRoutes, searchRoutes, compileRoutes, synctexRoutes, memoriaRoutes, refsRoutes, diagramasRoutes, datosRoutes, estiloRoutes, personalesRoutes, plantillaRoutes, eventsRoutes, settingsRoutes, plantillaPropiaRoutes]) {
     await app.register(plugin, { ctx });
   }
   await opts.configure?.(app, ctx);

@@ -9,6 +9,7 @@ import { persistSpaces, useUI } from './ui';
 import { api as http } from '../api';
 import { SECTIONS, panelSection, sectionLayout, validLayout, type Section, type ViewPreset } from '../lib/spaces';
 import { addAssistantContext, useAssistant, type AssistantContext } from './assistant';
+import { useDesktop } from './desktop';
 
 // Tipos de panel y sus parámetros.
 export type PanelComponent = 'latex' | 'note' | 'diagram' | 'pdf' | 'resource' | 'search' | 'home' | 'settings' | 'datos' | 'assistant';
@@ -63,6 +64,8 @@ function position(dock: DockviewApi, opts: OpenOptions) {
   const group = dock.activeGroup?.api.isVisible ? dock.activeGroup : dock.groups.find(g => g.api.isVisible);
   if (opts.side && group) return { referenceGroup: group, direction: 'right' as const };
   if (group) return { referenceGroup: group };
+  // El PDF fijo puede ser el único grupo restante y estar oculto.
+  if (dock.groups.length) return { referenceGroup: dock.groups[0], direction: 'left' as const };
   return undefined;
 }
 
@@ -137,6 +140,7 @@ export function openHome() {
 }
 
 export function openSettings(tab: 'general' | 'assistant' = 'general') {
+  if (useDesktop.getState().open) return;
   useUI.setState({ settingsOpened: true, settingsOpen: true, settingsTab: tab });
 }
 
@@ -180,6 +184,7 @@ export function closePanelsUnder(root: Root, base: string) {
  */
 export function rekeyPanels(root: Root, pairs: { from: string; to: string }[]) {
   for (const dock of docks.values()) rekeyDockPanels(dock, root, pairs);
+  flushLayoutSave();
 }
 
 function rekeyDockPanels(dock: DockviewApi, root: Root, pairs: { from: string; to: string }[]) {
@@ -241,9 +246,13 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null;
 export function scheduleLayoutSave() {
   if (restoring) return;
   if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    for (const [section, dock] of docks) save(layoutKey(section), dock.toJSON());
-  }, 300);
+  saveTimer = setTimeout(flushLayoutSave, 300);
+}
+
+function flushLayoutSave() {
+  if (!saveTimer) return;
+  clearTimeout(saveTimer); saveTimer = null;
+  for (const [section, dock] of docks) save(layoutKey(section), dock.toJSON());
 }
 
 export function restoreLayout(api: DockviewApi, section: Section): boolean {

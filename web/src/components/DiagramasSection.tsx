@@ -1,4 +1,4 @@
-// Sección «Diagramas» del panel lateral: los diagramas de la memoria (diagramas/*.mmd) con
+// Sección «Diagramas» del panel lateral: las fuentes de la memoria en diagramas/ con
 // el estado de su figura exportada, para abrirlos, crearlos y gestionarlos desde un sitio.
 import { useEffect, useMemo, useState } from 'react';
 import { sideHint } from '../lib/shortcuts';
@@ -120,7 +120,6 @@ export function DiagramasSection() {
             <Button variant="primary" onClick={() => openNewDiagram('')}>
               <Plus size={12} /> Nuevo diagrama
             </Button>
-            <p className="text-[11px] text-faint">También puedes usar un bloque mermaid de una nota con «Usar en la memoria».</p>
           </div>
         ) : list.length === 0 ? (
           <Empty>Ningún diagrama coincide.</Empty>

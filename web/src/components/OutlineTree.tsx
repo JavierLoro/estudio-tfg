@@ -15,13 +15,13 @@ import {
   RefreshCw,
   Workflow,
 } from 'lucide-react';
-import { api, errorMessage, FieldError, type NewSectionKind, type OutlineItem } from '../api';
+import { api, errorMessage, FieldError, type NewSectionKind, type OutlineItem, type SectionAction } from '../api';
 import { sideByEvent, sideHint } from '../lib/shortcuts';
 import { openActions } from './OpenActions';
 import { docKey } from '../lib/paths';
 import { load, save } from '../lib/storage';
 import { useCursor } from '../state/cursor';
-import { compactWords, createSection, outlineLabel, useOutline } from '../state/outline';
+import { compactWords, createSection, editSection, outlineLabel, useOutline } from '../state/outline';
 import { flattenTree, toast, useUI } from '../state/ui';
 import { openDatos, openFile, useActivePanel } from '../state/workspace';
 import { openContextMenu, type MenuItem } from './ContextMenu';
@@ -186,8 +186,8 @@ export interface NewSectionTarget {
   context: string;
 }
 
-const KIND_TITLE: Record<NewSectionKind, string> = { chapter: 'Nuevo capítulo', section: 'Nueva sección', appendix: 'Nuevo anexo' };
-const KIND_DONE: Record<NewSectionKind, string> = { chapter: 'Capítulo «%» creado', section: 'Sección «%» creada', appendix: 'Anexo «%» creado' };
+const KIND_TITLE: Record<NewSectionKind, string> = { chapter: 'Nuevo capítulo', section: 'Nueva sección', subsection: 'Nueva subsección', appendix: 'Nuevo anexo' };
+const KIND_DONE: Record<NewSectionKind, string> = { chapter: 'Capítulo «%» creado', section: 'Sección «%» creada', subsection: 'Subsección «%» creada', appendix: 'Anexo «%» creado' };
 
 function NewSectionDialog({ target, onClose }: { target: NewSectionTarget | null; onClose: () => void }) {
   const [title, setTitle] = useState('');
@@ -296,8 +296,21 @@ export function OutlineView({ onShowFiles }: { onShowFiles: () => void }) {
       after: after?.id,
       context: after ? `Después de «${outlineLabel(after)}»` : lastChapter ? `Al final de los capítulos (tras «${outlineLabel(lastChapter)}»)` : 'Al final de los capítulos',
     });
-  const addSection = (parent: OutlineItem) => setTarget({ kind: 'section', parent: parent.id, context: `Al final de «${outlineLabel(parent)}»` });
+  const addSection = (parent: OutlineItem) => setTarget({ kind: parent.kind === 'section' ? 'subsection' : 'section', parent: parent.id, context: `Al final de «${outlineLabel(parent)}»` });
   const addAppendix = () => setTarget({ kind: 'appendix', context: 'Al final de los anexos' });
+  const organize = async (item: OutlineItem, action: SectionAction) => {
+    const revisions = data?.revisions;
+    if (!revisions) return;
+    const title = action === 'rename' ? await useUI.getState().ask({ title: 'Cambiar título', label: 'Nuevo título del apartado', initial: item.title, okLabel: 'Cambiar título' }) : undefined;
+    if (title === null) return;
+    try {
+      const result = await editSection({ id: item.id, action, title, baseRev: revisions });
+      if (action !== 'toggle') openFile('memoria', result.file, { line: result.line });
+      toast({ kind: 'ok', text: action === 'toggle' ? (item.enabled ? 'Apartado desactivado; se conserva su contenido.' : 'Apartado activado.') : 'Estructura actualizada; las etiquetas se conservan.' });
+    } catch (e) {
+      toast({ kind: 'error', text: errorMessage(e) });
+    }
+  };
 
   if (!data) {
     if (error)
@@ -388,7 +401,7 @@ export function OutlineView({ onShowFiles }: { onShowFiles: () => void }) {
             </button>
           </Empty>
         ) : (
-          <OutlineTree nodes={nodes} filter={filter} generatedAt={data.generatedAt} onAddChapter={addChapter} onAddSection={addSection} />
+          <OutlineTree nodes={nodes} filter={filter} generatedAt={data.generatedAt} onAddChapter={addChapter} onAddSection={addSection} onEdit={data.revisions ? organize : undefined} />
         )}
       </div>
       <NewSectionDialog target={target} onClose={() => setTarget(null)} />
@@ -402,12 +415,14 @@ function OutlineTree({
   generatedAt,
   onAddChapter,
   onAddSection,
+  onEdit,
 }: {
   nodes: Node[];
   filter: string;
   generatedAt: string;
   onAddChapter: (after: OutlineItem) => void;
   onAddSection: (parent: OutlineItem) => void;
+  onEdit?: (item: OutlineItem, action: SectionAction) => void;
 }) {
   const [overrides, setOverrides] = useState<Record<string, boolean>>(() => load<Record<string, boolean>>(EXP_KEY, {}));
   const [focusKey, setFocusKey] = useState<string | null>(null);
@@ -527,9 +542,23 @@ function OutlineTree({
       items.push({ label: 'Abrir al lado', hint: sideHint(), run: () => open(n, true) });
       if (it.kind === 'datos') items.push({ label: 'Abrir datos.tex', run: () => openFile('memoria', it.file) });
       else if (/\.tex$/i.test(it.file)) items.push({ label: 'Ver en PDF', run: () => void showInPdf(it.file, it.line) });
+      if (it.enabled && ['chapter', 'appendix', 'frontmatter', 'section'].includes(it.kind)) {
+        items.push({ label: it.kind === 'section' ? '+ Subsección' : '+ Sección', run: () => onAddSection(it) });
+      }
       if (it.kind === 'chapter') {
-        items.push({ label: '+ Sección', run: () => onAddSection(it) });
         items.push({ label: 'Añadir capítulo después', run: () => onAddChapter(it) });
+      }
+      if (onEdit && ['chapter', 'appendix', 'frontmatter', 'section', 'subsection'].includes(it.kind) && !it.warnings.includes('no encontrado')) {
+        if (it.enabled || ['chapter', 'appendix', 'frontmatter'].includes(it.kind)) {
+          items.push({ label: 'Cambiar título…', run: () => onEdit(it, 'rename') });
+          const siblings = flat.filter((other) => other.kind === n.kind && parentOf.get(other.key) === parentOf.get(n.key));
+          const position = siblings.indexOf(n);
+          if (position > 0) items.push({ label: 'Subir apartado', run: () => onEdit(it, 'up') });
+          if (position < siblings.length - 1) items.push({ label: 'Bajar apartado', run: () => onEdit(it, 'down') });
+          if (it.kind === 'subsection') items.push({ label: 'Convertir en sección', run: () => onEdit(it, 'promote') });
+          if (it.kind === 'section' && !it.children.length && position > 0) items.push({ label: 'Convertir en subsección', run: () => onEdit(it, 'demote') });
+        }
+        items.push({ label: it.enabled ? 'Desactivar apartado' : 'Activar apartado', run: () => onEdit(it, 'toggle') });
       }
       items.push({ label: 'Copiar ruta', run: () => void navigator.clipboard?.writeText(`${it.file}:${it.line}`) });
     }
@@ -685,7 +714,7 @@ function OutlineRow({
       aria-level={depth + 1}
       aria-expanded={hasChildren ? expanded : undefined}
       aria-selected={current}
-      aria-disabled={!n.enabled || undefined}
+      aria-description={!n.enabled ? 'Apartado desactivado; puedes activarlo desde sus acciones.' : undefined}
       aria-current={reading ? 'location' : undefined}
       title={reading ? `${tip}\nSe está viendo en el PDF` : tip}
       className={cx(
@@ -736,17 +765,17 @@ function OutlineRow({
           {compactWords(n.words)}
         </span>
       )}
-      {isChapter && (
+      {n.item && ['chapter', 'appendix', 'frontmatter', 'section', 'subsection'].includes(n.kind) && (
         <button
           type="button"
           tabIndex={-1}
-          aria-label="Acciones del capítulo"
-          title="Acciones del capítulo"
-          className="hidden h-5 w-5 shrink-0 items-center justify-center rounded text-muted group-hover:inline-flex hover:bg-hover hover:text-fg"
+          aria-label={'Acciones de ' + n.title}
+          title={'Acciones de ' + n.title}
+          className={cx('ml-auto inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted opacity-0 group-hover:opacity-100 focus:opacity-100 hover:bg-hover hover:text-fg', focused && 'opacity-100')}
           onClick={(e) => {
             e.stopPropagation();
             const r = e.currentTarget.getBoundingClientRect();
-            openContextMenu({ clientX: r.left, clientY: r.bottom + 2, preventDefault: () => {} }, menu().filter((m) => m.label.startsWith('+') || m.label.startsWith('Añadir')));
+            openContextMenu({ clientX: r.left, clientY: r.bottom + 2, preventDefault: () => {} }, menu());
           }}
         >
           <Ellipsis size={13} />

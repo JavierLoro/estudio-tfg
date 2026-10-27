@@ -1,0 +1,62 @@
+{
+  "version": "v0.7",
+  "clase": "estilo/memoria v3.2",
+  "comandosDatos": [
+    "titulo",
+    "autor",
+    "email",
+    "tutor",
+    "cotutor",
+    "departamento",
+    "intensificacion",
+    "fecha",
+    "ciudad",
+    "palabrasClave",
+    "keywords",
+    "idioma",
+    "formato",
+    "modo",
+    "estiloBibliografia",
+    "licencia",
+    "atribucion"
+  ],
+  "archivos": {
+    ".gitattributes": "d0164e7ab878c02a8a0959c7b91d71c79a0252762e2bede08f623966a4b4d22c",
+    ".gitignore": "54876edae9128e6a8c0b50ea9c658f29bffbf3d81fc6624843fad0ebd4731bb5",
+    "0-inicio/abstract.tex": "052ca246aa53bfe6a8592caf7cd8fff6a17b75fa9567516198e8dab1adf73207",
+    "0-inicio/acronimos.tex": "3ed78365ead34cb2deeca200bc6c614d8b4cb5136db765e65d47a770766efb2d",
+    "0-inicio/agradecimientos.tex": "7ba51a24b8fc91ce979ed08487e2c82cdd3d3d66b27d6622fc46f03b939d7eb0",
+    "0-inicio/resumen.tex": "eb5c6206e120c5dee607989acd8ab36e84d2a50562e3e79cae0e60ba96dff2f5",
+    "1-capitulos/02-objetivos.tex": "9e35b992af2b73e3d8eb72d3444f4be2f30b13175b07bca0ad2d936e61ac6aca",
+    "2-anexos/a-anexo.tex": "334303db46a683b18a6106c25986a80d19ca203b3f8b2577be92c350d98fc469",
+    "LEEME.md": [
+      "d7eef145bacd772287a5f919128c236d09834f36fb8e639befede21fe18b7790",
+      "eeaf0f16dcc06cbbd48b463799e367ed8c12b67b6ff1fa56d550714c743db81b",
+      "af627d2133ea4186ad649af71dceb3d8a04b9876ede5c54698c8db9f7fc3b41b"
+    ],
+    "bibliografia.bib": "4e189d28bee6dc098b263db0fd2d6a81229029308fc0bf42f3609c8bd3d08c1f",
+    "esi-uclm:1-capitulos/01-introduccion.tex": "9b3fb062889af17d855decfeecaf3c0be91f1d0dee0248cfcfc04a9b840816ad",
+    "esi-uclm:1-capitulos/03-antecedentes.tex": "e66d836b0e8d547ef86d21074f275ee82b52591d5295e477af16e8224ba9be5d",
+    "esi-uclm:1-capitulos/04-metodologia.tex": "4e5b8a60c23580294c0cc71d9d76f214353766fd1bb588f8d19c391bbb01e146",
+    "esi-uclm:1-capitulos/05-resultados.tex": "944d74c25cd7b4eb289dce0019910adb637b367812585bae74581e107b7127cf",
+    "esi-uclm:1-capitulos/06-conclusiones.tex": "2b44bdcf71071ab03c19692b0703dea3fce54cec782b68c0ac2afb16b47080b4",
+    "esi-uclm:datos.tex": "c5855d0f0d96b82071925c241383444c4b893c70025891a461c4254025c8c369",
+    "esi-uclm:estilo/esi_logo.pdf": "d11d16523fa40ef6eff39d27fb31dc06c5a9f42d49387a567f9011abd1676730",
+    "esi-uclm:estilo/institucion.tex": "75a154846a2f7095f27f881319b308524237ebe3607b721b0ff0db0de3927643",
+    "esi-uclm:tfg.tex": "b8eb3e10cb8dbd11896404309bcdfb8f1772ed693f2df5edec76f4aec95fc441",
+    "estilo/memoria.cls": [
+      "aa74a059518008e2eef82d44e62874596d5dfae8095a803c92757145d3e4ca61",
+      "ed730c7970fccdb3737e934eb719ef869a77859b551935a360b0ee05460450ec",
+      "0ad245afa580eac9f64af096c3f32e18b5e60ee5ef3a341a6e05974b2dff2804"
+    ],
+    "figuras/ejemplo.pdf": "19f40c92a58e47d79b7176a6245736e31cbdb9324cb4daaebfddc39949f3b0a8",
+    "generico:1-capitulos/01-introduccion.tex": "da773611984d2d6587aa6b75acfb497ff9e2b755570d4e3eb40f1b8437d6fa29",
+    "generico:1-capitulos/03-estado.tex": "62b30a50316496c0febcf410e2b4aeb5a858074fdf450ef8a8e9bb5b67f0ad53",
+    "generico:1-capitulos/04-desarrollo.tex": "33b4466aba0eef9441c02f156c29e84969a8d72689d68d1754b3a58a7207fab1",
+    "generico:1-capitulos/05-resultados.tex": "a7c1acaeda421f04e6bc9a6b4b643ccb630ef468c00b6955520b6f69d0ced565",
+    "generico:1-capitulos/06-conclusiones.tex": "1ecbd46c4a30030790382480edd77d26ca9efc2cafaa298a61d2abc00026684d",
+    "generico:datos.tex": "e9afe645e3a2794e2fcd9c33a5388c9f6f0515935439806bc3165197c75bb4b4",
+    "generico:estilo/institucion.tex": "8e9ed6769e44b5f2eb705c0a9fb9c46da3fc5dab29a8b253153a97c779a1ca8d",
+    "generico:tfg.tex": "5a985f57fbaca46e131ead987f5b1b50e81b1177bddf0104c9f71c1f198c6e1d"
+  }
+}

@@ -133,7 +133,8 @@ jobs:
       - name: Arrancar el worker aislado
         run: |
           mkdir -p "$TEMPLATE_OUT"
-          docker run --detach --init --name estudio-tfg-ci-worker --user "$(id -u):$(id -g)" --publish 127.0.0.1:8097:8090 --volume "$TEMPLATE_OUT:/out" --env COMPILE_TIMEOUT_MS=30000 --read-only --tmpfs /tmp:rw,exec,nosuid,size=1g,mode=1777 --cap-drop ALL --security-opt no-new-privileges --memory 2g --pids-limit 256 estudio-tfg-worker:ci
+          # LuaLaTeX crea su caché privada en cada trabajo: usar el límite de producción.
+          docker run --detach --init --name estudio-tfg-ci-worker --user "$(id -u):$(id -g)" --publish 127.0.0.1:8097:8090 --volume "$TEMPLATE_OUT:/out" --env COMPILE_TIMEOUT_MS=120000 --read-only --tmpfs /tmp:rw,exec,nosuid,size=1g,mode=1777 --cap-drop ALL --security-opt no-new-privileges --memory 2g --pids-limit 256 estudio-tfg-worker:ci
       - name: Esperar a que el worker esté listo
         run: |
           node --input-type=module -e '
@@ -150,7 +151,7 @@ jobs:
         run: node scripts/bundle-smoke.mjs --worker-url http://127.0.0.1:8097 --output-dir "$TEMPLATE_OUT"
       - name: Verificar configuraciones y límites de acceso con fuentes ficticias
         run: WORKER_SECURITY_URL=http://127.0.0.1:8097 WORKER_SECURITY_OUT="$TEMPLATE_OUT" node --test worker/security.integration.test.mjs
-      - name: Compilar todos los perfiles y exigir cero avisos
+      - name: Compilar perfiles, idiomas y fuentes sin avisos
         run: node scripts/compile-template.mjs --worker-url http://127.0.0.1:8097 --output-dir "$TEMPLATE_OUT"
       - name: Verificar citas, figuras y memoria trasladada sin biblioteca
         run: node server/node_modules/tsx/dist/cli.mjs scripts/library-compile.mts --worker-url http://127.0.0.1:8097 --output-dir "$TEMPLATE_OUT"
@@ -167,9 +168,10 @@ jobs:
               --volume "$GITHUB_WORKSPACE/server/node_modules:/repo/server/node_modules:ro" \
               --volume "$GITHUB_WORKSPACE/worker:/repo/worker:ro" \
               --volume "$GITHUB_WORKSPACE/scripts:/repo/scripts:ro" \
+              --volume "$GITHUB_WORKSPACE/shared:/repo/shared:ro" \
               --volume "$GITHUB_WORKSPACE/web/src/lib/diagramTemplates.ts:/repo/web/src/lib/diagramTemplates.ts:ro" \
               --volume "$GITHUB_WORKSPACE/templates:/repo/templates:ro" \
-              --entrypoint node estudio-tfg-worker:ci --experimental-transform-types \
+              --entrypoint node estudio-tfg-worker:ci /repo/server/node_modules/tsx/dist/cli.mjs \
               "/repo/scripts/$fixture" --engine local --output-dir /out/builds
           done
       - name: Recorridos E2E de biblioteca, recuperación y PDF
@@ -179,6 +181,7 @@ jobs:
           E2E_WORKER_URL: http://127.0.0.1:8097
           E2E_WORKER_OUT: ${{ env.TEMPLATE_OUT }}
           E2E_DIAGRAM_OUT: ${{ env.TEMPLATE_OUT }}/diagramas-browser
+          E2E_EXCALIDRAW_OUT: ${{ env.TEMPLATE_OUT }}/excalidraw
       - name: Compilar las figuras del navegador en ambos perfiles
         run: node server/node_modules/tsx/dist/cli.mjs scripts/library-compile.mts --worker-url http://127.0.0.1:8097 --output-dir "$TEMPLATE_OUT" --diagrams-dir "$TEMPLATE_OUT/diagramas-browser"
       - name: Conservar evidencias E2E al fallar
@@ -205,6 +208,9 @@ jobs:
           name: plantilla-diagnosticos
           path: |
             ${{ env.TEMPLATE_OUT }}/resultado-*.json
+            ${{ env.TEMPLATE_OUT }}/mapa-*.pdf
+            ${{ env.TEMPLATE_OUT }}/excalidraw-*.pdf
+            ${{ env.TEMPLATE_OUT }}/excalidraw/*.pdf
             ${{ env.TEMPLATE_OUT }}/**/*.log
             ${{ env.TEMPLATE_OUT }}/**/latexmk.txt
             ${{ env.TEMPLATE_OUT }}/native/**/resultado-*.json

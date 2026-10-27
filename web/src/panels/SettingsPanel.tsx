@@ -14,6 +14,11 @@ import {
   type SettingsValues,
 } from '../api';
 import { DirPicker } from '../components/DirPicker';
+import { PlantillasPersonales } from '../components/PlantillasPersonales';
+import { NuevaMemoria } from '../components/NuevaMemoria';
+import { PlantillaPropia } from '../components/PlantillaPropia';
+import { Normativa } from '../components/Normativa';
+import { openFile } from '../state/workspace';
 import { Banner, Button, IconButton, Spinner, cx } from '../components/ui';
 import { isAbsPath, joinAbs, parentAbs, relUnder } from '../lib/abspath';
 import { kbd } from '../lib/kbd';
@@ -85,6 +90,9 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
   const [resetting, setResetting] = useState<SettingsKey | null>(null);
   const [picker, setPicker] = useState<Picker>(null);
   const [creating, setCreating] = useState(false);
+  const [desdeCero, setDesdeCero] = useState(false);
+  const [propia, setPropia] = useState(false);
+  const [normativa, setNormativa] = useState(false);
   const [creationWarning, setCreationWarning] = useState<string | null>(null);
   const [perfiles, setPerfiles] = useState<Perfil[] | null>(null);
   const [perfil, setPerfil] = useState('');
@@ -504,7 +512,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
                   <p>TeX del sistema: <span className={engines.local.ok ? 'text-ok' : 'text-warn'}>{engines.local.ok ? 'Disponible' : 'No disponible'}</span>{engines.local.version && ` · ${engines.local.version}`}</p>
                   {engines.local.message && <p className="text-warn">{engines.local.message}</p>}
                   <ul className="space-y-1">
-                    {(['latexmk', 'biber', 'pdflatex', 'rsvg'] as const).map((key) => {
+                    {(['latexmk', 'biber', 'pdflatex', 'lualatex', 'rsvg'] as const).map((key) => {
                       const tool = engines.local.tools[key];
                       return (
                         <li key={key} className="break-all">
@@ -522,33 +530,44 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
 
             <section className="rounded-lg border border-line bg-bg">
               <header className="flex h-8 items-center gap-2 border-b border-line px-3 text-[12px] font-semibold">
-                <span className="flex-1">Memoria nueva</span>
+                <span className="flex-1">Plantillas</span>
               </header>
-              <div className="flex flex-wrap items-center gap-3 px-3 py-2.5 text-[12px] text-muted">
-                <p className="min-w-0 flex-[1_1_16rem]">
-                  Crea una carpeta con la plantilla de la memoria y la usa como carpeta de la memoria. Si Git está instalado, inicia un repositorio git.
-                </p>
-                {perfiles && (
-                  <label className="flex min-w-0 flex-col gap-0.5 text-[11px]">
-                    Perfil de institución
-                    <select
-                      value={perfil}
-                      onChange={(e) => setPerfil(e.target.value)}
-                      disabled={creating}
-                      className="h-7 min-w-0 rounded-md border border-line-strong bg-bg px-2 text-[12px] text-fg outline-none focus:border-accent"
-                      title={perfiles.find((p) => p.id === perfil)?.descripcion}
-                    >
-                      {perfiles.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.nombre}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-                <Button onClick={() => setPicker({ kind: 'create' })} disabled={creating}>
-                  <FolderPlus size={12} /> Crear memoria desde la plantilla
-                </Button>
+              <div className="space-y-4 px-3 py-3">
+                <div className="flex flex-wrap gap-3">
+                  <Button variant="primary" onClick={() => setDesdeCero(true)}>Crear desde cero…</Button>
+                  <Button onClick={() => setPropia(true)}>Usar una plantilla propia…</Button>
+                  {desktop && <Button onClick={() => setNormativa(true)}>Crear desde normativa…</Button>}
+                </div>
+                {data && <PlantillasPersonales settings={data} onCreated={async result => {
+                  await notifySettingsChanged(result.values && result.sources ? result as SettingsResponse : undefined);
+                  openFile('memoria', result.values?.memoriaMain ?? 'tfg.tex'); onClose();
+                }} />}
+                <fieldset className="rounded-md border border-line p-3">
+                  <legend className="px-1 text-[12px] font-medium">Plantilla incluida</legend>
+                  <div className="flex flex-wrap items-end gap-3">
+                    {perfiles && (
+                      <label className="flex min-w-0 flex-col gap-1 text-[12px]">
+                        Institución
+                        <select
+                          value={perfil}
+                          onChange={(e) => setPerfil(e.target.value)}
+                          disabled={creating}
+                          className="h-7 min-w-0 rounded-md border border-line-strong bg-bg px-2 text-[12px] text-fg outline-none focus:border-accent"
+                          title={perfiles.find((p) => p.id === perfil)?.descripcion}
+                        >
+                          {perfiles.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.nombre}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                    <Button onClick={() => setPicker({ kind: 'create' })} disabled={creating}>
+                      <FolderPlus size={12} /> Crear memoria desde la plantilla
+                    </Button>
+                  </div>
+                </fieldset>
               </div>
             </section>
 
@@ -590,6 +609,27 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
           {...pickerProps}
         />
       )}
+      {desdeCero && data && <NuevaMemoria settings={data} onClose={() => setDesdeCero(false)} onCreated={async (result) => {
+        setCreationWarning(result.warning ?? null);
+        await notifySettingsChanged(result.values && result.sources ? result as SettingsResponse : undefined);
+        setDesdeCero(false);
+        openFile('memoria', result.values?.memoriaMain ?? 'tfg.tex');
+        onClose();
+      }} />}
+      {propia && data && <PlantillaPropia settings={data} onClose={() => setPropia(false)} onUsed={async (result) => {
+        await notifySettingsChanged(result);
+        setPropia(false);
+        if (useUI.getState().section !== 'memoria') useUI.getState().setSection('memoria');
+        openFile('memoria', result.values.memoriaMain);
+        onClose();
+      }} />}
+      {normativa && data && <Normativa settings={data} onClose={() => setNormativa(false)} onCreated={async result => {
+        await notifySettingsChanged(result.values && result.sources ? result as SettingsResponse : undefined);
+        setNormativa(false);
+        if (useUI.getState().section !== 'memoria') useUI.getState().setSection('memoria');
+        openFile('memoria', result.values?.memoriaMain ?? 'tfg.tex');
+        onClose();
+      }} />}
     </div>
   );
 }

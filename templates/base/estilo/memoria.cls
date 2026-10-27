@@ -55,12 +55,17 @@
 %  - (v3) Fechas «junio de 2026»; microtype; hyperref al final; cabecera de
 %    \formato{pantalla} con capítulo y sección; sin \parskip; más caracteres
 %    acentuados en los listados de código.
+%  - (v3.1) Títulos en negrita y capítulos/secciones en mayúsculas;
+%    interlineado del perfil también en los preliminares.
+%  - (v3.3) Familias de texto y títulos; tamaño, negrita y mayúsculas por nivel.
+%  - (v3.4) Numeración continua opcional y cabeceras/pies por posiciones.
+%  - (v3.5) Índices seleccionables y profundidad independiente de numeración.
 %
 % Los comandos públicos están documentados en LEEME.md.
 % ----------------------------------------------------------------------------
 
 \NeedsTeXFormat{LaTeX2e}[2022/06/01]
-\ProvidesClass{estilo/memoria}[2026/10/06 v3.0 Memoria de TFG/TFM (derivada de esi-tfg de ARCO)]
+\ProvidesClass{estilo/memoria}[2026/10/23 v3.6 Memoria de TFG/TFM (derivada de esi-tfg de ARCO)]
 \RequirePackage{etoolbox}
 
 %% -- UTILIDADES (expl3) ------------------------------------------------------
@@ -184,6 +189,94 @@
 \newcommand*{\mem@margensup}{25mm}
 \newcommand*{\mem@margeninf}{25mm}
 \newcommand*{\mem@interlineado}{1.5}
+\newcommand*{\mem@papel}{a4}
+\newcommand*{\mem@caras}{automatico}
+\newcommand*{\mem@mostrarportada}{si}
+\newcommand*{\mem@mostrarinterior}{si}
+\newcommand*{\mem@mostrarderechos}{si}
+\newcommand*{\mem@mostrartribunal}{si}
+\newcommand*{\mem@fuenteTexto}{times}
+\newcommand*{\mem@fuenteTitulos}{sans}
+\newcommand*{\mem@indiceGeneral}{si}
+\newcommand*{\mem@indiceFiguras}{si}
+\newcommand*{\mem@indiceTablas}{si}
+\newcommand*{\mem@indiceCodigo}{si}
+\newcommand*{\mem@numerarHasta}{subsecciones}
+\newcommand*{\mem@indiceHasta}{subsecciones}
+\newcommand{\indiceGeneral}[1]{\mem@guardar{indiceGeneral}{\indiceGeneral}{#1}{si,no}}
+\newcommand{\indiceFiguras}[1]{\mem@guardar{indiceFiguras}{\indiceFiguras}{#1}{si,no}}
+\newcommand{\indiceTablas}[1]{\mem@guardar{indiceTablas}{\indiceTablas}{#1}{si,no}}
+\newcommand{\indiceCodigo}[1]{\mem@guardar{indiceCodigo}{\indiceCodigo}{#1}{si,no}}
+\newcommand{\numerarHasta}[1]{\mem@guardar{numerarHasta}{\numerarHasta}{#1}{capitulos,secciones,subsecciones}}
+\newcommand{\indiceHasta}[1]{\mem@guardar{indiceHasta}{\indiceHasta}{#1}{capitulos,secciones,subsecciones}}
+\newcommand*{\mem@numeracionPaginas}{romanos}
+\newcommand*{\mem@estiloPagina}{actual}
+\newcommand*{\mem@reflejarCabeceras}{si}
+\newcommand*{\mem@cabeceraInicioCapitulo}{no}
+\newcommand{\numeracionPaginas}[1]{\mem@guardar{numeracionPaginas}{\numeracionPaginas}{#1}{romanos,continua}}
+\newcommand{\estiloPagina}[1]{\mem@guardar{estiloPagina}{\estiloPagina}{#1}{actual,personalizado}}
+\newcommand{\reflejarCabeceras}[1]{\mem@guardar{reflejarCabeceras}{\reflejarCabeceras}{#1}{si,no}}
+\newcommand{\cabeceraInicioCapitulo}[1]{\mem@guardar{cabeceraInicioCapitulo}{\cabeceraInicioCapitulo}{#1}{si,no}}
+\newcommand{\mem@posicion}[3]{\mem@guardar{#1}{#2}{#3}{vacio,capitulo,seccion,pagina,texto}}
+\newcommand{\mem@definirposicion}[2]{\csdef{mem@#1}{#2}\csdef{mem@#1Texto}{}}
+\mem@definirposicion{cabeceraIzquierda}{capitulo}
+\mem@definirposicion{cabeceraCentro}{vacio}
+\mem@definirposicion{cabeceraDerecha}{seccion}
+\mem@definirposicion{pieIzquierda}{vacio}
+\mem@definirposicion{pieCentro}{pagina}
+\mem@definirposicion{pieDerecha}{vacio}
+\newcommand{\cabeceraIzquierda}[1]{\mem@posicion{cabeceraIzquierda}{\cabeceraIzquierda}{#1}}
+\newcommand{\cabeceraCentro}[1]{\mem@posicion{cabeceraCentro}{\cabeceraCentro}{#1}}
+\newcommand{\cabeceraDerecha}[1]{\mem@posicion{cabeceraDerecha}{\cabeceraDerecha}{#1}}
+\newcommand{\pieIzquierda}[1]{\mem@posicion{pieIzquierda}{\pieIzquierda}{#1}}
+\newcommand{\pieCentro}[1]{\mem@posicion{pieCentro}{\pieCentro}{#1}}
+\newcommand{\pieDerecha}[1]{\mem@posicion{pieDerecha}{\pieDerecha}{#1}}
+\newcommand{\cabeceraIzquierdaTexto}[1]{\csdef{mem@cabeceraIzquierdaTexto}{#1}}
+\newcommand{\cabeceraCentroTexto}[1]{\csdef{mem@cabeceraCentroTexto}{#1}}
+\newcommand{\cabeceraDerechaTexto}[1]{\csdef{mem@cabeceraDerechaTexto}{#1}}
+\newcommand{\pieIzquierdaTexto}[1]{\csdef{mem@pieIzquierdaTexto}{#1}}
+\newcommand{\pieCentroTexto}[1]{\csdef{mem@pieCentroTexto}{#1}}
+\newcommand{\pieDerechaTexto}[1]{\csdef{mem@pieDerechaTexto}{#1}}
+\ExplSyntaxOn
+\cs_new_protected:Npn \mem@guardarfuente #1#2#3#4 {
+  \regex_match:nnTF { \A propia-[a-f0-9]{16} \Z } {#3}
+    {\cs_set:cpn {mem@#1}{#3}}
+    {\mem@guardar{#1}{#2}{#3}{#4}}
+}
+\ExplSyntaxOff
+\newcommand{\fuenteTexto}[1]{\mem@guardarfuente{fuenteTexto}{\fuenteTexto}{#1}{times,latinmodern,palatino,heros,schola,bonum,adventor}}
+\newcommand{\fuenteTitulos}[1]{\mem@guardarfuente{fuenteTitulos}{\fuenteTitulos}{#1}{sans,texto,times,latinmodern,palatino,heros,schola,bonum,adventor}}
+\newcommand{\mem@definirtitulo}[3]{%
+  \csdef{mem@fuente#1}{heredar}%
+  \csdef{mem@tamano#1}{#2}%
+  \csdef{mem@negrita#1}{si}%
+  \csdef{mem@mayusculas#1}{#3}}
+\newcommand{\fuenteCapitulo}[1]{\mem@guardarfuente{fuenteCapitulo}{\fuenteCapitulo}{#1}{heredar,sans,texto,times,latinmodern,palatino,heros,schola,bonum,adventor}}
+\newcommand{\tamanoCapitulo}[1]{\mem@puntostitulo{Capitulo}{#1}}
+\newcommand{\negritaCapitulo}[1]{\mem@guardar{negritaCapitulo}{\negritaCapitulo}{#1}{si,no}}
+\newcommand{\mayusculasCapitulo}[1]{\mem@guardar{mayusculasCapitulo}{\mayusculasCapitulo}{#1}{si,no}}
+\newcommand{\fuenteSeccion}[1]{\mem@guardarfuente{fuenteSeccion}{\fuenteSeccion}{#1}{heredar,sans,texto,times,latinmodern,palatino,heros,schola,bonum,adventor}}
+\newcommand{\tamanoSeccion}[1]{\mem@puntostitulo{Seccion}{#1}}
+\newcommand{\negritaSeccion}[1]{\mem@guardar{negritaSeccion}{\negritaSeccion}{#1}{si,no}}
+\newcommand{\mayusculasSeccion}[1]{\mem@guardar{mayusculasSeccion}{\mayusculasSeccion}{#1}{si,no}}
+\newcommand{\fuenteSubseccion}[1]{\mem@guardarfuente{fuenteSubseccion}{\fuenteSubseccion}{#1}{heredar,sans,texto,times,latinmodern,palatino,heros,schola,bonum,adventor}}
+\newcommand{\tamanoSubseccion}[1]{\mem@puntostitulo{Subseccion}{#1}}
+\newcommand{\negritaSubseccion}[1]{\mem@guardar{negritaSubseccion}{\negritaSubseccion}{#1}{si,no}}
+\newcommand{\mayusculasSubseccion}[1]{\mem@guardar{mayusculasSubseccion}{\mayusculasSubseccion}{#1}{si,no}}
+\ExplSyntaxOn
+\cs_new_protected:Npn \mem@puntostitulo #1#2 {
+  \regex_match:nnTF { \A \d+ (\. [05])? \Z } {#2}
+    { \fp_compare:nNnTF {#2} < {8} {\mem@errortamano}
+        { \fp_compare:nNnTF {#2} > {36} {\mem@errortamano} { \cs_set:cpn {mem@tamano#1}{#2} } } }
+    {\mem@errortamano}
+}
+\cs_new_protected:Npn \mem@errortamano {
+  \ClassError{memoria}{Tamano~de~titulo~no~valido}{Usa~entre~8~y~36~puntos,~en~pasos~de~medio~punto.}
+}
+\ExplSyntaxOff
+\mem@definirtitulo{Capitulo}{22}{si}
+\mem@definirtitulo{Seccion}{15}{si}
+\mem@definirtitulo{Subseccion}{13.5}{no}
 
 \newcommand{\universidad}[1]{\renewcommand*{\mem@universidad}{#1}}
 \newcommand{\escuela}[1]{\renewcommand*{\mem@escuela}{#1}}
@@ -202,6 +295,75 @@
   \ifblank{#4}{}{\renewcommand*{\mem@margeninf}{#4}}}
 \newcommand{\interlineado}[1]{%
   \mem@guardar{interlineado}{\interlineado}{#1}{1,1.15,1.25,1.5,2}}
+\newcommand{\papel}[1]{\mem@guardar{papel}{\papel}{#1}{a4,a5,carta,personalizado}}
+\newcommand{\caras}[1]{\mem@guardar{caras}{\caras}{#1}{automatico,una,dos}}
+\newcommand{\mostrarPortada}[1]{\mem@guardar{mostrarportada}{\mostrarPortada}{#1}{si,no}}
+\newcommand{\mostrarPortadaInterior}[1]{\mem@guardar{mostrarinterior}{\mostrarPortadaInterior}{#1}{si,no}}
+\newcommand{\mostrarDerechos}[1]{\mem@guardar{mostrarderechos}{\mostrarDerechos}{#1}{si,no}}
+\newcommand{\mostrarTribunal}[1]{\mem@guardar{mostrartribunal}{\mostrarTribunal}{#1}{si,no}}
+
+\csdef{mem@alineacionParrafo}{justificada}
+\csdef{alineacionParrafo}#1{\csdef{mem@alineacionParrafo}{#1}}
+\csdef{mem@sangriaParrafo}{1em}
+\csdef{sangriaParrafo}#1{\csdef{mem@sangriaParrafo}{#1}}
+\csdef{mem@espacioParrafo}{0pt}
+\csdef{espacioParrafo}#1{\csdef{mem@espacioParrafo}{#1}}
+\csdef{mem@alineacionCapitulo}{izquierda}
+\csdef{alineacionCapitulo}#1{\csdef{mem@alineacionCapitulo}{#1}}
+\csdef{mem@antesCapitulo}{10mm}
+\csdef{antesCapitulo}#1{\csdef{mem@antesCapitulo}{#1}}
+\csdef{mem@despuesCapitulo}{38mm}
+\csdef{despuesCapitulo}#1{\csdef{mem@despuesCapitulo}{#1}}
+\csdef{mem@alineacionSeccion}{izquierda}
+\csdef{alineacionSeccion}#1{\csdef{mem@alineacionSeccion}{#1}}
+\csdef{mem@antesSeccion}{5mm}
+\csdef{antesSeccion}#1{\csdef{mem@antesSeccion}{#1}}
+\csdef{mem@despuesSeccion}{0mm}
+\csdef{despuesSeccion}#1{\csdef{mem@despuesSeccion}{#1}}
+\csdef{mem@alineacionSubseccion}{izquierda}
+\csdef{alineacionSubseccion}#1{\csdef{mem@alineacionSubseccion}{#1}}
+\csdef{mem@antesSubseccion}{4mm}
+\csdef{antesSubseccion}#1{\csdef{mem@antesSubseccion}{#1}}
+\csdef{mem@despuesSubseccion}{-1mm}
+\csdef{despuesSubseccion}#1{\csdef{mem@despuesSubseccion}{#1}}
+\csdef{mem@marcaLista}{actual}
+\csdef{marcaLista}#1{\csdef{mem@marcaLista}{#1}}
+\csdef{mem@marcaEnumeracion}{actual}
+\csdef{marcaEnumeracion}#1{\csdef{mem@marcaEnumeracion}{#1}}
+\csdef{mem@espacioLista}{1pt}
+\csdef{espacioLista}#1{\csdef{mem@espacioLista}{#1}}
+\csdef{mem@margenLista}{3pt}
+\csdef{margenLista}#1{\csdef{mem@margenLista}{#1}}
+\csdef{mem@fuenteLeyendaFigura}{texto}
+\csdef{fuenteLeyendaFigura}#1{\csdef{mem@fuenteLeyendaFigura}{#1}}
+\csdef{mem@tamanoLeyendaFigura}{small}
+\csdef{tamanoLeyendaFigura}#1{\csdef{mem@tamanoLeyendaFigura}{#1}}
+\csdef{mem@alineacionLeyendaFigura}{actual}
+\csdef{alineacionLeyendaFigura}#1{\csdef{mem@alineacionLeyendaFigura}{#1}}
+\csdef{mem@espacioLeyendaFigura}{6pt}
+\csdef{espacioLeyendaFigura}#1{\csdef{mem@espacioLeyendaFigura}{#1}}
+\csdef{mem@fuenteLeyendaTabla}{texto}
+\csdef{fuenteLeyendaTabla}#1{\csdef{mem@fuenteLeyendaTabla}{#1}}
+\csdef{mem@tamanoLeyendaTabla}{small}
+\csdef{tamanoLeyendaTabla}#1{\csdef{mem@tamanoLeyendaTabla}{#1}}
+\csdef{mem@alineacionLeyendaTabla}{actual}
+\csdef{alineacionLeyendaTabla}#1{\csdef{mem@alineacionLeyendaTabla}{#1}}
+\csdef{mem@espacioLeyendaTabla}{6pt}
+\csdef{espacioLeyendaTabla}#1{\csdef{mem@espacioLeyendaTabla}{#1}}
+\csdef{mem@fuenteLeyendaCodigo}{texto}
+\csdef{fuenteLeyendaCodigo}#1{\csdef{mem@fuenteLeyendaCodigo}{#1}}
+\csdef{mem@tamanoLeyendaCodigo}{small}
+\csdef{tamanoLeyendaCodigo}#1{\csdef{mem@tamanoLeyendaCodigo}{#1}}
+\csdef{mem@alineacionLeyendaCodigo}{actual}
+\csdef{alineacionLeyendaCodigo}#1{\csdef{mem@alineacionLeyendaCodigo}{#1}}
+\csdef{mem@espacioLeyendaCodigo}{6pt}
+\csdef{espacioLeyendaCodigo}#1{\csdef{mem@espacioLeyendaCodigo}{#1}}
+\csdef{mem@anchoPapel}{210mm}
+\csdef{anchoPapel}#1{\csdef{mem@anchoPapel}{#1}}
+\csdef{mem@altoPapel}{297mm}
+\csdef{altoPapel}#1{\csdef{mem@altoPapel}{#1}}
+\csdef{mem@fuenteCodigo}{bera}
+\newcommand{\fuenteCodigo}[1]{\mem@guardarfuente{fuenteCodigo}{\fuenteCodigo}{#1}{bera,latinmodernmono,cursor}}
 
 \InputIfFileExists{estilo/institucion.tex}{}{}
 
@@ -209,7 +371,12 @@
 \DeclareOption*{\PassOptionsToClass{\CurrentOption}{book}}
 \ProcessOptions\relax
 % Doble cara por defecto; \formato{pantalla} lo cambia al final del preámbulo.
-\edef\mem@cargar{\noexpand\LoadClass[a4paper, \mem@tamano, twoside, openright]{book}}
+\newcommand*{\mem@opcionpapel}{a4paper}
+\ifdefstring{\mem@papel}{carta}{\renewcommand*{\mem@opcionpapel}{letterpaper}}{}
+\ifdefstring{\mem@papel}{a5}{\renewcommand*{\mem@opcionpapel}{a5paper}}{}
+\newcommand*{\mem@opcioncaras}{twoside,openright}
+\ifdefstring{\mem@caras}{una}{\renewcommand*{\mem@opcioncaras}{oneside,openany}}{}
+\edef\mem@cargar{\noexpand\LoadClass[\mem@opcionpapel, \mem@tamano, \mem@opcioncaras]{book}}
 \mem@cargar
 
 %% -- DATOS DEL TRABAJO (se rellenan en datos.tex) ----------------------------
@@ -219,6 +386,12 @@
 \newcommand*{\mem@tutor}{}
 \newcommand*{\mem@cotutor}{}
 \newcommand*{\mem@departamento}{}
+\newcommand*{\mem@cursoAcademico}{}
+\newcommand*{\mem@convocatoria}{}
+\newcommand*{\mem@fechaDefensa}{}
+\newcommand{\cursoAcademico}[1]{\def\mem@cursoAcademico{#1}}
+\newcommand{\convocatoria}[1]{\def\mem@convocatoria{#1}}
+\newcommand{\fechaDefensa}[1]{\def\mem@fechaDefensa{#1}}
 \newcommand*{\mem@intensificacion}{}
 \newcommand*{\mem@ciudad}{}
 \newcommand*{\mem@palabras}{}
@@ -285,14 +458,55 @@
 \mem@aplicarbanderas
 
 %% -- IDIOMA Y FUENTES --------------------------------------------------------
+\RequirePackage{iftex}
 \RequirePackage[T1]{fontenc}
 \ifmem@ingles\PassOptionsToPackage{main=english}{babel}\fi
+% Latin Modern no incluye versalitas en negrita para los romanos del índice.
+\ifdefstring{\mem@fuenteTexto}{latinmodern}{\PassOptionsToPackage{es-ucroman}{babel}}{}
 \RequirePackage[english, spanish, es-noshorthands, es-tabla, es-nodecimaldot]{babel}
 
-\RequirePackage{newtxtext}             % Times
-\RequirePackage{newtxmath}
+\ifdefstring{\mem@fuenteTexto}{latinmodern}{\RequirePackage{lmodern}}{%
+  \ifdefstring{\mem@fuenteTexto}{palatino}{\RequirePackage{newpxtext}\RequirePackage{newpxmath}}{%
+    \ifdefstring{\mem@fuenteTexto}{heros}{%
+      \RequirePackage{tgheros}\renewcommand{\rmdefault}{qhv}\RequirePackage{newtxmath}}{%
+      \RequirePackage{newtxtext}\RequirePackage{newtxmath}}}}
 \renewcommand{\sfdefault}{lmss}        % Latin Modern Sans
 \RequirePackage[scaled=.82]{beramono}  % Bera Mono para código
+\ifdefstring{\mem@fuenteTexto}{schola}{\RequirePackage{tgschola}\renewcommand{\rmdefault}{qcs}}{}
+\ifdefstring{\mem@fuenteTexto}{bonum}{\RequirePackage{tgbonum}\renewcommand{\rmdefault}{qbk}}{}
+\ifdefstring{\mem@fuenteTexto}{adventor}{\RequirePackage{tgadventor}\renewcommand{\rmdefault}{qag}}{}
+\ifdefstring{\mem@fuenteCodigo}{latinmodernmono}{\renewcommand{\ttdefault}{lmtt}}{}
+\ifdefstring{\mem@fuenteCodigo}{cursor}{\RequirePackage{tgcursor}\renewcommand{\ttdefault}{qcr}}{}
+\ifLuaTeX
+  \RequirePackage[no-math]{fontspec}
+  \defaultfontfeatures{Ligatures=TeX}
+  \InputIfFileExists{estilo/fuentes.tex}{}{}
+  \ifcsdef{mem@main@\mem@fuenteTexto}{\csuse{mem@main@\mem@fuenteTexto}}{%
+    \ifdefstring{\mem@fuenteTexto}{latinmodern}{\setmainfont{Latin Modern Roman}}{}%
+    \ifdefstring{\mem@fuenteTexto}{palatino}{\setmainfont{TeX Gyre Pagella}}{}%
+    \ifdefstring{\mem@fuenteTexto}{heros}{\setmainfont{TeX Gyre Heros}}{}%
+    \ifdefstring{\mem@fuenteTexto}{schola}{\setmainfont{TeX Gyre Schola}}{}%
+    \ifdefstring{\mem@fuenteTexto}{bonum}{\setmainfont{TeX Gyre Bonum}}{}%
+    \ifdefstring{\mem@fuenteTexto}{adventor}{\setmainfont{TeX Gyre Adventor}}{}}
+  \setsansfont{Latin Modern Sans}
+  \ifcsdef{mem@mono@\mem@fuenteCodigo}{\csuse{mem@mono@\mem@fuenteCodigo}}{%
+    \ifdefstring{\mem@fuenteCodigo}{bera}{\DeclareRobustCommand\ttfamily{\fontencoding{T1}\fontfamily{fvm}\selectfont}}{}%
+    \ifdefstring{\mem@fuenteCodigo}{latinmodernmono}{\setmonofont{Latin Modern Mono}}{}%
+    \ifdefstring{\mem@fuenteCodigo}{cursor}{\setmonofont{TeX Gyre Cursor}}{}}
+\fi
+\ExplSyntaxOn
+\cs_new_protected:Npn \mem@verificarfuente #1 {
+  \tl_set:Nx \l_tmpa_tl {\use:c{mem@fuente#1}}
+  \regex_match:nVTF {\A propia-[a-f0-9]{16}\Z} \l_tmpa_tl
+    {\cs_if_exist:cF {mem@font@\l_tmpa_tl} {\ClassError{memoria}{Fuente~propia~no~disponible}{Prepara~LuaLaTeX~y~conserva~los~archivos~de~estilo/fuentes.}}} {}
+}
+\ExplSyntaxOff
+\mem@verificarfuente{Texto}
+\mem@verificarfuente{Titulos}
+\mem@verificarfuente{Capitulo}
+\mem@verificarfuente{Seccion}
+\mem@verificarfuente{Subseccion}
+\mem@verificarfuente{Codigo}
 \RequirePackage{microtype}
 
 \newcommand*{\mem@anexosname}{ANEXOS}
@@ -314,6 +528,7 @@
 \RequirePackage{geometry}
 \geometry{left=\mem@margenint, right=\mem@margenext,
           top=\mem@margensup, bottom=\mem@margeninf}
+\ifdefstring{\mem@papel}{personalizado}{\geometry{paperwidth=\mem@anchoPapel,paperheight=\mem@altoPapel}}{}
 \RequirePackage{setspace}
 \raggedbottom
 
@@ -330,14 +545,25 @@
 %% Párrafos
 % La indentación que precede al párrafo normal debe ser de un
 % cuadratín (1em) (-> 13.4.1.1)
-\setlength{\parindent}{1em}
+\setlength{\parindent}{\mem@sangriaParrafo}
+\setlength{\parskip}{\mem@espacioParrafo}
+\AtBeginDocument{%
+  \ifdefstring{\mem@alineacionParrafo}{izquierda}{\raggedright}{}%
+  \ifdefstring{\mem@alineacionParrafo}{centro}{\centering}{}%
+  \ifdefstring{\mem@alineacionParrafo}{derecha}{\raggedleft}{}}
 
 % El espacio en blanco al final de una línea corta debe ser mayor que
 % la indentación del párrafo. (-> 13.4.1.1)
 \setlength{\parfillskip}{1.5em plus 1fil}
 
 \RequirePackage[inline]{enumitem}
-\setlist{topsep=3pt, itemsep=1pt}
+\setlist{topsep=\mem@margenLista, itemsep=\mem@espacioLista}
+\ifdefstring{\mem@marcaLista}{punto}{\setlist[itemize,1]{label=\textbullet}}{}
+\ifdefstring{\mem@marcaLista}{guion}{\setlist[itemize,1]{label=--}}{}
+\ifdefstring{\mem@marcaLista}{cuadrado}{\setlist[itemize,1]{label=\rule{.5ex}{.5ex}}}{}
+\ifdefstring{\mem@marcaEnumeracion}{numero}{\setlist[enumerate,1]{label=\arabic*.}}{}
+\ifdefstring{\mem@marcaEnumeracion}{letra}{\setlist[enumerate,1]{label=\alph*)}}{}
+\ifdefstring{\mem@marcaEnumeracion}{romano}{\setlist[enumerate,1]{label=\roman*.}}{}
 
 %% -- GRÁFICOS Y COLORES ------------------------------------------------------
 % Las figuras deben ser PDF, PNG o JPG. Sin shell escape (Estudio TFG compila
@@ -358,7 +584,20 @@
 \AtBeginDocument{\setlength{\extrarowheight}{1pt}}
 
 %% -- LISTADOS DE CÓDIGO ------------------------------------------------------
+\newcommand{\mem@leyenda}[2]{%
+  \edef\mem@tmp{\noexpand\captionsetup[#2]{font={\csuse{mem@tamanoLeyenda#1}},skip=\csuse{mem@espacioLeyenda#1}}}\mem@tmp
+  \ifcsstring{mem@fuenteLeyenda#1}{sans}{\captionsetup[#2]{font+=sf}}{}%
+  \ifcsstring{mem@fuenteLeyenda#1}{codigo}{\captionsetup[#2]{font+=tt}}{}%
+  \ifcsstring{mem@alineacionLeyenda#1}{actual}{}{%
+    \captionsetup[#2]{singlelinecheck=false}%
+    \ifcsstring{mem@alineacionLeyenda#1}{izquierda}{\captionsetup[#2]{justification=raggedright}}{}%
+    \ifcsstring{mem@alineacionLeyenda#1}{centro}{\captionsetup[#2]{justification=centering}}{}%
+    \ifcsstring{mem@alineacionLeyenda#1}{derecha}{\captionsetup[#2]{justification=raggedleft}}{}%
+    \ifcsstring{mem@alineacionLeyenda#1}{justificada}{\captionsetup[#2]{justification=justified}}{}}}
+\mem@leyenda{Figura}{figure}
+\mem@leyenda{Tabla}{table}
 \RequirePackage{listings}
+\mem@leyenda{Codigo}{lstlisting}
 \lstset{%
   aboveskip          = 2mm,
   belowskip          = 2mm,
@@ -435,13 +674,49 @@
 \newcommand{\mem@silista}[2]{%
   \ifmem@hayaux\ifcsundef{mem@n@#1}{}{#2}\else#2\fi}
 \newcommand{\indices}{%
-  \tableofcontents
-  \mem@silista{lof}{\listoffigures}%
-  \mem@silista{lot}{\listoftables}%
-  \mem@silista{lol}{\lstlistoflistings}}
+  \ifdefstring{\mem@indiceGeneral}{si}{\tableofcontents}{}%
+  \ifdefstring{\mem@indiceFiguras}{si}{\mem@silista{lof}{\listoffigures}}{}%
+  \ifdefstring{\mem@indiceTablas}{si}{\mem@silista{lot}{\listoftables}}{}%
+  \ifdefstring{\mem@indiceCodigo}{si}{\mem@silista{lol}{\lstlistoflistings}}{}}
+\newcommand{\mem@profundidad}[2]{%
+  \ifdefstring{#2}{capitulos}{\setcounter{#1}{0}}{%
+    \ifdefstring{#2}{secciones}{\setcounter{#1}{1}}{\setcounter{#1}{2}}}}
 
 %% -- BIBLIOGRAFÍA (biblatex + biber) -----------------------------------------
 \RequirePackage[autostyle=true]{csquotes}
+% Las memorias desde cero pueden estar vacías. Se activa biblatex al añadir
+% referencias o un recurso externo; las plantillas existentes conservan su carga habitual.
+\newcommand*{\mem@bibopcional}{no}
+\newcommand{\bibliografiaOpcional}[1]{\mem@guardar{bibopcional}{\bibliografiaOpcional}{#1}{si,no}}
+\mem@leerdato{datos.tex}{bibliografiaOpcional}\mem@tmp
+\ifdefempty{\mem@tmp}{}{\expandafter\bibliografiaOpcional\expandafter{\mem@tmp}}
+\newif\ifmem@cargarbib
+\mem@cargarbibtrue
+\ExplSyntaxOn
+\mem@buscarbibs { \c_sys_jobname_str .tex }
+\seq_if_empty:NT \g_mem_bibs_seq
+  { \file_if_exist:nT { bibliografia.bib } { \seq_gput_right:Nn \g_mem_bibs_seq { bibliografia.bib } } }
+\ifdefstring{\mem@bibopcional}{si}{
+  \mem@cargarbibfalse
+  \seq_map_inline:Nn \g_mem_bibs_seq {
+    \file_if_exist:nT {#1}{
+      \ior_open:Nn \g__mem_ior {#1}
+      \ior_str_map_inline:Nn \g__mem_ior {
+        \regex_match:nnT { (?i) \A \s* @ \s* [a-z]+ \s* [\{\(] } {##1}
+          { \regex_match:nnF { (?i) \A \s* @ \s* (string|comment|preamble) \s* [\{\(] } {##1}
+              { \mem@cargarbibtrue \ior_map_break: } }
+      }
+      \ior_close:N \g__mem_ior
+    }
+  }
+  \ior_open:Nn \g__mem_ior { \c_sys_jobname_str .tex }
+  \ior_str_map_inline:Nn \g__mem_ior {
+    \regex_match:nnT { \A [^\%]*? \\addbibresource } {#1} { \mem@cargarbibtrue \ior_map_break: }
+  }
+  \ior_close:N \g__mem_ior
+}{}
+\ExplSyntaxOff
+\ifmem@cargarbib
 \RequirePackage[backend=biber, style=\mem@bibcargado, urldate=long,
   dateabbrev=false]{biblatex}
 % Textos en español: «consultado el 1 de junio de 2026», «Disponible en: …».
@@ -463,26 +738,61 @@
 % Archivos .bib: los de \bibliography{…} en el documento principal o, si no
 % hay ninguno, bibliografia.bib. No hace falta \addbibresource.
 \ExplSyntaxOn
-\mem@buscarbibs { \c_sys_jobname_str .tex }
-\seq_if_empty:NT \g_mem_bibs_seq
-  { \file_if_exist:nT { bibliografia.bib } { \seq_gput_right:Nn \g_mem_bibs_seq { bibliografia.bib } } }
 \seq_map_inline:Nn \g_mem_bibs_seq { \file_if_exist:nT {#1} { \addbibresource {#1} } }
 \ExplSyntaxOff
+\else
+\newcommand{\AtDataInput}[1]{}
+\newcommand{\printbibliography}[1][]{}
+\fi
 
 %% -- FORMATO DE CAPÍTULOS Y SECCIONES ----------------------------------------
 \RequirePackage[rigidchapters, clearempty, pagestyles]{titlesec}
 % - rigidchapters: Todos los títulos de capítulo tienen la misma altura
 % - clearempty: Elimina encabezados y pies de páginas (izquierdas) vacías.
 
-\newcommand{\chapterformat}[1]{%
-  \fontsize{22}{26}\selectfont\sffamily #1%
-}
+\newcommand{\mem@fuentetitulo}[1]{%
+  \normalfont
+  \ifcsstring{mem@alineacion#1}{centro}{\filcenter}{}%
+  \ifcsstring{mem@alineacion#1}{derecha}{\filright}{}%
+  \edef\mem@ft{\csuse{mem@fuente#1}}%
+  \ifdefstring{\mem@ft}{heredar}{\let\mem@ft\mem@fuenteTitulos}{}%
+  \ifLuaTeX
+    \ifdefstring{\mem@ft}{times}{\fontspec{TeX Gyre Termes}}{}%
+    \ifdefstring{\mem@ft}{latinmodern}{\fontspec{Latin Modern Roman}}{}%
+    \ifdefstring{\mem@ft}{palatino}{\fontspec{TeX Gyre Pagella}}{}%
+    \ifdefstring{\mem@ft}{heros}{\fontspec{TeX Gyre Heros}}{}%
+    \ifdefstring{\mem@ft}{schola}{\fontspec{TeX Gyre Schola}}{}%
+    \ifdefstring{\mem@ft}{bonum}{\fontspec{TeX Gyre Bonum}}{}%
+    \ifdefstring{\mem@ft}{adventor}{\fontspec{TeX Gyre Adventor}}{}%
+    \ifcsdef{mem@font@\mem@ft}{\csuse{mem@font@\mem@ft}}{}%
+  \fi
+  \ifdefstring{\mem@ft}{sans}{\sffamily}{}%
+  \ifLuaTeX\else
+  \ifdefstring{\mem@ft}{times}{\fontfamily{qtm}\selectfont}{}%
+  \ifdefstring{\mem@ft}{latinmodern}{\fontfamily{lmr}\selectfont}{}%
+  \ifdefstring{\mem@ft}{palatino}{\fontfamily{qpl}\selectfont}{}%
+  \ifdefstring{\mem@ft}{heros}{\fontfamily{qhv}\selectfont}{}%
+  \ifdefstring{\mem@ft}{schola}{\fontfamily{qcs}\selectfont}{}%
+  \ifdefstring{\mem@ft}{bonum}{\fontfamily{qbk}\selectfont}{}%
+  \ifdefstring{\mem@ft}{adventor}{\fontfamily{qag}\selectfont}{}%
+  \fi
+  \ifcsstring{mem@negrita#1}{si}{\bfseries}{}}
+\newcommand{\mem@estilotitulo}[1]{%
+  \mem@fuentetitulo{#1}%
+  \def\mem@extra{3}%
+  \ifstrequal{#1}{Capitulo}{\def\mem@extra{4}}{}%
+  \ifstrequal{#1}{Subseccion}{\def\mem@extra{2.5}}{}%
+  \fontsize{\csuse{mem@tamano#1}}{\fpeval{\csuse{mem@tamano#1} + \mem@extra}}\selectfont}
+\newcommand{\mem@cajatitulo}[2]{\ifcsstring{mem@mayusculas#1}{si}{\MakeUppercase{#2}}{#2}}
+\newcommand{\mem@cajaseccion}[1]{\mem@cajatitulo{Seccion}{#1}}
+\newcommand{\mem@cajasubseccion}[1]{\mem@cajatitulo{Subseccion}{#1}}
+\newcommand{\chapterformat}[1]{\mem@estilotitulo{Capitulo}\mem@cajatitulo{Capitulo}{#1}}
 
 % doc: \titleformat{ command }[ shape ]{ format }{ label }{ sep }{ before }[ after ]
 \titleformat{\section}
-  {\normalfont\fontsize{15.0pt}{18pt}\selectfont\bfseries}{\thesection}{.7em}{}
+  {\mem@estilotitulo{Seccion}}{\thesection}{.7em}{\mem@cajaseccion}
 \titleformat{\subsection}
-  {\normalfont\fontsize{13.5pt}{16pt}\selectfont\bfseries}{\thesubsection}{1em}{}
+  {\mem@estilotitulo{Subseccion}}{\thesubsection}{1em}{\mem@cajasubseccion}
 
 \newcommand{\frontchapterformat}{%
   \titleformat{\chapter}[display]%
@@ -496,24 +806,25 @@
 \let\frontmatterorig\frontmatter
 \renewcommand{\frontmatter}{%
   \frontmatterorig
-  \singlespacing
+  \ifdefstring{\mem@numeracionPaginas}{continua}{\pagenumbering{arabic}}{}%
+  \mem@aplicarinterlineado
   \pagestyle{mainstyle}%
   \frontchapterformat
 }
 
 \newcommand{\mainchapterformat}{%
   \titleformat{\chapter}[display]%
-    {\normalfont\large\sffamily}%
-    {\chaptertitlename\ \thechapter}%
+    {\mem@fuentetitulo{Capitulo}\large}%
+    {\mem@cajatitulo{Capitulo}{\chaptertitlename}\ \thechapter}%
     {0mm}%
     {\chapterformat}%
-  \titlespacing{\chapter}{0cm}{1cm}{3.8cm}%
+  \titlespacing{\chapter}{0cm}{\mem@antesCapitulo}{\mem@despuesCapitulo}%
 }
 
 \let\mainmatterorig\mainmatter
 \renewcommand{\mainmatter}{%
   \cleardoublepage
-  \mainmatterorig
+  \ifdefstring{\mem@numeracionPaginas}{continua}{\@mainmattertrue}{\mainmatterorig}%
   \mem@aplicarinterlineado
   \pagestyle{mainstyle}%
   \mainchapterformat
@@ -521,8 +832,8 @@
 
 % espaciado entre secciones, subseciones, etc.
 % doc: \titlespacing*{ command }{ left }{ beforesep }{ aftersep }[ right ]
-\titlespacing{\section}{0pt}{5mm}{0mm}
-\titlespacing{\subsection}{0pt}{4mm}{-1mm}
+\titlespacing{\section}{0pt}{\mem@antesSeccion}{\mem@despuesSeccion}
+\titlespacing{\subsection}{0pt}{\mem@antesSubseccion}{\mem@despuesSubseccion}
 \titlespacing{\subsubsection}{0pt}{4mm}{-1mm}
 
 %% -- ESTILO DE PÁGINA, ENCABEZADOS Y PIES ------------------------------------
@@ -538,6 +849,37 @@
   \sethead{}{}{}%
   \setfoot{}{\thepage{}}{}%
 }
+
+% Cada zona se limita a un tercio del ancho para evitar solapamientos.
+\newsavebox{\mem@cajacabecera}
+\newcommand{\mem@contenidozona}[1]{%
+  \ifcsstring{mem@#1}{capitulo}{\ifthechapter{\thechapter.\ }{}\chaptertitle}{}%
+  \ifcsstring{mem@#1}{seccion}{\sectiontitle}{}%
+  \ifcsstring{mem@#1}{pagina}{\thepage}{}%
+  \ifcsstring{mem@#1}{texto}{\csuse{mem@#1Texto}}{}}
+\newcommand{\mem@zona}[1]{%
+  \sbox{\mem@cajacabecera}{\strut\mem@contenidozona{#1}}%
+  \ifdim\wd\mem@cajacabecera>.30\textwidth
+    \resizebox{.30\textwidth}{!}{\usebox{\mem@cajacabecera}}%
+  \else\usebox{\mem@cajacabecera}\fi}
+\newcommand{\mem@cabecerapersonalizada}{%
+  \ifdefstring{\mem@reflejarCabeceras}{si}{%
+    \sethead[\mem@zona{cabeceraDerecha}][\mem@zona{cabeceraCentro}][\mem@zona{cabeceraIzquierda}]%
+      {\mem@zona{cabeceraIzquierda}}{\mem@zona{cabeceraCentro}}{\mem@zona{cabeceraDerecha}}%
+  }{\sethead{\mem@zona{cabeceraIzquierda}}{\mem@zona{cabeceraCentro}}{\mem@zona{cabeceraDerecha}}}}
+\newcommand{\mem@piepersonalizado}{%
+  \ifdefstring{\mem@reflejarCabeceras}{si}{%
+    \setfoot[\mem@zona{pieDerecha}][\mem@zona{pieCentro}][\mem@zona{pieIzquierda}]%
+      {\mem@zona{pieIzquierda}}{\mem@zona{pieCentro}}{\mem@zona{pieDerecha}}%
+  }{\setfoot{\mem@zona{pieIzquierda}}{\mem@zona{pieCentro}}{\mem@zona{pieDerecha}}}}
+\newcommand{\mem@personalizarpaginas}{%
+  \renewpagestyle{mainstyle}[\normalfont\small]{\mem@cabecerapersonalizada\mem@piepersonalizado}%
+  \newpagestyle{meminicio}[\normalfont\small]{%
+    \sethead{}{}{}%
+    \ifdefstring{\mem@cabeceraInicioCapitulo}{si}{\mem@cabecerapersonalizada}{}%
+    \mem@piepersonalizado}%
+  \assignpagestyle{\chapter}{meminicio}%
+  \renewpagestyle{backstyle}[\normalfont\small]{\sethead{}{}{}\mem@piepersonalizado}}
 
 \addtolength{\footskip}{8pt}
 
@@ -818,26 +1160,43 @@
     \makebox(0,0){\fontsize{7}{8}\selectfont\sffamily\color{gray}%
       \ifmem@ingles DRAFT\else BORRADOR\fi\ \textperiodcentered\ \today}}}
 
+% Permite cambiar las páginas iniciales sin alterar el documento principal.
+\InputIfFileExists{estilo/portadas.tex}{}{}
+\let\mem@portadaoriginal\portada
+\renewcommand{\portada}{\ifdefstring{\mem@mostrarportada}{no}{}{%
+  \ifcsdef{portadaExteriorPersonalizada}{\portadaExteriorPersonalizada}{\mem@portadaoriginal}}}
+\let\mem@interiororiginal\portadainterior
+\renewcommand{\portadainterior}{\ifdefstring{\mem@mostrarinterior}{no}{}{%
+  \ifcsdef{portadaInteriorPersonalizada}{\portadaInteriorPersonalizada}{\mem@interiororiginal}}}
+\let\mem@derechosoriginal\paginaderechos
+\renewcommand{\paginaderechos}{\ifdefstring{\mem@mostrarderechos}{no}{}{\mem@derechosoriginal}}
+\let\mem@tribunaloriginal\tribunal
+\renewcommand{\tribunal}{\ifdefstring{\mem@mostrartribunal}{no}{}{\mem@tribunaloriginal}}
+
 %% -- APLICAR \idioma, \formato Y LOS DATOS -----------------------------------
 % datos.tex se lee después de \documentclass, así que estos ajustes se
 % aplican al final del preámbulo (justo antes de \begin{document}).
 \AddToHook{begindocument/before}{%
   \mem@aplicarbanderas
+  \mem@profundidad{secnumdepth}{\mem@numerarHasta}%
+  \mem@profundidad{tocdepth}{\mem@indiceHasta}%
   \ifdefequal{\mem@bibestilo}{\mem@bibcargado}{}{%
     \ClassWarning{memoria}{\string\estiloBibliografia\space solo tiene efecto
       en datos.tex; se usa el estilo \mem@bibcargado}}%
   \ifmem@pantalla
-    % Una cara, márgenes simétricos, sin páginas en blanco, enlaces en color.
-    \geometry{twoside=false,
-      left=\dimexpr(\mem@margenint+\mem@margenext)/2\relax,
-      right=\dimexpr(\mem@margenint+\mem@margenext)/2\relax}%
-    \@twosidefalse\@mparswitchfalse\@openrightfalse
+    % Se conserva el comportamiento anterior si no se elige un número de caras.
+    \ifdefstring{\mem@caras}{automatico}{%
+      \geometry{twoside=false,
+        left=\dimexpr(\mem@margenint+\mem@margenext)/2\relax,
+        right=\dimexpr(\mem@margenint+\mem@margenext)/2\relax}%
+      \@twosidefalse\@mparswitchfalse\@openrightfalse}{}%
     \hypersetup{linkcolor=memenlace, citecolor=memenlace, urlcolor=memenlace}%
     \renewpagestyle{mainstyle}[\small]{%
       \sethead{\ifthechapter{\thechapter.\ }{}\textsc{\chaptertitle}}{}%
               {\textsc{\sectiontitle}}%
       \setfoot{}{\thepage{}}{}}%
   \fi
+  \ifdefstring{\mem@estiloPagina}{personalizado}{\mem@personalizarpaginas}{}%
   \mem@calculartextos
   \hypersetup{
     pdftitle    = {\mem@titulo},

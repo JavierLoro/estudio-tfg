@@ -1,3 +1,5 @@
+import type { StyleProfile } from '../../shared/estilo.ts';
+
 // Cliente tipado de la API (ver docs/CONTRACT.md).
 
 export type Root = 'notes' | 'memoria';
@@ -41,6 +43,11 @@ export interface SettingsResponse {
   allowedRoots: string[];
   checks: SettingsCheck[];
 }
+export interface ProyectoPropio {
+  archivos: { path: string; principal: boolean; compatible: boolean }[];
+  principal: string | null;
+  id?: string;
+}
 
 export interface EngineHealth {
   ok: boolean;
@@ -52,7 +59,7 @@ export interface EngineHealth {
 export interface EnginesResponse {
   docker: EngineHealth;
   local: EngineHealth & {
-    tools: Record<'latexmk' | 'biber' | 'pdflatex' | 'rsvg', { path: string | null; version: string | null }>;
+    tools: Record<'latexmk' | 'biber' | 'pdflatex' | 'lualatex' | 'rsvg', { path: string | null; version: string | null }>;
     warnings: string[];
   };
 }
@@ -95,6 +102,24 @@ export interface SaveResponse {
   rev: string;
   mtime: number;
 }
+
+export interface ImportedFile {
+  root: Root;
+  path: string;
+  rev: string;
+  reused: boolean;
+}
+
+export interface LibraryMapNode {
+  id: string;
+  parent: string | null;
+  title: string;
+  note: string;
+  resourceId?: string;
+}
+export interface LibraryMapLink { id: string; from: string; to: string; label: string }
+export interface LibraryMap { version: 1; nodes: LibraryMapNode[]; links: LibraryMapLink[] }
+export interface LibraryMapResponse { libraryId: string; map: LibraryMap; rev: string; exists: boolean }
 
 export interface Backlink {
   path: string;
@@ -217,6 +242,7 @@ export interface OutlineResponse {
   generatedAt: string;
   /** Problemas de estructura (archivos que faltan, ciclos…), si el servidor los da. */
   warnings?: string[];
+  revisions?: Record<string, string>;
 }
 
 // ---- Autocompletado (v0.8): GET /api/memoria/refs ----
@@ -249,7 +275,21 @@ export interface RefsResponse {
   acronimos: RefAcronimo[];
 }
 
-export type NewSectionKind = 'chapter' | 'section' | 'appendix';
+export type NewSectionKind = 'chapter' | 'section' | 'subsection' | 'appendix';
+
+export type SectionAction = 'rename' | 'up' | 'down' | 'promote' | 'demote' | 'toggle';
+export interface EditSectionRequest {
+  id: string;
+  action: SectionAction;
+  title?: string;
+  baseRev: Record<string, string>;
+}
+export interface EditSectionResponse {
+  outline: OutlineResponse;
+  file: string;
+  line: number;
+  changed: string;
+}
 
 export interface NewSectionRequest {
   kind: NewSectionKind;
@@ -335,6 +375,10 @@ export interface DatosChanges {
   datos?: Record<string, string>;
   institucion?: Record<string, string>;
 }
+
+export interface PortadasResponse { config: import('../../shared/portadas.ts').PortadasConfig; baseRev: string }
+export type { NuevaMemoriaConfig } from '../../shared/nueva-memoria.ts';
+import type { NuevaMemoriaConfig } from '../../shared/nueva-memoria.ts';
 
 export interface Perfil {
   id: string;
@@ -556,11 +600,17 @@ export const api = {
   readFile: (root: Root, path: string) => json<FileResponse>(`/api/file?${qs({ root, path })}`),
 
   /** Lanza ConflictError en 409. */
-  saveFile: (root: Root, path: string, content: string, baseRev: string) =>
-    json<SaveResponse>('/api/file', jsonBody('PUT', { root, path, content, baseRev })),
+  saveFile: (root: Root, path: string, content: string, baseRev: string, instanceId?: string) =>
+    json<SaveResponse>('/api/file', jsonBody('PUT', { root, path, content, baseRev, instanceId })),
 
-  createFile: (root: Root, path: string, content: string) =>
-    json<SaveResponse>('/api/file', jsonBody('POST', { root, path, content })),
+  createFile: (root: Root, path: string, content: string, instanceId?: string) =>
+    json<SaveResponse>('/api/file', jsonBody('POST', { root, path, content, instanceId })),
+
+  importFile: (root: Root, directory: string, instanceId: string, file: File) => {
+    const body = new FormData();
+    body.set('file', file, file.name);
+    return json<ImportedFile>(`/api/files/import?${qs({ root, directory, instanceId })}`, { method: 'POST', body });
+  },
 
   /** v0.7: crea una carpeta (con intermedias). 409 si ya existe. */
   createDir: (root: Root, path: string) => json<{ path: string }>('/api/dir', jsonBody('POST', { root, path })),
@@ -584,6 +634,10 @@ export const api = {
   backlinks: (path: string) => json<{ items: Backlink[] }>(`/api/notes/backlinks?${qs({ path })}`),
 
   capture: (form: FormData) => json<{ path: string; title: string; id?: string; warning?: string }>('/api/capture', { method: 'POST', body: form }),
+
+  libraryMap: () => json<LibraryMapResponse>('/api/library/map'),
+  saveLibraryMap: (libraryId: string, baseRev: string, map: LibraryMap) =>
+    json<LibraryMapResponse>('/api/library/map', jsonBody('PUT', { libraryId, baseRev, map })),
 
   captureOperation: (operationId: string, libraryId: string) =>
     json<{ state: 'unknown' | 'prepared' | 'done' }>(`/api/capture/operation?${qs({ operationId, libraryId })}`),
@@ -642,9 +696,15 @@ export const api = {
     }
   },
 
+  editSection: (body: EditSectionRequest) => json<EditSectionResponse>('/api/memoria/sections/edit', jsonBody('POST', body)),
+
   // ---- Datos del trabajo (v0.5) ----
 
+  estilo: () => json<StyleProfile>('/api/memoria/estilo'),
+  saveEstilo: (valores: Record<string,string>, baseRev: string) => json<DatosResponse>('/api/memoria/estilo', jsonBody('PUT', {valores,baseRev})),
   datos: () => json<DatosResponse>('/api/memoria/datos'),
+  portadas: () => json<PortadasResponse>('/api/memoria/portadas'),
+  savePortadas: (body: PortadasResponse) => json<PortadasResponse>('/api/memoria/portadas', jsonBody('PUT', body)),
 
   /** Lanza DatosConflictError (409), FieldError (400 con `field`) o ApiError. */
   saveDatos: async (changes: DatosChanges, baseRev: { datos?: string; institucion?: string }) => {
@@ -676,6 +736,15 @@ export const api = {
   },
 
   // ---- Actualizar plantilla (v0.6) ----
+  normativaText: async (id: string) => (await request(`/api/assistant/template-generations/${encodeURIComponent(id)}/source`)).text(),
+  inspeccionarProyecto: (dir: string) => json<ProyectoPropio>('/api/templates/inspect', jsonBody('POST', { dir })),
+  subirPlantilla: (file: File) => {
+    const body = new FormData();
+    body.append('file', file);
+    return json<ProyectoPropio>('/api/templates/upload', { method: 'POST', body });
+  },
+  descartarPlantilla: (id: string) => json<{ ok: boolean }>(`/api/templates/uploads/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  usarPlantilla: (body: { dir: string; main: string; id?: string }) => json<SettingsResponse>('/api/templates/use', jsonBody('POST', body)),
 
   /** null si el servidor aún no lo ofrece (404). */
   plantilla: async (perfil?: string): Promise<PlantillaPreview | null> => {
@@ -725,9 +794,9 @@ export const api = {
   fsDirs: (path?: string) => guarded(json<FsDirsResponse>(`/api/fs/dirs?${qs({ path: path || undefined })}`)),
 
   /** 409 si la carpeta existe y no está vacía. */
-  initMemoria: async (dir: string, perfil?: string) => {
+  initMemoria: async (dir: string, perfil?: string, configuracion?: NuevaMemoriaConfig) => {
     try {
-      return await guarded(json<Partial<SettingsResponse> & { warning?: string }>('/api/settings/init-memoria', jsonBody('POST', perfil ? { dir, perfil } : { dir })));
+      return await guarded(json<Partial<SettingsResponse> & { warning?: string }>('/api/settings/init-memoria', jsonBody('POST', { dir, perfil, configuracion })));
     } catch (e) {
       if (e instanceof ApiError && e.status === 409 && !(e instanceof ConflictError)) {
         throw new ApiError(409, e.message && e.message !== 'HTTP 409' ? e.message : 'La carpeta no está vacía', e.body);
@@ -765,6 +834,7 @@ export interface DiagramaEstado {
 
 /** Elemento de GET /api/diagramas/estado sin `path`. */
 export interface DiagramaItem extends DiagramaEstado {
+  formato: 'mermaid' | 'excalidraw';
   path: string;
   /** `diagramas/<nombre>` (lo que va en \includegraphics). */
   nombre: string;
@@ -775,6 +845,6 @@ export const diagramasApi = {
   estado: (path: string) => json<DiagramaEstado>(`/api/diagramas/estado?${qs({ path })}`),
   lista: () => json<{ items: DiagramaItem[] }>('/api/diagramas/estado'),
   /** ApiError 409 si la fuente cambió desde `rev` (body.rev = la actual). */
-  exportar: (path: string, svg: string, rev: string, pdf?: string) =>
-    json<{ pdf: string; svg: string; exportadoEn: string }>('/api/diagramas/exportar', jsonBody('POST', { path, svg, rev, pdf })),
+  exportar: (path: string, svg: string, rev: string, pdf?: string, instanceId?: string) =>
+    json<{ pdf: string; svg: string; exportadoEn: string }>('/api/diagramas/exportar', jsonBody('POST', { path, svg, rev, pdf, instanceId })),
 };

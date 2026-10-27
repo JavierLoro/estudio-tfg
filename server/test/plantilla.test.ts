@@ -5,7 +5,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../src/app.ts';
 import { REPO_ROOT, loadConfig, type Config } from '../src/config.ts';
-import { GIT_IDENTITY, copyTemplate, manifestProblems, sha256 } from '../../scripts/memoria-template.mjs';
+import { GIT_IDENTITY, PLANTILLA_VERSION, copyTemplate, manifestProblems, sha256 } from '../../scripts/memoria-template.mjs';
 
 // Plantilla v0.3 tal como quedó en el repo (templates/esi-tfg/ en 2529624).
 const V03_COMMIT = '2529624';
@@ -101,7 +101,7 @@ describe('GET /api/memoria/plantilla (vista previa)', () => {
     await boot(writeV03);
     const before = await snapshot();
     const p = await preview();
-    expect(p).toMatchObject({ estado: 'desactualizada', versionMemoria: 'v0.3', versionPlantilla: 'v0.5', perfil: 'esi-uclm', revisar: [] });
+    expect(p).toMatchObject({ estado: 'desactualizada', versionMemoria: 'v0.3', versionPlantilla: PLANTILLA_VERSION, perfil: 'esi-uclm', revisar: [] });
     const acc = Object.fromEntries(p.cambios.map((c: any) => [c.archivo, c.accion]));
     expect(acc).toEqual({
       'tfg.tex': 'editar',
@@ -110,6 +110,7 @@ describe('GET /api/memoria/plantilla (vista previa)', () => {
       'estilo/institucion.tex': 'crear',
       'datos.tex': 'editar',
       '0-inicio/abstract.tex': 'sustituir',
+      '0-inicio/agradecimientos.tex': 'sustituir',
       '0-inicio/acronimos.tex': 'sustituir',
       '0-inicio/resumen.tex': 'sustituir',
       'LEEME.md': 'sustituir',
@@ -173,7 +174,7 @@ describe('GET /api/memoria/plantilla (vista previa)', () => {
     expect(datos).toMatch(/^\\atribucion\{si\}/m);
 
     // Ya está al día.
-    expect(await preview()).toMatchObject({ estado: 'actual', versionMemoria: 'v0.5', cambios: [] });
+    expect(await preview()).toMatchObject({ estado: 'actual', versionMemoria: PLANTILLA_VERSION, cambios: [] });
     // El historial guarda la copia anterior de cada archivo afectado.
     const hist = path.join(cfg.historyDir, 'memoria', 'estilo', 'esi-tfg.cls');
     expect((await fs.readdir(hist)).length).toBe(1);
@@ -238,8 +239,8 @@ describe('GET /api/memoria/plantilla (vista previa)', () => {
     await boot((d) => copyTemplate(d));
     expect(await preview()).toEqual({
       estado: 'actual',
-      versionMemoria: 'v0.5',
-      versionPlantilla: 'v0.5',
+      versionMemoria: PLANTILLA_VERSION,
+      versionPlantilla: PLANTILLA_VERSION,
       perfil: 'esi-uclm',
       cambios: [],
       revisar: [],
@@ -251,6 +252,31 @@ describe('GET /api/memoria/plantilla (vista previa)', () => {
   it('(c) perfil genérico deducido (sin logo de la ESI)', async () => {
     await boot((d) => copyTemplate(d, { perfil: 'generico' }));
     expect(await preview()).toMatchObject({ estado: 'actual', perfil: 'generico', cambios: [] });
+  });
+
+  it('reconoce v0.5 y actualiza el formato sin pisar el resumen ni el estilo bibliográfico del usuario', async () => {
+    await boot(async (d) => {
+      copyTemplate(d);
+      for (const rel of ['estilo/memoria.cls', '0-inicio/resumen.tex', '0-inicio/abstract.tex', '0-inicio/agradecimientos.tex', 'LEEME.md', 'datos.tex', 'tfg.tex', 'estilo/institucion.tex']) {
+        const source = ['datos.tex', 'tfg.tex', 'estilo/institucion.tex'].includes(rel) ? `templates/perfiles/esi-uclm/${rel}` : `templates/base/${rel}`;
+        await fs.writeFile(path.join(d, rel), execFileSync('git', ['show', `4fe8841:${source}`], { cwd: REPO_ROOT }));
+      }
+      await fs.appendFile(path.join(d, '0-inicio/resumen.tex'), '\nResumen propio del estudiante.\n');
+    });
+    const resumen = await read('0-inicio/resumen.tex');
+    const datos = await read('datos.tex');
+    const principal = await read('tfg.tex');
+    const institucion = await read('estilo/institucion.tex');
+    const p = await preview();
+    expect(p).toMatchObject({ estado: 'desactualizada', versionMemoria: 'v0.5', versionPlantilla: PLANTILLA_VERSION });
+    expect(p.cambios).toContainEqual(expect.objectContaining({ archivo: 'estilo/memoria.cls', accion: 'sustituir' }));
+    expect(p.cambios.map((c: any) => c.archivo)).not.toContain('0-inicio/resumen.tex');
+    expect((await actualizar({ perfil: p.perfil, cambios: p.cambios })).statusCode).toBe(200);
+    expect(await read('0-inicio/resumen.tex')).toBe(resumen);
+    expect(await read('datos.tex')).toBe(datos);
+    expect(await read('tfg.tex')).toBe(principal);
+    expect(await read('estilo/institucion.tex')).toBe(institucion);
+    expect(await read('estilo/memoria.cls')).toContain('v3.1');
   });
 
   it('(d) clase desconocida: no se ofrece actualizar', async () => {
@@ -329,7 +355,7 @@ describe('git y deshacer', () => {
     const { commit } = r.json();
     expect(commit).toMatch(/^[0-9a-f]{40}$/);
     expect(git('rev-parse', 'HEAD').trim()).toBe(commit);
-    expect(git('log', '-1', '--format=%s')).toBe('Actualizar plantilla a v0.5\n');
+    expect(git('log', '-1', '--format=%s')).toBe(`Actualizar plantilla a ${PLANTILLA_VERSION}\n`);
     const enCommit = git('show', '--name-only', '--format=', 'HEAD').split('\n').filter(Boolean).sort();
     expect(enCommit).toEqual(p.cambios.map((c: any) => c.archivo).sort());
 
@@ -357,7 +383,7 @@ describe('git y deshacer', () => {
     expect(body.restaurados.sort()).toEqual(p.cambios.map((c: any) => c.archivo).sort());
     expect(body.commit).toMatch(/^[0-9a-f]{40}$/);
     expect(await snapshot()).toEqual(before);
-    expect(git('log', '--format=%s').split('\n').slice(0, 2)).toEqual(['Deshacer la actualización de la plantilla a v0.5', 'Actualizar plantilla a v0.5']);
+    expect(git('log', '--format=%s').split('\n').slice(0, 2)).toEqual([`Deshacer la actualización de la plantilla a ${PLANTILLA_VERSION}`, `Actualizar plantilla a ${PLANTILLA_VERSION}`]);
     expect(git('diff', '--stat', head0, 'HEAD')).toBe('');
     expect(git('status', '--porcelain')).toBe(' M 1-capitulos/03-antecedentes.tex\n');
     expect((await preview()).estado).toBe('desactualizada');

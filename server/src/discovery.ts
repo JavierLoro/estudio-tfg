@@ -58,9 +58,16 @@ const explain = (c: SearchCandidate) => c.explanation ? `Para qué sirve: ${c.ex
 export async function discoveryRoutes(app: FastifyInstance, ctx: Ctx, provider: AssistantProvider, context: ProjectContext) {
   const dir = () => path.join(ctx.cfg.dataDir, 'discovery', context.project(), hash(context.account()));
   const file = (id: string) => { if (!UUID.test(id)) throw badRequest('Búsqueda no válida'); return path.join(dir(), id + '.json'); };
-  const jobs = new Map<string, AbortController>(), running = new Set<Promise<void>>();
+  const jobs = new Map<string, AbortController>(), running = new Map<string, Promise<void>>();
   const check = (r: Stored) => { if (r.account !== context.account() || r.project !== context.project() || r.library !== libraryId(ctx.cfg)) throw new HttpError(409, 'La búsqueda pertenece a otra cuenta o proyecto'); };
-  const read = async (id: string): Promise<Stored> => { try { const r = await readPrivate(file(id)); check(r); return r; } catch (e: any) { if (e.code === 'ENOENT') throw new HttpError(404, 'Búsqueda no encontrada'); throw e; } };
+  const read = async (id: string): Promise<Stored> => {
+    try {
+      let r: Stored = await readPrivate(file(id));
+      // No anunciar el final mientras esa búsqueda siga ocupando el trabajo activo.
+      if (r.state !== 'running' && running.has(id)) { await running.get(id); r = await readPrivate(file(id)); }
+      check(r); return r;
+    } catch (e: any) { if (e.code === 'ENOENT') throw new HttpError(404, 'Búsqueda no encontrada'); throw e; }
+  };
   const visible = (r: Stored): SearchRun => { const { intents, ...value } = r; return { ...value, rev: hash(r) }; };
   const mutate = async <T>(id: string, expected: unknown, fn: (r: Stored) => T | Promise<T>, location = file(id)) => ctx.locks.run('discovery:' + location, async () => {
     const r: Stored = await readPrivate(location);
@@ -72,7 +79,7 @@ export async function discoveryRoutes(app: FastifyInstance, ctx: Ctx, provider: 
   const revision = (body: any) => { if (body?.project !== context.project()) throw new HttpError(409, 'El proyecto cambió'); if (!/^[a-f0-9]{16}$/.test(body?.baseRev)) throw badRequest('Falta la revisión de la búsqueda'); };
   const cancel = () => { for (const c of jobs.values()) c.abort(); };
   const unsubscribe = provider.subscribe(cancel); ctx.bus.on('settings', cancel); ctx.bus.on('project-context', cancel);
-  app.addHook('preClose', async () => { cancel(); await Promise.allSettled(running); });
+  app.addHook('preClose', async () => { cancel(); await Promise.allSettled(running.values()); });
   app.addHook('onClose', async () => { unsubscribe(); ctx.bus.off('settings', cancel); ctx.bus.off('project-context', cancel); });
   const guard = async (r: Stored, signal: AbortSignal) => { signal.throwIfAborted(); check(r); await context.grant('search'); if (r.context) await context.authorizeSnapshot(r.context); signal.throwIfAborted(); };
   const request = async (r: Stored, part: string, input: string, tools: any[], signal: AbortSignal, location: string) => {
@@ -159,7 +166,7 @@ export async function discoveryRoutes(app: FastifyInstance, ctx: Ctx, provider: 
         finally { jobs.delete(r.id); }
       }
     })();
-    running.add(task); void task.finally(() => running.delete(task)).catch(() => {});
+    running.set(r.id, task); void task.finally(() => running.delete(r.id)).catch(() => {});
   };
   const route = (method: 'GET' | 'POST', url: string, fn: (req: any) => Promise<unknown>) => app.route({ method, url: '/api/assistant' + url, preHandler: async req => requireAdmin(req, ctx.cfg), handler: fn });
   const preference = async () => {

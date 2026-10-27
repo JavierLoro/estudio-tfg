@@ -4,11 +4,9 @@
 
 <h1 align="center">Estudio TFG</h1>
 
-<p align="center"><strong>Tu TFG, de las primeras notas al PDF final.</strong></p>
-
 <p align="center">
-  Memoria, apuntes, bibliografía y diagramas en un mismo espacio.<br>
-  Conecta lo que investigas con lo que escribes, con tus archivos en tu equipo.
+  Escribe la memoria en LaTeX con el PDF al lado, consulta tus notas de Obsidian<br>
+  y organiza fuentes y diagramas para incorporarlos al documento. Tus archivos viven en tu equipo.
 </p>
 
 <p align="center">
@@ -24,12 +22,6 @@
 
 [![Memoria en modo Visual junto al PDF del proyecto de demostración](docs/imagenes/memoria-visual.png)](docs/imagenes/memoria-visual.png)
 
-<p align="center"><sub>Redacta en Visual o Código y consulta el PDF a la derecha. Pulsa cualquier captura para ampliarla.</sub></p>
-
-| A tu ritmo | Con tus herramientas | En tu equipo |
-| --- | --- | --- |
-| De la primera lectura a la entrega de la memoria. | LaTeX, Markdown de Obsidian, BibTeX y Mermaid. | Compilación local y asistente opcional con tu cuenta de ChatGPT. |
-
 ## Un recorrido por Estudio TFG
 
 Las capturas muestran un **proyecto ficticio sobre movilidad ciclista en un campus**. Los documentos, las referencias y el PDF son de demostración; la búsqueda utiliza un proveedor simulado. [Detalles de las capturas](docs/imagenes/README.md).
@@ -44,17 +36,24 @@ Abre tus apuntes de Obsidian, sigue sus enlaces y recupera una idea mientras red
 
 [![Multivista en tema oscuro con la memoria y una nota de diagnóstico abiertas en paralelo](docs/imagenes/multivista-notas.png)](docs/imagenes/multivista-notas.png)
 
-### Convierte las lecturas en fuentes que puedas utilizar
+### Importa archivos y conecta ideas
 
-Reúne artículos, libros, documentos, imágenes y webs en **Biblioteca**. Consulta sus datos, agrupa por colecciones y distingue lo revisado de lo pendiente. Importa BibTeX, RIS o DOI y lleva citas y figuras a la memoria.
+Arrastra archivos a la app o pulsa **Importar archivos** y elige Biblioteca, Memoria o Notas. Si los sueltas sobre una carpeta, se preselecciona ese destino; en un editor LaTeX o Markdown, puedes insertar figuras o enlaces según el formato. Los originales se conservan y los nombres ocupados se resuelven sin sobrescribir.
+
+En **Biblioteca**, reúne artículos, documentos, imágenes y webs, e importa referencias BibTeX, RIS o DOI. El **Mapa de contenidos** organiza temas con nodos internos y vínculos a esas fichas. Desde cada nodo puedes llevar citas, figuras, notas y enlaces a la memoria. Quitar una rama conserva sus recursos y las copias ya incorporadas. [Cómo organizar Biblioteca](docs/BIBLIOTECA.md#organizar-contenidos-en-un-mapa).
 
 [![Biblioteca con recursos de distintos tipos y la ficha de consulta de un artículo simulado](docs/imagenes/biblioteca.png)](docs/imagenes/biblioteca.png)
 
 ### Dale forma a una idea antes de explicarla
 
-Crea flujos, secuencias, mapas mentales y cronologías entre **quince tipos de diagrama**. Combina controles visuales, formularios y código Mermaid; después exporta en PDF vectorial e inserta la figura en la memoria.
+En **Nuevo diagrama**, elige el editor:
 
-[![Editor de diagramas con el recorrido del proyecto de demostración](docs/imagenes/diagramas.png)](docs/imagenes/diagramas.png)
+- **Mermaid:** quince tipos de diagrama, con controles visuales, formularios y código. Exporta PDF vectorial.
+- **Excalidraw:** lienzo en blanco y seis plantillas con elementos editables, para dibujar y añadir imágenes sin Internet. Exporta SVG y PDF como imagen a **300 ppp**; el texto de ese PDF no es seleccionable.
+
+Ambos permiten **insertar la figura en la memoria** eligiendo apartado, pie y ancho, y conservan la fuente editable. Los diagramas de Biblioteca se copian a Memoria sin modificar el original. [Uso, guardado y límites](docs/README.md#diagramas).
+
+[![El mismo flujo en Mermaid, a la izquierda, y Excalidraw, a la derecha](docs/imagenes/comparacion-diagramas.png)](docs/imagenes/comparacion-diagramas.png)
 
 ### Encuentra fuentes y decide qué incorporar
 
@@ -70,7 +69,7 @@ En **Buscar con asistente**, describe lo que necesitas y revisa los candidatos a
 
 ## Tus archivos, tu forma de trabajar
 
-Tu memoria y tus notas viven en las carpetas que eliges. LaTeX, Markdown, BibTeX y Mermaid permiten seguir utilizando tus documentos con otras herramientas.
+Tu memoria y tus notas viven en las carpetas que eliges: fuentes LaTeX, notas Markdown, referencias BibTeX y diagramas Mermaid o Excalidraw. Conserva la memoria completa, con sus figuras y fuentes editables, para trasladarla y compilarla sin depender de la Biblioteca original.
 
 La compilación del PDF se realiza localmente y puede funcionar sin conexión una vez preparado el motor. Si conectas el asistente, las consultas y fuentes que autorices se envían a OpenAI.
 
@@ -102,7 +101,8 @@ Las versiones actuales se distribuyen sin firma digital ni notarización y puede
 1. **Elige tus carpetas.** Usa un vault de Obsidian existente o crea notas nuevas. Selecciona también dónde guardar la memoria.
 2. **Prepara el documento.** Crea una memoria desde una plantilla y completa título, autor y tutor en **Datos del trabajo**.
 3. **Redacta.** Abre un capítulo y elige Visual o Código. Guarda y pulsa **Compilar** para actualizar el PDF de la derecha.
-4. **Añade tus fuentes.** En **Biblioteca**, incorpora documentos, imágenes, webs o referencias. Revisa sus datos e inserta citas y figuras en la memoria.
+4. **Añade tus fuentes.** En **Biblioteca**, añade documentos, imágenes, webs y referencias. Revisa sus datos, organízalos en el Mapa de contenidos e inserta citas, figuras, notas y enlaces en la memoria.
+5. **Crea tus diagramas.** En **Nuevo diagrama**, elige Mermaid o Excalidraw, edita y pulsa **Insertar en la memoria**. La figura y su fuente editable quedan en el proyecto.
 
 Las carpetas y el motor se pueden cambiar desde **Ajustes**. [Consulta la guía de uso completa](docs/README.md#qué-puedes-hacer).
 
@@ -160,3 +160,9 @@ Consulta las notas de cada release para conocer su alcance y la [hoja de ruta](d
 ¿Quieres contribuir? Empieza por la [guía técnica](docs/README.md#contribuir), las [reglas del repositorio](AGENTS.md) y la [especificación del producto](docs/CONTRACT.md).
 
 Estudio TFG se distribuye bajo [AGPL-3.0](LICENSE). La plantilla conserva la licencia y atribución de su base ARCO; los [créditos y componentes de terceros](docs/README.md#licencia) están en la guía técnica.
+
+### Configuración de plantillas
+
+Ajustes → Plantillas permite crear desde cero, usar un perfil incluido o abrir una plantilla propia desde carpeta o ZIP. La configuración manual incluye portadas, idioma, tipografía, títulos, índices y paginación. El ZIP conserva su clase y recursos; requiere una carpeta nueva y admite hasta 50 MB comprimidos, 200 MB extraídos y 5000 entradas. Los controles visuales dependen de la compatibilidad de la clase.
+
+En escritorio, **Crear desde normativa…** usa tu cuenta de ChatGPT para proponer estos mismos ajustes a partir de un PDF o texto. Muestra citas, dudas y limitaciones antes de revisar y crear una memoria nueva. Consulta la [guía del asistente](docs/ASISTENTE.md#crear-una-plantilla-desde-normativa).

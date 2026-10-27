@@ -12,6 +12,7 @@ async function output(t) {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'estudio-tfg-ci-test-'));
   await fs.mkdir(path.join(dir, 'prueba'));
   await fs.writeFile(path.join(dir, good.pdf), '%PDF-1.7\nFicticio');
+  await fs.writeFile(path.join(dir, 'prueba/main.log'), 'Registro ficticio sin avisos.\n');
   t.after(() => fs.rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }));
   return dir;
 }
@@ -25,6 +26,11 @@ test('CI exige éxito, PDF real y cero diagnósticos de LaTeX y biber', async (t
   for (const body of [{ ...good, ok: false }, { ...good, ok: 'true' }, { ...good, diagnostics: undefined }]) {
     await assert.rejects(checkTemplateResult(body, dir), /no terminó/);
   }
+  for (const warning of ['LaTeX Font Warning: Font shape indefinida', 'Missing character: Letra ausente']) {
+    await fs.writeFile(path.join(dir, 'prueba/main.log'), warning);
+    await assert.rejects(checkTemplateResult(good, dir), /avisos de fuentes/);
+  }
+  await fs.writeFile(path.join(dir, 'prueba/main.log'), 'Sin avisos.');
   await fs.writeFile(path.join(dir, good.pdf), 'No es un PDF');
   await assert.rejects(checkTemplateResult(good, dir), /PDF válido/);
 });
@@ -40,9 +46,10 @@ test('CI rechaza rutas de artefactos fuera de la carpeta de compilación', async
 });
 
 for (const warnings of [false, true]) {
-  test(`CI envía ambos perfiles al worker y conserva sus resultados (avisos=${warnings})`, async (t) => {
+  test(`CI envía perfiles en ambos idiomas y variantes tipográficas (avisos=${warnings})`, async (t) => {
     const dir = await output(t);
     let requests = 0;
+    const idiomas = [];
     const server = http.createServer(async (req, res) => {
       if (req.url === '/health') { res.end('{}'); return; }
       assert.equal(req.url, '/compile');
@@ -53,6 +60,27 @@ for (const warnings of [false, true]) {
       const tar = Buffer.concat(chunks);
       assert.ok(tar.includes(Buffer.from('tfg.tex')));
       assert.ok(tar.includes(Buffer.from('estilo/memoria.cls')));
+      if (requests >= 4 && requests < 11) {
+        const font = ['times', 'latinmodern', 'palatino', 'heros', 'schola', 'bonum', 'adventor'][requests - 4];
+        const title = { times: 'palatino', latinmodern: 'times', palatino: 'latinmodern', heros: 'heros' }[font] || font;
+        assert.ok(tar.includes(Buffer.from(`\\fuenteTexto{${font}}\n\\fuenteTitulos{${title}}`)));
+      }
+      if (requests >= 11 && requests < 15) {
+        const numeracion = requests < 13 ? 'romanos' : 'continua';
+        const reflejo = (requests - 11) % 2 === 0 ? 'si' : 'no';
+        assert.ok(tar.includes(Buffer.from(`\\numeracionPaginas{${numeracion}}\n\\estiloPagina{personalizado}`)));
+        assert.ok(tar.includes(Buffer.from(`\\reflejarCabeceras{${reflejo}}`)));
+        assert.ok(tar.includes(Buffer.from(String.raw`\cabeceraIzquierdaTexto{Cabecera propia \& prueba}`)));
+      }
+      if (requests >= 15 && requests < 20) {
+        assert.ok(tar.includes(Buffer.from('\\indiceGeneral{')));
+        if (requests === 17) {
+          assert.ok(tar.includes(Buffer.from('\\numerarHasta{secciones}')));
+          assert.ok(tar.includes(Buffer.from('\\indiceHasta{subsecciones}')));
+        }
+        if (requests === 19) assert.ok(tar.includes(Buffer.from('Prueba de índices vacíos')));
+      }
+      idiomas.push(/^\\idioma\{(espanol|ingles)\}/m.exec(tar.toString())?.[1]);
       requests++;
       res.setHeader('content-type', 'application/json');
       res.end(JSON.stringify({ ...good, diagnostics: warnings ? [{ severity: 'warning', message: 'Aviso ficticio' }] : [] }));
@@ -62,8 +90,11 @@ for (const warnings of [false, true]) {
     const options = { outputDir: dir, workerUrl: `http://127.0.0.1:${server.address().port}` };
     if (warnings) await assert.rejects(compileTemplates(options), /se exigen 0/);
     else await compileTemplates(options);
-    assert.equal(requests, 2);
-    for (const perfil of ['esi-uclm', 'generico']) {
+    assert.equal(requests, 23);
+    assert.deepEqual(idiomas, ['espanol', 'ingles', 'espanol', 'ingles', ...Array(19).fill('espanol')]);
+    for (const perfil of ['esi-uclm', 'esi-uclm-ingles', 'generico', 'generico-ingles', ...['times', 'latinmodern', 'palatino', 'heros', 'schola', 'bonum', 'adventor'].map((font) => 'generico-fuente-' + font),
+      ...['romanos', 'continua'].flatMap((n) => ['si', 'no'].map((r) => `generico-paginas-${n}-reflejo-${r}`)),
+      ...['capitulos', 'secciones', 'subsecciones', 'sin-indices', 'vacios'].map((i) => 'generico-indices-' + i), ...['a5','personalizado','fuentes-propias'].map(s => 'generico-estilo-' + s)]) {
       const result = JSON.parse(await fs.readFile(path.join(dir, `resultado-${perfil}.json`), 'utf8'));
       assert.equal(result.ok, true);
       assert.equal(result.diagnostics.length, warnings ? 1 : 0);

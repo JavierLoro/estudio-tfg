@@ -59,7 +59,7 @@ Las acciones del asistente preparan el mensaje y adjuntan su contexto; conserva 
 borrador anterior y no consulta nada hasta que pulses **Enviar**. La selección aún
 requiere autorizar el archivo completo, tal como indica el diálogo de permisos.
 
-En diagramas, el clic derecho sobre un bloque ofrece sus propiedades, texto,
+En diagramas Mermaid, el clic derecho sobre un bloque ofrece sus propiedades, texto,
 conexión y borrado recuperable; una conexión ofrece etiqueta y borrado, y el fondo
 permite añadir elementos. Usa Mayús+F10 con un elemento seleccionado para el mismo
 menú. Las acciones del asistente indican qué bloque o conexión quieres consultar
@@ -162,7 +162,9 @@ Antes de enviar un chat o generar un diagrama, revisa el **Contexto efectivo ant
 
 ## Diagramas con asistente
 
-En Nuevo diagrama elige **Con asistente**, nombre, uno de los quince tipos y descripción. Concede su permiso propio en Ajustes y elige un modelo disponible. **Generar propuesta** conserva código, explicación y supuestos, sin crear archivos. Puedes recuperar propuestas, detener la generación, corregir el código o pedir otra expresamente. **Crear diagrama** solo se habilita cuando la propuesta se dibuja correctamente con el renderer existente. Nunca sobrescribe un nombre ocupado. La exportación y la inserción en Memoria se realizan después; no se ofrece edición asistida de diagramas existentes.
+En Nuevo diagrama elige **Mermaid → Con asistente**, nombre, uno de los quince tipos y descripción. Concede su permiso propio en Ajustes y elige un modelo disponible. **Generar propuesta** conserva código, explicación y supuestos, sin crear archivos. Puedes recuperar propuestas, detener la generación, corregir el código o pedir otra expresamente. **Crear diagrama** solo se habilita cuando la propuesta se dibuja correctamente con el renderer existente. Nunca sobrescribe un nombre ocupado. La exportación y la inserción en Memoria se realizan después; no se ofrece edición asistida de diagramas existentes.
+
+Excalidraw permite creación y edición local con sus propias plantillas. Esta entrega no añade generación, consulta ni modificación de escenas `.excalidraw` mediante el asistente; sus fuentes no se incluyen en ese alcance por elegir el editor.
 
 ## Descubrir fuentes públicas
 
@@ -173,3 +175,22 @@ Solo la necesidad y filtros visibles llegan a los buscadores; nunca los document
 La bandeja es independiente de Biblioteca. Permite detener, retomar consultas y reintentar partes fallidas; no incorpora ni descarga al cerrar. Guarda solo después de revisar datos y duplicados. Consulta los límites y la recuperación en la guía de Biblioteca.
 
 Validación automatizada de estos bloques: OAuth/proveedores ficticios, privacidad de contexto, límites, conflictos, persistencia, parciales, recibos y recorridos de navegador/Electron. La búsqueda web real depende de la cuenta/modelo: **queda pendiente el ensayo final con una cuenta conectada en un perfil aislado** (Rápida, Ampliada, contexto seleccionado y un diagrama). No se han copiado credenciales de la app personal ni consumido su suscripción para estos tests.
+
+
+## Crear una plantilla desde normativa
+
+En escritorio, abre Ajustes → Plantillas → **Crear desde normativa…**. Arrastra un PDF, TXT o Markdown (hasta 20 MiB) o pulsa **Adjuntar normativa…**. Conecta tu cuenta y pulsa **Generar plantilla con ChatGPT** para enviar ese archivo y adaptar una copia de la plantilla base. La app elige el modelo y resuelve las ambigüedades; no hay un cuestionario de formato.
+
+La subida y generación muestran estado, animación y tiempo transcurrido. **Detener análisis** cancela la consulta. Al terminar verás la plantilla preparada y los **Supuestos a revisar**: puedes descartarlos individualmente. **Ajustes aplicados** permite consultar valores y citas. Los avisos no bloquean el guardado ni certifican cumplimiento.
+
+Escribe lo que quieras cambiar en **Qué quieres corregir** y pulsa **Aplicar corrección**. La app conserva el resto de ajustes y vuelve a generar la adaptación. Descartar avisos o escribir no consulta al asistente; generar o aplicar una corrección sí utiliza tu plan de ChatGPT.
+
+**Guardar y abrir…** crea la plantilla adaptada en una carpeta nueva y abre sus fuentes, conservando la memoria anterior. Puedes ajustar los datos y el formato después desde Documento. **Análisis anteriores** recupera adaptaciones guardadas y **Nueva normativa** permite empezar otra. Cambiar de cuenta o proyecto cancela lo pendiente; hay hasta veinte adaptaciones guardadas y cinco generaciones/correcciones por adaptación. Una operación interrumpida exige revisar la carpeta de destino antes de repetirla.
+
+Las pruebas automatizadas usan proveedores y documentos ficticios y compilación real. El 27-10-2026 se completó el flujo real en Electron con la guía pública ESI y una cuenta conectada: generación con gpt-6-luna, comparación de PDF, corrección libre, descarte de un aviso revisado, aplicación, creación en una carpeta nueva y compilación con cero diagnósticos. Se usaron tres consultas: el primer intento detectó una incompatibilidad del esquema de portadas, corregida antes de repetir; la tercera aplicó la corrección. La memoria original permaneció intacta y los datos de ejemplo de las vistas previas no se copiaron a la plantilla. Se descartó por incorrecto un aviso sobre el orden Resumen/Abstract, que ya es automático; se aclaró esa capacidad en el contexto del modelo. Los avisos siguen requiriendo revisión humana y no certifican cumplimiento.
+
+### Comparar y reutilizar el estilo
+
+Después de generar o corregir, pulsa **Comparar PDF**. Actual y Propuesta utilizan el mismo contenido ficticio. **Aplicar propuesta** habilita **Guardar y abrir…**; un error de compilación conserva la memoria y bloquea la aplicación. **Descartar propuesta** recupera la referencia. Los ajustes manuales de Documento siguen guardándose directamente.
+
+En Ajustes → Plantillas, **Guardar como plantilla…** conserva el estilo y una estructura vacía. Puedes usarla como punto de partida manual o como referencia de la normativa y exportarla a ZIP. Los textos propios y los datos personales se eliminan al guardarla. Documento permite importar fuentes TTF/OTF y elegirlas para texto, títulos o código; una familia incompleta muestra qué variantes faltan y utiliza sus archivos reales.
